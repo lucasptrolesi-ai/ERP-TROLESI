@@ -1,5 +1,13 @@
-import { EmConstrucao } from "@/components/em-construcao";
+import { createClient } from "@/lib/supabase/server";
+import { PedidosView } from "./pedidos-view";
 
-export default function PedidosPage() {
-  return <EmConstrucao titulo="Pedidos" />;
+export default async function PedidosPage() {
+  const supabase = await createClient();
+  const { data: clientes } = await supabase
+    .from("clientes")
+    .select("*")
+    .eq("ativo", true)
+    .order("nome");
+
+  return <PedidosView clientes={clientes ?? []} />;
 }

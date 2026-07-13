@@ -12,7 +12,7 @@ const ITENS = [
   { href: "/fiscal", label: "Fiscal / NF-e", icone: "🧾" },
 ];
 
-export function SidebarNav() {
+export function SidebarNav({ onNavegar }: { onNavegar?: () => void }) {
   const pathname = usePathname();
 
   return (
@@ -23,6 +23,7 @@ export function SidebarNav() {
           <Link
             key={item.href}
             href={item.href}
+            onClick={onNavegar}
             className={`flex items-center gap-2.5 rounded-[10px] px-3.5 py-2.5 text-sm font-medium ${
               ativo
                 ? "bg-gradient-to-br from-rose to-rose-deep text-white shadow-md"

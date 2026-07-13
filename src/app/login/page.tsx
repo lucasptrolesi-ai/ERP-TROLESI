@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import { BrandBadge } from "@/components/brand-badge";
+import { FormField } from "@/components/form-field";
 import { login } from "./actions";
 
 export default function LoginPage() {
@@ -19,33 +20,14 @@ export default function LoginPage() {
         </div>
 
         <form action={formAction} className="flex flex-col gap-4">
-          <div className="flex flex-col gap-1.5">
-            <label htmlFor="email" className="text-xs font-semibold uppercase tracking-wide text-text-soft">
-              E-mail
-            </label>
-            <input
-              id="email"
-              name="email"
-              type="email"
-              required
-              autoComplete="email"
-              className="rounded-lg border border-line bg-cream px-3 py-2 text-sm text-ink outline-none focus:border-rose focus:ring-2 focus:ring-rose-soft"
-            />
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <label htmlFor="password" className="text-xs font-semibold uppercase tracking-wide text-text-soft">
-              Senha
-            </label>
-            <input
-              id="password"
-              name="password"
-              type="password"
-              required
-              autoComplete="current-password"
-              className="rounded-lg border border-line bg-cream px-3 py-2 text-sm text-ink outline-none focus:border-rose focus:ring-2 focus:ring-rose-soft"
-            />
-          </div>
+          <FormField label="E-mail" name="email" type="email" required autoComplete="email" />
+          <FormField
+            label="Senha"
+            name="password"
+            type="password"
+            required
+            autoComplete="current-password"
+          />
 
           {error && (
             <p role="alert" className="rounded-lg bg-crit-bg px-3 py-2 text-sm font-medium text-crit">
