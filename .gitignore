@@ -1,0 +1,6 @@
+*.FDB
+migracao-dados/export_csv/
+.env*
+node_modules/
+supabase/.temp/
+supabase/.branches/
