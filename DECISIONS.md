@@ -2,6 +2,14 @@
 
 Histórico de decisões de escopo e arquitetura, na ordem em que foram tomadas. Decisões revistas ficam marcadas como tal, não apagadas.
 
+## 2026-07-13 — Fase 4: Cadastros completo, com exceção deliberada à ordem dos módulos
+
+- **Cliente ganhou ficha completa da Receita Federal** (razão social, nome fantasia, situação cadastral, data de abertura, natureza jurídica, porte, atividade principal), a pedido explícito do usuário ("preciso que apareça todas as informações do CNPJ na ficha cadastral"). Nem todos esses campos aparecem em telas além do formulário de edição hoje — aceito conscientemente, não é esquecimento; revisar se algum se mostrar inútil na prática.
+- **Nome do cliente usa razão social, não nome fantasia**, quando vem de busca automática — o usuário corrigiu isso depois de ver "SOLMI JOIAS" (nome fantasia) em vez de "JOSE LIBERIO DA SILVA" (razão social, o nome legal correto).
+- **Busca de CNPJ com duas fontes (BrasilAPI + ReceitaWS)**, não uma só. Motivo: a BrasilAPI sozinha não encontrou um CNPJ de MEI aberto há ~1 mês (roda sobre um dump periódico da Receita, não dado ao vivo); a ReceitaWS tinha o dado. ReceitaWS entra só como fallback (tem limite de taxa mais apertado), nunca como fonte primária.
+- **Exceção deliberada à regra "um módulo por vez":** a tela de Pedidos (`src/app/(app)/pedidos/`) ganhou uma fatia mínima — busca de cliente + cadastro rápido, reaproveitando o `ClienteForm` de Cadastros — antes do módulo de Estoque, que é o próximo na ordem do plano. Isso foi um pedido explícito do usuário ("preciso que tenha também um cadastro rápido de cliente na página de pedidos... que tecnicamente é meu PDV"), não uma decisão unilateral de pular a ordem. Nenhuma lógica de venda de verdade (produtos, carrinho, pagamento) foi implementada — a tela deixa isso explícito pro usuário. O código-review sinalizou isso como um desvio da regra do CLAUDE.md; mantido por ser exceção pontual e consciente, não um padrão a repetir.
+- **Excluir (hard delete) além de desativar:** a pedido do usuário, além do soft-delete (`ativo=false`) já existente, `clientes`/`fornecedores` agora podem ser excluídos de verdade. Como as duas tabelas têm FKs com `ON DELETE RESTRICT` vindas de `pedidos`/`contas_receber`/`contas_pagar`/`notas_fiscais` (Fase 2), a exclusão tenta primeiro e, se o banco recusar (código Postgres 23503), mostra uma mensagem pedindo pra desativar em vez de excluir — não uma checagem prévia manual.
+
 ## 2026-07-11 — Escopo inicial
 
 - **Módulos do MVP:** Cadastros, Estoque + Produtos, Vendas/Pedidos + Consignação, Financeiro. *(Consignação revista em 2026-07-12, ver abaixo.)*

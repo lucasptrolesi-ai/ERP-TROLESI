@@ -10,7 +10,7 @@ _Atualizado em 2026-07-13._
 | 1 — Mockup das telas principais | ✅ Gate técnico fechado | Estrutura aprovada; alinhamento com telas do toqMax fica como refinamento não-bloqueante (aguardando prints) |
 | 2 — Schema Supabase + Auth/RBAC + RLS | ✅ Concluída | Projeto real `trolesi-erp` (São Paulo, sa-east-1) criado pelo usuário. 7 migrations aplicadas com sucesso — 10 tabelas, RLS ativo em todas, 20 políticas. Verificado em 2026-07-13 |
 | 3 — Scaffold Next.js + layout + login | ✅ Concluída | Next.js 16 + Tailwind v4 + Supabase Auth. Build/lint limpos, code-review (8 ângulos) aplicado. Ver detalhes abaixo |
-| 4 — Implementação módulo a módulo | ⏳ Não iniciada | **Próxima tarefa.** Ordem: Cadastros → Estoque → Pedidos → Financeiro → Fiscal |
+| 4 — Implementação módulo a módulo | 🔶 Em andamento | Cadastros concluído. **Próxima:** Estoque. Ordem: Cadastros → Estoque → Pedidos → Financeiro → Fiscal |
 | 5 — Importação dos dados reais | ⏳ Não iniciada | Depende da Fase 3/4 e de um projeto Supabase real |
 | 6 — Conferência fiscal (XML vs. GMax) | ⏳ Não iniciada | |
 | 7 — Deploy + liberação da emissão fiscal real | ⏳ Não iniciada | Requer autorização explícita |
@@ -73,10 +73,19 @@ Achados registrados mas **não corrigidos agora** (custo/benefício não compens
 - Login testado de ponta a ponta no dev server local: redirecionamento funcionando, sessão autenticada, papel "Admin" exibido corretamente.
 - Durante o teste, a mensagem de erro genérica de login (decisão de segurança da Fase 3) escondeu a causa real de uma falha (`invalid_credentials`) — adicionado `console.error` só no servidor para diagnosticar sem expor detalhes ao usuário final. Mantido permanentemente (ver `src/app/login/actions.ts`).
 
+## Fase 4 — Cadastros (concluído, 2026-07-13)
+
+- CRUD completo de **clientes** e **fornecedores**: criar, editar, ativar/desativar (soft-delete), excluir de verdade (com mensagem amigável quando há pedidos/contas vinculados via FK — RESTRICT do banco, não um bug).
+- Cliente ganhou: endereço completo (rua, bairro, CEP), data de nascimento, e-mail, e um bloco "Dados da Receita Federal" (razão social, nome fantasia, situação cadastral, data de abertura, natureza jurídica, porte, atividade principal) — duas migrations novas (`20260713000008`, `20260713000009`), já aplicadas no projeto real.
+- **Busca automática por CNPJ**: botão "Buscar CNPJ" preenche o formulário inteiro. Usa BrasilAPI como fonte primária, com fallback pra ReceitaWS quando a primeira não encontra ou falha (cobre CNPJ de MEI aberto há pouco tempo, que a BrasilAPI ainda não indexou — problema real encontrado e corrigido durante o teste). Nenhuma chave de API necessária, as duas são públicas.
+- Layout inteiro **responsivo**: sidebar vira menu-gaveta em telas mobile (`src/components/app-shell.tsx`).
+- **Exceção deliberada à regra de "um módulo por vez":** a tela de Pedidos ganhou uma fatia mínima (busca + cadastro rápido de cliente, reaproveitando o mesmo formulário de Cadastros) a pedido explícito do usuário, antes do módulo de Estoque. Nenhuma lógica de venda/carrinho/produto foi implementada — isso continua esperando o módulo de Estoque. Registrado em `DECISIONS.md`.
+- Code-review de 8 ângulos aplicado; achados reais corrigidos: fallback de CNPJ não tentava a 2ª fonte quando a 1ª travava (só quando "não encontrava"), duas ações não invalidavam o cache da tela de Pedidos, aba "Funcionários" quebrava silenciosamente pra quem não é admin (RLS só libera o próprio perfil), duas funções duplicadas extraídas pra `src/lib/filtra.ts` e `src/lib/preencher-form.ts`.
+
 ## Pendências reais
 
-- **Prints do toqMax** ainda não recebidos — não bloqueia a Fase 4, mas o fluxo de "Novo Pedido" pode ganhar ajustes finos quando chegarem.
+- **Prints do toqMax** ainda não recebidos — não bloqueia a Fase 4/5, mas o fluxo de venda completo (quando o módulo de Pedidos for feito de verdade) pode ganhar ajustes finos quando chegarem.
 
 ## Próxima tarefa
 
-**Fase 4 — Cadastros** (primeiro módulo, sozinho — não implementar os outros 4 juntos): CRUD de clientes e fornecedores sobre as tabelas já criadas na Fase 2, respeitando a RLS existente. Login já verificado — pode começar direto.
+**Fase 4 — Estoque** (próximo módulo): cadastro de produtos, controle de quantidade, categoria/subcategoria — inclui decidir como unificar os 791 itens do catálogo de fotos (projeto da landing page) com o cadastro real de estoque, conforme já decidido em `DECISIONS.md` (2026-07-13, "Unificação do catálogo de produtos").
