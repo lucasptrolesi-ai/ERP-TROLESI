@@ -1,5 +1,11 @@
 # CHANGELOG — ERP Trolesi
 
+## 2026-07-13 (cont. 4)
+
+- Primeiro usuário admin criado (`lucasptrolesi@gmail.com`) e promovido via SQL Editor do dashboard.
+- Login testado de ponta a ponta no dev server local — funcionando.
+- Adicionado `console.error` server-side em `src/app/login/actions.ts` para diagnosticar falhas de login sem expor a causa real ao usuário (mensagem pro usuário continua genérica, por segurança).
+
 ## 2026-07-13 (cont. 3)
 
 - Fase 3 concluída: scaffold Next.js 16 + Tailwind v4 + Supabase Auth (`@supabase/ssr`), com `src/proxy.ts` protegendo rotas, layout autenticado com a sidebar do mockup, tela de login, e páginas placeholder para os 5 módulos da Fase 4.

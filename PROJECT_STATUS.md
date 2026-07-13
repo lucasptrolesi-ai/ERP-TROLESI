@@ -67,11 +67,16 @@ Achados reais corrigidos:
 
 Achados registrados mas **não corrigidos agora** (custo/benefício não compensa para 4 papéis fixos e escopo da Fase 3): tipagem gerada do Supabase para `papel_usuario` (evitaria drift silencioso se o enum mudar), mensagem de erro genérica no login (decisão de segurança deliberada, não bug).
 
-## Bloqueios / pendências reais
+## Primeiro usuário criado e login verificado (2026-07-13)
 
-- **Nenhum usuário existe ainda no projeto.** O primeiro cadastro precisa ser feito via Supabase Dashboard (Authentication → Add User) — não há tela pública de auto-cadastro (decisão deliberada para uma ferramenta interna de 6 pessoas) — e depois promovido a `admin` manualmente via SQL.
+- Usuário admin: `lucasptrolesi@gmail.com`, promovido via SQL Editor do dashboard (`update public.profiles set papel = 'admin' where id = ...`).
+- Login testado de ponta a ponta no dev server local: redirecionamento funcionando, sessão autenticada, papel "Admin" exibido corretamente.
+- Durante o teste, a mensagem de erro genérica de login (decisão de segurança da Fase 3) escondeu a causa real de uma falha (`invalid_credentials`) — adicionado `console.error` só no servidor para diagnosticar sem expor detalhes ao usuário final. Mantido permanentemente (ver `src/app/login/actions.ts`).
+
+## Pendências reais
+
 - **Prints do toqMax** ainda não recebidos — não bloqueia a Fase 4, mas o fluxo de "Novo Pedido" pode ganhar ajustes finos quando chegarem.
 
 ## Próxima tarefa
 
-**Fase 4 — Cadastros** (primeiro módulo, sozinho — não implementar os outros 4 juntos): CRUD de clientes e fornecedores sobre as tabelas já criadas na Fase 2, respeitando a RLS existente. Antes de começar: criar o primeiro usuário admin (ver bloqueio acima) para poder testar o fluxo autenticado de ponta a ponta.
+**Fase 4 — Cadastros** (primeiro módulo, sozinho — não implementar os outros 4 juntos): CRUD de clientes e fornecedores sobre as tabelas já criadas na Fase 2, respeitando a RLS existente. Login já verificado — pode começar direto.
