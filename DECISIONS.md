@@ -31,6 +31,13 @@ Histórico de decisões de escopo e arquitetura, na ordem em que foram tomadas. 
 - **Motivo:** o usuário confirmou que quer controle de estoque de verdade sobre o catálogo completo, não um catálogo visual separado do estoque formal.
 - **Impacto:** a Fase 5 (importação) precisa cruzar `PRODUTO`/`PRODUTO_EMPRESA`/`TABELA_PRECO_PRODUTO` do GMax com `catalog-manifest.json` da landing page — mapeamento ainda não desenhado em detalhe, fica para quando a Fase 5 começar.
 
+## 2026-07-13 — Fase 2 aplicada no projeto real
+
+- Usuário criou o projeto `trolesi-erp` manualmente pelo dashboard (decisão de segurança: ele não compartilhou um token de acesso da conta, só as credenciais desse projeto específico).
+- **Achado técnico:** a conexão direta do Postgres (`db.<ref>.supabase.co`) é IPv6-only por padrão em projetos novos do Supabase; o ambiente de execução só tem saída IPv4. Solução sem custo: usar o **Session Pooler** (`aws-1-sa-east-1.pooler.supabase.com`, porta 5432, usuário `postgres.<ref>`), que já é IPv4 por padrão — não precisou do complemento pago de "Endereço IPv4 dedicado" ($4/mês).
+- A senha do banco foi compartilhada em texto no chat para viabilizar a aplicação das migrations — recomendado ao usuário resetá-la depois, já registrado em `PROJECT_STATUS.md`.
+- 7 migrations aplicadas com sucesso; 10 tabelas, RLS em todas, 20 políticas — verificado por query direta ao catálogo do Postgres (`pg_class`, `pg_policies`), não só pela ausência de erro.
+
 ## 2026-07-13 — Fase 2 preparada sem provisionar Supabase real
 
 - **Decisão:** as migrations SQL (schema completo + RLS) foram escritas e versionadas, mas **nenhum projeto Supabase foi criado**.

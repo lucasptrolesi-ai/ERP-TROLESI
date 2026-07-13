@@ -1,5 +1,12 @@
 # CHANGELOG — ERP Trolesi
 
+## 2026-07-13 (cont. 2)
+
+- Projeto Supabase real `trolesi-erp` criado pelo usuário (São Paulo, sa-east-1).
+- As 7 migrations aplicadas com sucesso via pooler de sessão (`aws-1-sa-east-1.pooler.supabase.com`) — conexão direta é IPv6-only e não alcançável do ambiente local, exigiu descobrir o host correto do pooler.
+- Verificado: 10 tabelas criadas, RLS ativo em 100% delas, 20 políticas no total.
+- Fase 2 concluída.
+
 ## 2026-07-13 (cont.)
 
 - `git init` + primeiro commit (16 arquivos). Sem remoto configurado.
