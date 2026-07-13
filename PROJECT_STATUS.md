@@ -15,6 +15,10 @@ _Atualizado em 2026-07-13._
 | 6 — Conferência fiscal (XML vs. GMax) | ⏳ Não iniciada | |
 | 7 — Deploy + liberação da emissão fiscal real | ⏳ Não iniciada | Requer autorização explícita |
 
+## Controle de versão
+
+Repositório git inicializado em 2026-07-13 (`erp-trolesi-novo/.git`), primeiro commit feito com toda a estrutura atual (docs, mockup, migrations, `table_counts.json`). Nenhum remoto configurado ainda — só local.
+
 ## O que existe hoje no repositório
 
 ```
@@ -37,13 +41,12 @@ erp-trolesi-novo/
 
 ## Bloqueios / pendências reais
 
-- **Nenhum projeto Supabase existe ainda.** As migrations estão prontas mas não têm onde rodar — precisa da conta/criação do projeto pelo usuário antes da Fase 3.
+- **Nenhum projeto Supabase existe ainda.** As migrations estão prontas mas não têm onde rodar. Criar o projeto exige login na conta Supabase do usuário — passo que só ele pode fazer (instruções dadas em 2026-07-13). Aguardando Project URL + anon key.
 - **Prints do toqMax** ainda não recebidos — não bloqueia a Fase 2/3, mas o fluxo de "Novo Pedido" pode ganhar ajustes finos quando chegarem.
-- **Sem `git init` ainda** — o diretório não é um repositório git. A skill `code-review` (gate obrigatório antes de qualquer módulo "pronto") depende de diff de git; isso precisa existir antes ou durante a Fase 3.
 
 ## Próxima tarefa
 
-**Fase 3 — Scaffold Next.js.** Precisa, antes de codar:
-1. Confirmar com o usuário se cria um projeto Supabase novo (recomendado, dado que é dado sensível de negócio, separado do projeto da landing page) ou reaproveita algum existente.
-2. `git init` no diretório do projeto (ainda não é repositório git).
-3. Scaffold Next.js 14 App Router + TypeScript + Tailwind, layout base com a sidebar do mockup, e tela de login via Supabase Auth.
+**Fase 3 — Scaffold Next.js**, assim que o Project URL + anon key do Supabase chegarem:
+1. Aplicar as 7 migrations no projeto real (`supabase link` + `supabase db push`).
+2. Scaffold Next.js 14 App Router + TypeScript + Tailwind, layout base com a sidebar do mockup, e tela de login via Supabase Auth.
+3. Primeiro usuário precisa ser promovido a `admin` manualmente (o trigger cria todo novo usuário como `vendedor` por padrão de segurança) — via SQL direto no dashboard do Supabase.
