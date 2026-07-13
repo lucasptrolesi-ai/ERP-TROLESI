@@ -31,6 +31,12 @@ Histórico de decisões de escopo e arquitetura, na ordem em que foram tomadas. 
 - **Motivo:** o usuário confirmou que quer controle de estoque de verdade sobre o catálogo completo, não um catálogo visual separado do estoque formal.
 - **Impacto:** a Fase 5 (importação) precisa cruzar `PRODUTO`/`PRODUTO_EMPRESA`/`TABELA_PRECO_PRODUTO` do GMax com `catalog-manifest.json` da landing page — mapeamento ainda não desenhado em detalhe, fica para quando a Fase 5 começar.
 
+## 2026-07-13 — Fase 3: Next.js 16 e sem tela de auto-cadastro
+
+- **Next.js 16** foi usado (não 14 como o plano original mencionava) porque é o que `create-next-app@latest` instalou — o pacote inclui um aviso próprio ("This is NOT the Next.js you know") por causa de breaking changes reais: `cookies()` assíncrono e o arquivo `middleware.ts` renomeado para `proxy.ts`. Ambos aplicados corretamente, verificados contra a documentação embutida em `node_modules/next/dist/docs/` antes de escrever o código, não por suposição.
+- **Sem tela pública de auto-cadastro.** Only login foi implementado — o primeiro usuário e os demais (só 6 no total, por decisão já registrada) são criados manualmente pelo admin via Supabase Dashboard. Motivo: ferramenta interna, uma tela de signup público seria superfície de ataque desnecessária para o tamanho da equipe.
+- **Papéis mapeados como string literal (`Record<string, string>`), não com tipos gerados do Supabase.** Decisão consciente de não rodar `supabase gen types` nesta fase — com 4 papéis fixos e estáveis, o custo de manter geração de tipos não compensa ainda; registrado como possível melhoria futura, não esquecido por omissão.
+
 ## 2026-07-13 — Fase 2 aplicada no projeto real
 
 - Usuário criou o projeto `trolesi-erp` manualmente pelo dashboard (decisão de segurança: ele não compartilhou um token de acesso da conta, só as credenciais desse projeto específico).

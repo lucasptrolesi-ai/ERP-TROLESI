@@ -14,7 +14,9 @@ Substituição enxuta do GMax/Sincron (ERP atual da Trolesi Joias, Firebird 2.5)
 
 ## Stack
 
-- Next.js 14+ App Router + TypeScript + Tailwind (frontend — ainda não scaffolded, é a Fase 3)
+- Next.js 16 App Router (Turbopack) + TypeScript + Tailwind v4. **Atenção:** esta versão renomeou `middleware.ts` para `proxy.ts` (função exportada `proxy`, não `middleware`) e `cookies()`/`params`/`searchParams` são assíncronos — não assuma convenções de Next 13/14 sem checar `node_modules/next/dist/docs/` primeiro.
+- Auth: `@supabase/ssr` (`createBrowserClient`/`createServerClient`), sessão validada com `getUser()` (nunca confiar só em `getSession()`). Usuário+perfil atual: sempre usar `getPerfilAtual()` de `src/lib/supabase/auth.ts` (cache por request), não duplicar a busca em cada página.
+- Sem tela pública de auto-cadastro — usuários são criados manualmente pelo admin via Supabase Dashboard.
 - Supabase: Postgres + Auth + Storage + RLS (schema em `supabase/migrations/`, ver `supabase/README.md`)
 - Vercel (hospedagem, quando autorizado)
 - Provedor de NF-e: Focus NFe (integração via API, sem reimplementar o motor fiscal)
