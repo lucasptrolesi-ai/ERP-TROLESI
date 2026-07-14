@@ -6,6 +6,7 @@ import { FornecedorForm } from "@/components/fornecedor-form";
 import { alternarAtivoCliente } from "@/lib/actions/clientes";
 import { alternarAtivoFornecedor } from "@/lib/actions/fornecedores";
 import { filtra } from "@/lib/filtra";
+import * as permissoes from "@/lib/permissoes";
 import type { Cliente, Fornecedor, Funcionario } from "@/lib/types";
 
 const PAPEL_LABEL: Record<string, string> = {
@@ -39,8 +40,8 @@ export function CadastrosView({
   const [clienteEditando, setClienteEditando] = useState<Cliente | null | undefined>(undefined);
   const [fornecedorEditando, setFornecedorEditando] = useState<Fornecedor | null | undefined>(undefined);
 
-  const podeEditarClientes = papelAtual === "admin" || papelAtual === "vendedor";
-  const podeEditarFornecedores = papelAtual === "admin" || papelAtual === "financeiro";
+  const podeEditarClientes = permissoes.podeEditarClientes(papelAtual);
+  const podeEditarFornecedores = permissoes.podeEditarFornecedores(papelAtual);
 
   const clientesFiltrados = useMemo(
     () => filtra(clientes, busca, (c) => `${c.telefone ?? ""} ${c.cidade ?? ""} ${c.cpf_cnpj ?? ""}`),

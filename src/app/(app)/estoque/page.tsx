@@ -1,5 +1,11 @@
-import { EmConstrucao } from "@/components/em-construcao";
+import { createClient } from "@/lib/supabase/server";
+import { getPerfilAtual } from "@/lib/supabase/auth";
+import { EstoqueView } from "./estoque-view";
 
-export default function EstoquePage() {
-  return <EmConstrucao titulo="Produtos & Estoque" />;
+export default async function EstoquePage() {
+  const perfil = await getPerfilAtual();
+  const supabase = await createClient();
+  const { data: produtos } = await supabase.from("produtos").select("*").order("nome");
+
+  return <EstoqueView papelAtual={perfil.papel} produtos={produtos ?? []} />;
 }

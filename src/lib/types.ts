@@ -36,3 +36,19 @@ export type Funcionario = {
   papel: string;
   ativo: boolean;
 };
+
+export type Produto = {
+  id: string;
+  nome: string;
+  categoria: string;
+  subcategoria: string | null;
+  subsubcategoria: string | null;
+  foto_url: string | null;
+  codigo_interno: string | null;
+  codigo_peca: number;
+  multiplicador: number;
+  preco: number;
+  quantidade_estoque: number;
+  estoque_minimo: number;
+  ativo: boolean;
+};

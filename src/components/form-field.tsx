@@ -6,14 +6,24 @@ export function FormField({
   required,
   maxLength,
   autoComplete,
+  min,
+  max,
+  step,
+  list,
+  onChange,
 }: {
   label: string;
   name: string;
-  defaultValue?: string | null;
+  defaultValue?: string | number | null;
   type?: string;
   required?: boolean;
   maxLength?: number;
   autoComplete?: string;
+  min?: number | string;
+  max?: number | string;
+  step?: number | string;
+  list?: string;
+  onChange?: React.ChangeEventHandler<HTMLInputElement>;
 }) {
   return (
     <div className="flex flex-col gap-1.5">
@@ -28,6 +38,11 @@ export function FormField({
         required={required}
         maxLength={maxLength}
         autoComplete={autoComplete}
+        min={min}
+        max={max}
+        step={step}
+        list={list}
+        onChange={onChange}
         className="rounded-lg border border-line bg-cream px-3 py-2 text-sm text-ink outline-none focus:border-rose focus:ring-2 focus:ring-rose-soft"
       />
     </div>
