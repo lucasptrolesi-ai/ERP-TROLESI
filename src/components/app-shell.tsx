@@ -19,7 +19,7 @@ export function AppShell({
   const [menuAberto, setMenuAberto] = useState(false);
 
   return (
-    <div className="min-h-screen md:grid md:grid-cols-[246px_1fr]">
+    <div className="min-h-screen print:block md:grid md:grid-cols-[246px_1fr] print:md:grid-cols-1">
       {menuAberto && (
         <button
           aria-label="Fechar menu"
@@ -29,7 +29,7 @@ export function AppShell({
       )}
 
       <aside
-        className={`fixed inset-y-0 left-0 z-40 flex w-64 flex-col gap-7 bg-sidebar p-[1.1rem] text-sidebar-text transition-transform duration-200 md:static md:z-auto md:w-auto md:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-40 flex w-64 flex-col gap-7 bg-sidebar p-[1.1rem] text-sidebar-text transition-transform duration-200 print:hidden md:static md:z-auto md:w-auto md:translate-x-0 ${
           menuAberto ? "translate-x-0" : "-translate-x-full"
         }`}
       >
@@ -52,7 +52,7 @@ export function AppShell({
       </aside>
 
       <div className="flex min-w-0 flex-col">
-        <header className="flex items-center justify-between gap-3 border-b border-line bg-surface px-4 py-3 md:justify-end md:px-8 md:py-4">
+        <header className="flex items-center justify-between gap-3 border-b border-line bg-surface px-4 py-3 print:hidden md:justify-end md:px-8 md:py-4">
           <button
             onClick={() => setMenuAberto(true)}
             aria-label="Abrir menu"
@@ -68,7 +68,7 @@ export function AppShell({
           </div>
         </header>
 
-        <main className="min-w-0 flex-1 p-4 md:p-8">{children}</main>
+        <main className="min-w-0 flex-1 p-4 print:p-0 md:p-8">{children}</main>
       </div>
     </div>
   );

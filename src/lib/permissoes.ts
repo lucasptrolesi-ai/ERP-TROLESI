@@ -13,3 +13,7 @@ export function podeEditarFornecedores(papel: string): boolean {
 export function podeEditarProdutos(papel: string): boolean {
   return papel === "admin" || papel === "estoque";
 }
+
+export function podeEditarPedidos(papel: string): boolean {
+  return papel === "admin" || papel === "vendedor";
+}

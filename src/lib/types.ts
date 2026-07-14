@@ -52,3 +52,46 @@ export type Produto = {
   estoque_minimo: number;
   ativo: boolean;
 };
+
+export type StatusPedido = "orcamento" | "pedido" | "faturado" | "cancelado";
+export type FormaPagamento = "dinheiro" | "pix" | "cartao_credito" | "promissoria";
+
+export type ItemCarrinho = {
+  produto_id: string;
+  nome: string;
+  quantidade: number;
+  codigo_peca: number;
+  multiplicador: number;
+  preco_unitario: number; // codigo_peca * multiplicador — editável via código, não digitado direto
+  estoqueDisponivel: number;
+};
+
+export type Parcela = {
+  valor: number;
+  vencimento: string; // "AAAA-MM-DD"
+};
+
+export type Pedido = {
+  id: string;
+  numero: number;
+  status: StatusPedido;
+  forma_pagamento: FormaPagamento | null;
+  subtotal: number;
+  valor_desconto: number;
+  percentual_desconto: number | null;
+  valor_acrescimo: number;
+  percentual_acrescimo: number | null;
+  numero_parcelas: number;
+  total: number;
+  criado_em: string;
+  clientes: { nome: string; cpf_cnpj: string | null; endereco: string | null; bairro: string | null; cidade: string | null; uf: string | null } | null;
+  pedido_itens: { quantidade: number; preco_unitario: number; produtos: { nome: string } | null }[];
+};
+
+export type ContaReceber = {
+  id: string;
+  valor: number;
+  vencimento: string;
+  numero_parcela: number | null;
+  total_parcelas: number | null;
+};
