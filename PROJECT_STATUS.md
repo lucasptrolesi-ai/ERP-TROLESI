@@ -1,6 +1,6 @@
 # PROJECT_STATUS — ERP Trolesi
 
-_Atualizado em 2026-07-13._
+_Atualizado em 2026-07-14._
 
 ## Estado por fase
 
@@ -10,7 +10,7 @@ _Atualizado em 2026-07-13._
 | 1 — Mockup das telas principais | ✅ Gate técnico fechado | Estrutura aprovada; alinhamento com telas do toqMax fica como refinamento não-bloqueante (aguardando prints) |
 | 2 — Schema Supabase + Auth/RBAC + RLS | ✅ Concluída | Projeto real `trolesi-erp` (São Paulo, sa-east-1) criado pelo usuário. 7 migrations aplicadas com sucesso — 10 tabelas, RLS ativo em todas, 20 políticas. Verificado em 2026-07-13 |
 | 3 — Scaffold Next.js + layout + login | ✅ Concluída | Next.js 16 + Tailwind v4 + Supabase Auth. Build/lint limpos, code-review (8 ângulos) aplicado. Ver detalhes abaixo |
-| 4 — Implementação módulo a módulo | 🔶 Em andamento | Cadastros e Estoque concluídos. **Próxima:** Pedidos (venda de verdade). Ordem: Cadastros → Estoque → Pedidos → Financeiro → Fiscal |
+| 4 — Implementação módulo a módulo | 🔶 Em andamento | Cadastros, Estoque e Pedidos concluídos. **Próxima:** Financeiro. Ordem: Cadastros → Estoque → Pedidos → Financeiro → Fiscal |
 | 5 — Importação dos dados reais | ⏳ Não iniciada | Depende da Fase 3/4 e de um projeto Supabase real |
 | 6 — Conferência fiscal (XML vs. GMax) | ⏳ Não iniciada | |
 | 7 — Deploy + liberação da emissão fiscal real | ⏳ Não iniciada | Requer autorização explícita |
@@ -91,11 +91,22 @@ Achados registrados mas **não corrigidos agora** (custo/benefício não compens
 - Code-review de 8 ângulos (3 grupos) aplicado; achados reais corrigidos: busca não incluía categoria apesar do placeholder prometer, `codigo_peca`/`multiplicador` sem limite de faixa (permitia negativo ou estourava o `numeric(4,2)` do banco), `multiplicador` explícito `0` sendo silenciosamente substituído por 2,8 (armadilha clássica do `||` com falsy), toggle de "ativo" inexistente na UI apesar da mensagem de erro de exclusão mandar desativar.
 - Três migrations novas (`20260713000010` rename custo→codigo_peca, `20260713000011` codigo_interno), já aplicadas no projeto real.
 
+## Fase 4 — Pedidos (concluído, 2026-07-14)
+
+- Tela de venda completa: busca/cadastro rápido de cliente, busca de produto com carrinho, quantidade limitada ao estoque disponível, e um campo "código da peça" editável por linha que recalcula o preço unitário na hora (código × multiplicador, ex.: 2,8) — útil quando o preço da peça mudou e a pessoa sabe o código de cabeça.
+- Desconto/acréscimo manuais (% ou R$, os dois sincronizados) — substituiu um desconto automático de 7% "à vista" que tinha sido implementado antes e foi rejeitado explicitamente pelo usuário.
+- 4 formas de pagamento: dinheiro, Pix, cartão de crédito (1-3x sem juros; 4-12x com um único campo "valor total já com o juros da maquininha", que funciona como simulador e divide em parcelas iguais só pra exibição) e promissória (até 4x, com data do 1º vencimento).
+- **Extornar pedido** (cancela, devolve estoque se já tinha sido faturado, apaga as contas a receber geradas) e **ajustar valor** (edita desconto/acréscimo de um pedido já criado) — os dois acessíveis clicando na linha do pedido na lista, num modal de detalhe.
+- Documentos imprimíveis: cupom térmico 80mm e notas promissórias em papel A4, reproduzindo o modelo físico real do TOQ Max (cabeçalho "República Federativa do Brasil", coluna de avalistas, número "nº-parcela/total", valor e data por extenso em português — `src/lib/extenso.ts`).
+- **Achado crítico de segurança no code-review** (ver `DECISIONS.md`): as functions `SECURITY DEFINER` (`criar_pedido`, `extornar_pedido`) tinham uma checagem de papel NULL-unsafe que deixava qualquer sessão, inclusive não-autenticada, chamá-las sem permissão nenhuma. Corrigido na migration `20260714000002` e validado com uma chamada HTTP real sem sessão (retornava sucesso antes, `400 Sem permissão` depois).
+- Code-review de 8 ângulos aplicado (2 rodadas); outros achados reais corrigidos: parcelas sendo geradas mesmo para status "orçamento", ausência de checagem servidor-side de que a soma das parcelas bate com o total do pedido, corrida entre extornar e ajustar (fechada com `for update`), drift de arredondamento na última parcela e juros do cartão não refletidos no total exibido na tela (achados durante o teste ao vivo do usuário, não pelo code-review).
+- Build e lint confirmados limpos.
+
 ## Pendências reais
 
-- **Prints do toqMax** ainda não recebidos — não bloqueia a Fase 4/5, mas o fluxo de venda completo (quando o módulo de Pedidos for feito de verdade) pode ganhar ajustes finos quando chegarem.
+- **Prints do toqMax** ainda não recebidos — não bloqueia a Fase 4/5, os documentos imprimíveis de Pedidos já saíram batendo com o modelo real que o usuário já tinha.
 - **Reset da senha do banco** ainda recomendado (ver seção "Dados do projeto Supabase real" acima) — venho reusando a mesma senha compartilhada no início da Fase 2 pra aplicar migrations novas; nenhum problema até agora, mas continua sendo boa prática resetar.
 
 ## Próxima tarefa
 
-**Fase 4 — Pedidos** (próximo módulo, agora de verdade): tela de venda completa — selecionar cliente, adicionar produtos do estoque com quantidade, calcular total, baixar estoque automaticamente (usando a tabela `movimentos_estoque` já criada na Fase 2), forma de pagamento. A fatia de "cadastro rápido de cliente" que já existe em `/pedidos` desde a Fase de Cadastros continua sendo reaproveitada.
+**Fase 4 — Financeiro**: contas a receber (já alimentadas por Pedidos via parcelas de cartão/promissória) e contas a pagar, com telas de listagem/baixa.

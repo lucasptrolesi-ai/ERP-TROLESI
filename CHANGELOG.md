@@ -1,5 +1,18 @@
 # CHANGELOG — ERP Trolesi
 
+## 2026-07-14 (cont.) — Fase 4: Pedidos
+
+- Módulo de Pedidos completo: venda com busca/cadastro rápido de cliente, carrinho de produtos limitado ao estoque, campo de "código da peça" editável por linha (recalcula preço = código × multiplicador na hora), desconto/acréscimo manuais (% ou R$), 4 formas de pagamento (dinheiro, Pix, cartão de crédito 1-12x, promissória até 4x).
+- Cartão 4-12x: campo único "valor total já com o juros da maquininha" funciona como simulador, dividindo em parcelas iguais (última parcela absorve o resto do arredondamento) só pra exibição — não parcela editável uma a uma.
+- Extornar pedido (cancela, devolve estoque se faturado, apaga contas a receber) e ajustar valor (reescreve desconto/acréscimo e recalcula total) acessíveis por um modal de detalhe, aberto clicando na linha do pedido na lista.
+- Cupom térmico 80mm e notas promissórias A4 imprimíveis, reproduzindo o modelo físico real do TOQ Max, com valor e data por extenso em português (`src/lib/extenso.ts`).
+- **Correção crítica de segurança:** `criar_pedido`/`extornar_pedido` (functions `SECURITY DEFINER`) tinham uma checagem de papel NULL-unsafe (`NULL NOT IN (...)` avalia `NULL`, `IF` trata como falso) que deixava qualquer sessão sem perfil — inclusive não-autenticada — chamá-las sem checagem nenhuma. Corrigido na migration `20260714000002` com um helper `assert_papel()` NULL-safe e revogação do `EXECUTE` público. Validado com uma chamada HTTP real sem sessão (sucesso antes → `400 Sem permissão` depois). Ver `DECISIONS.md`.
+- Outras correções da mesma migration: parcelas (`contas_receber`) não são mais geradas para pedidos em status "orçamento"; nova checagem servidor-side de que a soma das parcelas bate com o total do pedido; corrida entre extornar e ajustar fechada com `for update`; ajustar bloqueado em pedidos que já têm parcelas geradas.
+- Correções client-side descobertas no teste ao vivo com o usuário: juros do cartão não entravam no total exibido na tela (só no cálculo de salvar) — corrigido pra exibir o valor real a pagar com uma linha "Juros do cartão"; drift de arredondamento na última parcela; guarda de confirmação antes de finalizar pedido de R$0,00; edge case de `extenso.ts` quando os centavos arredondavam pra 100.
+- Duplicações extraídas: `src/lib/parse-moeda.ts` (8 ocorrências), `src/lib/forma-pagamento.ts` (`FORMA_LABEL`, 2 ocorrências), `const editavel` em `pedido-detalhe.tsx` (3 ocorrências).
+- Code-review de 8 ângulos aplicado em duas rodadas (a segunda focada em segurança e nos achados client-side pós-migração).
+- Build e lint confirmados limpos.
+
 ## 2026-07-14 — Fase 4: Estoque
 
 - Módulo de Estoque completo: CRUD de produtos (criar, editar, ativar/desativar, excluir com proteção contra erro de FK), grid com foto/categoria/preço/status de estoque, busca e filtro por categoria.
