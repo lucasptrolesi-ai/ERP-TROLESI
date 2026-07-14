@@ -1,5 +1,15 @@
 # CHANGELOG — ERP Trolesi
 
+## 2026-07-14 (cont. 2) — Fase 4: Financeiro + alerta de vencimentos
+
+- Módulo Financeiro completo: contas a receber (alimentadas por Pedidos), contas a pagar (CRUD manual), baixa ("marcar como pago"/"desfazer") nas duas, KPIs (a receber/a pagar em 30 dias, recebíveis em atraso), acesso restrito a admin/financeiro com mensagem explícita pra quem não tem permissão.
+- Alerta de vencimentos: sininho no cabeçalho com contador, popup automático (contas a receber vencendo hoje/próximos 2 dias pra admin+financeiro, contas a pagar só pra admin) ao entrar no sistema, com "não mostrar novamente hoje" (persistido no navegador) e reabertura sob demanda pelo sininho.
+- **Bug de timezone corrigido** (`src/lib/datas.ts`): `hojeIso()`/`isoEmDias()` usavam `toISOString()` (sempre UTC) em vez do fuso de Brasília — entre ~21h e 23h59 locais, "hoje" já virava o dia seguinte, categorizando contas como atrasadas cedo demais e sumindo do alerta "vencendo hoje". Corrigido com `Intl.DateTimeFormat` fixado em `America/Sao_Paulo`. Achado por 3 agentes de code-review independentes.
+- **`extornar_pedido` corrigido** (migration `20260714000003`): passou a bloquear o extorno quando o pedido tem parcela já marcada como paga no Financeiro — antes apagava esse histórico de recebimento junto com as parcelas em aberto, sem aviso.
+- Outras correções do code-review: erro da baixa engolido silenciosamente (agora aparece no botão); `revalidatePath` não invalidava o layout raiz onde mora o alerta (sininho ficava com contagem velha); queries sequenciais no layout raiz paralelizadas; `marcarContaReceberPaga`/`marcarContaPagarPaga` consolidadas numa função interna só; cast de embed do Supabase centralizado em `src/lib/supabase-embed.ts`; duplicações de helper de data removidas (`novo-pedido.tsx`, cupom).
+- Exceção registrada em `DECISIONS.md`: o alerta de vencimentos não passou por Artifact/preview antes de virar código (especificação detalhada do usuário + teste ao vivo serviram de aprovação).
+- Code-review de 5 ângulos aplicado; build e lint confirmados limpos.
+
 ## 2026-07-14 (cont.) — Fase 4: Pedidos
 
 - Módulo de Pedidos completo: venda com busca/cadastro rápido de cliente, carrinho de produtos limitado ao estoque, campo de "código da peça" editável por linha (recalcula preço = código × multiplicador na hora), desconto/acréscimo manuais (% ou R$), 4 formas de pagamento (dinheiro, Pix, cartão de crédito 1-12x, promissória até 4x).

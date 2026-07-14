@@ -10,7 +10,7 @@ _Atualizado em 2026-07-14._
 | 1 — Mockup das telas principais | ✅ Gate técnico fechado | Estrutura aprovada; alinhamento com telas do toqMax fica como refinamento não-bloqueante (aguardando prints) |
 | 2 — Schema Supabase + Auth/RBAC + RLS | ✅ Concluída | Projeto real `trolesi-erp` (São Paulo, sa-east-1) criado pelo usuário. 7 migrations aplicadas com sucesso — 10 tabelas, RLS ativo em todas, 20 políticas. Verificado em 2026-07-13 |
 | 3 — Scaffold Next.js + layout + login | ✅ Concluída | Next.js 16 + Tailwind v4 + Supabase Auth. Build/lint limpos, code-review (8 ângulos) aplicado. Ver detalhes abaixo |
-| 4 — Implementação módulo a módulo | 🔶 Em andamento | Cadastros, Estoque e Pedidos concluídos. **Próxima:** Financeiro. Ordem: Cadastros → Estoque → Pedidos → Financeiro → Fiscal |
+| 4 — Implementação módulo a módulo | 🔶 Em andamento | Cadastros, Estoque, Pedidos e Financeiro concluídos. **Próxima:** Fiscal. Ordem: Cadastros → Estoque → Pedidos → Financeiro → Fiscal |
 | 5 — Importação dos dados reais | ⏳ Não iniciada | Depende da Fase 3/4 e de um projeto Supabase real |
 | 6 — Conferência fiscal (XML vs. GMax) | ⏳ Não iniciada | |
 | 7 — Deploy + liberação da emissão fiscal real | ⏳ Não iniciada | Requer autorização explícita |
@@ -102,6 +102,19 @@ Achados registrados mas **não corrigidos agora** (custo/benefício não compens
 - Code-review de 8 ângulos aplicado (2 rodadas); outros achados reais corrigidos: parcelas sendo geradas mesmo para status "orçamento", ausência de checagem servidor-side de que a soma das parcelas bate com o total do pedido, corrida entre extornar e ajustar (fechada com `for update`), drift de arredondamento na última parcela e juros do cartão não refletidos no total exibido na tela (achados durante o teste ao vivo do usuário, não pelo code-review).
 - Build e lint confirmados limpos.
 
+## Fase 4 — Financeiro (concluído, 2026-07-14)
+
+- **Contas a receber**: alimentadas automaticamente pelas parcelas de cartão/promissória geradas em Pedidos (dinheiro/Pix não geram conta, já que são recebidos na hora) — sem cadastro manual, é reflexo do que já foi vendido.
+- **Contas a pagar**: CRUD manual completo (descrição, fornecedor opcional, valor, vencimento, editar, excluir).
+- **Baixa** ("marcar como pago"/"desfazer baixa") nas duas listas, com erro do servidor exibido no lugar em vez de falhar silenciosamente.
+- Situação "Atrasado" é sempre calculada na hora comparando vencimento com a data de hoje (fuso `America/Sao_Paulo` explícito) — nunca fica presa a um valor gravado que nunca atualiza sozinho.
+- KPIs: a receber em 30 dias, recebíveis em atraso, a pagar em 30 dias.
+- **Acesso restrito a admin/financeiro** (RLS já garantia isso desde a Fase 2) — quem não tem permissão vê uma mensagem clara em vez de uma tela vazia enganosa.
+- **Alerta de vencimentos**: sininho no cabeçalho com contador, abre automaticamente ao entrar no sistema se houver parcela a receber (admin+financeiro) ou conta a pagar (só admin, pedido explícito do usuário) vencendo hoje ou nos próximos 2 dias. "Não mostrar novamente hoje" grava a preferência no navegador por dia; o sininho sempre reabre o alerta sob demanda ("fácil acesso"). Reaproveita o componente `Modal` já usado em todo o app.
+- **Code-review de 5 ângulos** encontrou e corrigiu, antes do commit: bug real de timezone (`toISOString()` é sempre UTC, virava o "dia" ~3h antes da meia-noite de Brasília, categorizando contas como atrasadas cedo demais e sumindo do alerta "vencendo hoje" nesse intervalo — 3 agentes bateram nisso independentemente); `extornar_pedido` apagando parcelas já marcadas como pagas no Financeiro (migration `20260714000003`, bloqueia o extorno nesse caso); erro da baixa sendo engolido silenciosamente no botão; `revalidatePath` não invalidando o layout raiz (o sininho ficava com contagem desatualizada depois de uma baixa ou de uma venda nova); queries sequenciais no layout paralelizadas; duplicações consolidadas (`marcarContaReceberPaga`/`marcarContaPagarPaga`, helpers de data, cast de embed do Supabase).
+- **Exceção registrada ao gate de mockup** (ver `DECISIONS.md`): o alerta de vencimentos foi construído direto em código a partir de uma especificação detalhada do usuário no chat, sem Artifact/preview prévio — aprovado via teste ao vivo em vez de mockup estático.
+- Build e lint confirmados limpos.
+
 ## Pendências reais
 
 - **Prints do toqMax** ainda não recebidos — não bloqueia a Fase 4/5, os documentos imprimíveis de Pedidos já saíram batendo com o modelo real que o usuário já tinha.
@@ -109,4 +122,4 @@ Achados registrados mas **não corrigidos agora** (custo/benefício não compens
 
 ## Próxima tarefa
 
-**Fase 4 — Financeiro**: contas a receber (já alimentadas por Pedidos via parcelas de cartão/promissória) e contas a pagar, com telas de listagem/baixa.
+**Fase 4 — Fiscal/NF-e**: último módulo da Fase 4. Modo "gerar XML para conferência" — nada transmitido à SEFAZ real nesta fase, integração via provedor (Focus NFe/eNotas) conforme decidido no escopo inicial.
