@@ -2,6 +2,12 @@
 
 Histórico de decisões de escopo e arquitetura, na ordem em que foram tomadas. Decisões revistas ficam marcadas como tal, não apagadas.
 
+## 2026-07-14 — Fase 4: Estoque, "custo" não é custo
+
+- **Renomeado `custo` → `codigo_peca`** no meio da construção do módulo, depois do usuário corrigir: o campo não representa custo de aquisição, é um valor/código base que multiplicado por 2,8 (o mesmo multiplicador de atacado já confirmado no projeto da landing page e na Fase 2) gera o preço de venda direto. Rotular como "Custo (R$)" no formulário estava semanticamente errado e podia enganar alguém tentando calcular margem real no futuro. Migration de rename aplicada sem perda de dado (Postgres preserva a expressão da coluna gerada `preco` através do rename).
+- **`codigo_interno` como campo separado de `codigo_peca`**, a pedido do usuário ("assim como no PDV, eu consiga procurar por esse código") — decisão de design minha dentro do espaço que ele deixou aberto ("ou outro meio que você ache válido"): único quando preenchido (mesmo padrão do `cpf_cnpj` em clientes), mas não obrigatório, já que nem todo produto precisa de um código definido desde o cadastro inicial.
+- **Toggle de "ativo" vira um checkbox dentro do próprio formulário de produto**, não uma ação separada de clique-rápido na grade (diferente do padrão usado em Clientes/Fornecedores, que tem botão "Ativar/Desativar" na lista). Motivo: Estoque é uma grade de cards com foto, não uma tabela de linhas — não há um lugar natural pra um segundo botão de ação por card sem poluir o layout. Editar já é uma ação de um clique (clicar no card), então colocar o toggle dentro do formulário não adiciona fricção real.
+
 ## 2026-07-13 — Fase 4: Cadastros completo, com exceção deliberada à ordem dos módulos
 
 - **Cliente ganhou ficha completa da Receita Federal** (razão social, nome fantasia, situação cadastral, data de abertura, natureza jurídica, porte, atividade principal), a pedido explícito do usuário ("preciso que apareça todas as informações do CNPJ na ficha cadastral"). Nem todos esses campos aparecem em telas além do formulário de edição hoje — aceito conscientemente, não é esquecimento; revisar se algum se mostrar inútil na prática.

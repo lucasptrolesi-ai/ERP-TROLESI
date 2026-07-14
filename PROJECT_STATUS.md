@@ -10,7 +10,7 @@ _Atualizado em 2026-07-13._
 | 1 — Mockup das telas principais | ✅ Gate técnico fechado | Estrutura aprovada; alinhamento com telas do toqMax fica como refinamento não-bloqueante (aguardando prints) |
 | 2 — Schema Supabase + Auth/RBAC + RLS | ✅ Concluída | Projeto real `trolesi-erp` (São Paulo, sa-east-1) criado pelo usuário. 7 migrations aplicadas com sucesso — 10 tabelas, RLS ativo em todas, 20 políticas. Verificado em 2026-07-13 |
 | 3 — Scaffold Next.js + layout + login | ✅ Concluída | Next.js 16 + Tailwind v4 + Supabase Auth. Build/lint limpos, code-review (8 ângulos) aplicado. Ver detalhes abaixo |
-| 4 — Implementação módulo a módulo | 🔶 Em andamento | Cadastros concluído. **Próxima:** Estoque. Ordem: Cadastros → Estoque → Pedidos → Financeiro → Fiscal |
+| 4 — Implementação módulo a módulo | 🔶 Em andamento | Cadastros e Estoque concluídos. **Próxima:** Pedidos (venda de verdade). Ordem: Cadastros → Estoque → Pedidos → Financeiro → Fiscal |
 | 5 — Importação dos dados reais | ⏳ Não iniciada | Depende da Fase 3/4 e de um projeto Supabase real |
 | 6 — Conferência fiscal (XML vs. GMax) | ⏳ Não iniciada | |
 | 7 — Deploy + liberação da emissão fiscal real | ⏳ Não iniciada | Requer autorização explícita |
@@ -82,10 +82,20 @@ Achados registrados mas **não corrigidos agora** (custo/benefício não compens
 - **Exceção deliberada à regra de "um módulo por vez":** a tela de Pedidos ganhou uma fatia mínima (busca + cadastro rápido de cliente, reaproveitando o mesmo formulário de Cadastros) a pedido explícito do usuário, antes do módulo de Estoque. Nenhuma lógica de venda/carrinho/produto foi implementada — isso continua esperando o módulo de Estoque. Registrado em `DECISIONS.md`.
 - Code-review de 8 ângulos aplicado; achados reais corrigidos: fallback de CNPJ não tentava a 2ª fonte quando a 1ª travava (só quando "não encontrava"), duas ações não invalidavam o cache da tela de Pedidos, aba "Funcionários" quebrava silenciosamente pra quem não é admin (RLS só libera o próprio perfil), duas funções duplicadas extraídas pra `src/lib/filtra.ts` e `src/lib/preencher-form.ts`.
 
+## Fase 4 — Estoque (concluído, 2026-07-14)
+
+- CRUD completo de **produtos**: criar, editar, ativar/desativar (checkbox no próprio formulário), excluir (com mensagem amigável quando há pedidos/movimentos de estoque vinculados via FK).
+- Grid de produtos com foto, categoria/subcategoria, preço calculado, status de estoque (ok/baixo/sem estoque, cor muda conforme o mínimo configurado), busca por nome/categoria/código interno, filtro por chip de categoria (deduplicado por grafia, case-insensitive).
+- **Dois campos de código, propositalmente separados** (usuário corrigiu um mal-entendido meu no meio do caminho): `codigo_peca` é o valor numérico que × multiplicador (2,8 por padrão) gera o preço de venda — não é custo de aquisição, renomeado de `custo` via migration depois do usuário apontar o erro. `codigo_interno` é um código curto opcional, único, pra busca rápida tipo PDV — campo novo, migration própria.
+- Extraído pra reuso (usado por Cadastros e Estoque): `src/lib/formatar-moeda.ts`, `src/lib/permissoes.ts` (centraliza a checagem de papel→permissão, antes duplicada em cada `*-view.tsx`). `FormField` ganhou suporte a `onChange`/`min`/`max`/`list`.
+- Code-review de 8 ângulos (3 grupos) aplicado; achados reais corrigidos: busca não incluía categoria apesar do placeholder prometer, `codigo_peca`/`multiplicador` sem limite de faixa (permitia negativo ou estourava o `numeric(4,2)` do banco), `multiplicador` explícito `0` sendo silenciosamente substituído por 2,8 (armadilha clássica do `||` com falsy), toggle de "ativo" inexistente na UI apesar da mensagem de erro de exclusão mandar desativar.
+- Três migrations novas (`20260713000010` rename custo→codigo_peca, `20260713000011` codigo_interno), já aplicadas no projeto real.
+
 ## Pendências reais
 
 - **Prints do toqMax** ainda não recebidos — não bloqueia a Fase 4/5, mas o fluxo de venda completo (quando o módulo de Pedidos for feito de verdade) pode ganhar ajustes finos quando chegarem.
+- **Reset da senha do banco** ainda recomendado (ver seção "Dados do projeto Supabase real" acima) — venho reusando a mesma senha compartilhada no início da Fase 2 pra aplicar migrations novas; nenhum problema até agora, mas continua sendo boa prática resetar.
 
 ## Próxima tarefa
 
-**Fase 4 — Estoque** (próximo módulo): cadastro de produtos, controle de quantidade, categoria/subcategoria — inclui decidir como unificar os 791 itens do catálogo de fotos (projeto da landing page) com o cadastro real de estoque, conforme já decidido em `DECISIONS.md` (2026-07-13, "Unificação do catálogo de produtos").
+**Fase 4 — Pedidos** (próximo módulo, agora de verdade): tela de venda completa — selecionar cliente, adicionar produtos do estoque com quantidade, calcular total, baixar estoque automaticamente (usando a tabela `movimentos_estoque` já criada na Fase 2), forma de pagamento. A fatia de "cadastro rápido de cliente" que já existe em `/pedidos` desde a Fase de Cadastros continua sendo reaproveitada.

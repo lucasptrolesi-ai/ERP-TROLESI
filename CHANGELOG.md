@@ -1,5 +1,14 @@
 # CHANGELOG — ERP Trolesi
 
+## 2026-07-14 — Fase 4: Estoque
+
+- Módulo de Estoque completo: CRUD de produtos (criar, editar, ativar/desativar, excluir com proteção contra erro de FK), grid com foto/categoria/preço/status de estoque, busca e filtro por categoria.
+- Campo renomeado de `custo` para `codigo_peca` (migration `20260713000010`) depois do usuário corrigir: não é custo monetário, é o valor base que × 2,8 gera o preço de venda.
+- Novo campo `codigo_interno` (migration `20260713000011`): código curto opcional e único pra busca rápida tipo PDV, separado do código da peça.
+- Extraído pra reuso: `formatar-moeda.ts`, `permissoes.ts` (centraliza checagem de papel→permissão), `FormField` ganhou `onChange`/`min`/`max`/`list`.
+- Code-review de 8 ângulos aplicado: busca não incluía categoria, campos numéricos sem clamp de faixa, `multiplicador` explícito zero sendo trocado por 2,8 (bug clássico do `||` com falsy), toggle de "ativo" inexistente apesar da mensagem de erro mandar desativar.
+- Build e lint confirmados limpos.
+
 ## 2026-07-13 (cont. 5) — Fase 4: Cadastros
 
 - Módulo de Cadastros completo: CRUD de clientes e fornecedores (criar, editar, ativar/desativar, excluir com proteção contra erro de FK).
