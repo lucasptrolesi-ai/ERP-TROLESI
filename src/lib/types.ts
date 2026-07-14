@@ -95,3 +95,45 @@ export type ContaReceber = {
   numero_parcela: number | null;
   total_parcelas: number | null;
 };
+
+export type SituacaoConta = "em_dia" | "atrasado" | "pago";
+
+export type ContaReceberFinanceiro = {
+  id: string;
+  valor: number;
+  vencimento: string;
+  situacao: SituacaoConta;
+  pago_em: string | null;
+  forma_pagamento: FormaPagamento | null;
+  numero_parcela: number | null;
+  total_parcelas: number | null;
+  clientes: { nome: string } | null;
+  pedidos: { numero: number } | null;
+};
+
+export type ParcelaVencendo = {
+  id: string;
+  valor: number;
+  vencimento: string;
+  clientes: { nome: string; telefone: string | null } | null;
+  pedidos: { numero: number } | null;
+};
+
+export type ContaPagarVencendo = {
+  id: string;
+  valor: number;
+  vencimento: string;
+  descricao: string;
+  fornecedores: { nome: string } | null;
+};
+
+export type ContaPagar = {
+  id: string;
+  fornecedor_id: string | null;
+  descricao: string;
+  valor: number;
+  vencimento: string;
+  situacao: SituacaoConta;
+  pago_em: string | null;
+  fornecedores: { nome: string } | null;
+};

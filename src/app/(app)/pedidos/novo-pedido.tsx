@@ -6,16 +6,13 @@ import { ClienteForm } from "@/components/cliente-form";
 import { criarPedido } from "@/lib/actions/pedidos";
 import { formatarMoeda } from "@/lib/formatar-moeda";
 import { parseMoeda } from "@/lib/parse-moeda";
+import { hojeIso } from "@/lib/datas";
 import type { Cliente, FormaPagamento, ItemCarrinho, Parcela, Produto } from "@/lib/types";
 
 function somaMeses(dataIso: string, meses: number): string {
   const data = new Date(`${dataIso}T00:00:00`);
   data.setMonth(data.getMonth() + meses);
   return data.toISOString().slice(0, 10);
-}
-
-function hojeIso(): string {
-  return new Date().toISOString().slice(0, 10);
 }
 
 export function NovoPedido({

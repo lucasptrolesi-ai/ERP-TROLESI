@@ -45,6 +45,11 @@ export async function criarPedido(
 
   revalidatePath("/pedidos");
   revalidatePath("/estoque");
+  // Pedido faturado com parcelas (cartão/promissória) cria contas_receber
+  // — o Financeiro e o sininho de vencimentos (no layout raiz) precisam
+  // saber disso pra não ficarem mostrando dado desatualizado.
+  revalidatePath("/financeiro");
+  revalidatePath("/", "layout");
   return { pedidoId: data as string };
 }
 
@@ -74,5 +79,9 @@ export async function extornarPedido(pedidoId: string): Promise<{ erro?: string 
 
   revalidatePath("/pedidos");
   revalidatePath("/estoque");
+  // Extorno apaga as contas_receber do pedido — mesma razão do comentário
+  // em criarPedido.
+  revalidatePath("/financeiro");
+  revalidatePath("/", "layout");
   return {};
 }

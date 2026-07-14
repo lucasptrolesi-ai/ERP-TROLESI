@@ -3,17 +3,23 @@
 import { useState } from "react";
 import { SidebarNav } from "@/components/sidebar-nav";
 import { BrandBadge } from "@/components/brand-badge";
+import { AlertaVencimentos } from "@/components/alerta-vencimentos";
 import { logout } from "@/lib/actions/auth";
+import type { ContaPagarVencendo, ParcelaVencendo } from "@/lib/types";
 
 export function AppShell({
   nome,
   papelLabel,
   inicial,
+  parcelasVencendo,
+  contasPagarVencendo,
   children,
 }: {
   nome: string;
   papelLabel: string;
   inicial: string;
+  parcelasVencendo: ParcelaVencendo[];
+  contasPagarVencendo: ContaPagarVencendo[];
   children: React.ReactNode;
 }) {
   const [menuAberto, setMenuAberto] = useState(false);
@@ -61,6 +67,7 @@ export function AppShell({
             ☰
           </button>
           <div className="flex items-center gap-3">
+            <AlertaVencimentos parcelasReceber={parcelasVencendo} contasPagar={contasPagarVencendo} />
             <span className="rounded-full bg-rose-soft px-2.5 py-1 text-[0.7rem] font-semibold uppercase tracking-wide text-rose-deep">
               {papelLabel}
             </span>

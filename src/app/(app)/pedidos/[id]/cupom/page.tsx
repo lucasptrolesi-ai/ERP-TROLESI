@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { buscarPedidoDetalhe } from "@/lib/buscar-pedido-detalhe";
 import { formatarMoeda } from "@/lib/formatar-moeda";
 import { FORMA_LABEL } from "@/lib/forma-pagamento";
+import { formatarDataIso } from "@/lib/datas";
 import { EMPRESA } from "@/lib/empresa";
 import { BotaoImprimir } from "@/components/botao-imprimir";
 
@@ -71,7 +72,7 @@ export default async function CupomPage({ params }: { params: Promise<{ id: stri
           parcelas.map((p) => (
             <p key={p.id}>
               Parcela {p.numero_parcela}/{p.total_parcelas} — vence{" "}
-              {new Date(`${p.vencimento}T00:00:00`).toLocaleDateString("pt-BR")} —{" "}
+              {formatarDataIso(p.vencimento)} —{" "}
               {formatarMoeda(p.valor)}
             </p>
           ))}
