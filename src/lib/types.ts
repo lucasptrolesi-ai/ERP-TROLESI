@@ -100,11 +100,15 @@ export type SituacaoConta = "em_dia" | "atrasado" | "pago";
 
 export type ContaReceberFinanceiro = {
   id: string;
+  cliente_id: string | null;
   valor: number;
   vencimento: string;
   situacao: SituacaoConta;
   pago_em: string | null;
   forma_pagamento: FormaPagamento | null;
+  valor_pago: number | null;
+  forma_pagamento_baixa: FormaPagamento | null;
+  observacao_baixa: string | null;
   numero_parcela: number | null;
   total_parcelas: number | null;
   clientes: { nome: string } | null;
@@ -135,5 +139,8 @@ export type ContaPagar = {
   vencimento: string;
   situacao: SituacaoConta;
   pago_em: string | null;
+  valor_pago: number | null;
+  forma_pagamento_baixa: FormaPagamento | null;
+  observacao_baixa: string | null;
   fornecedores: { nome: string } | null;
 };

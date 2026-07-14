@@ -25,12 +25,14 @@ export default async function FinanceiroPage() {
     supabase
       .from("contas_receber")
       .select(
-        "id, valor, vencimento, situacao, pago_em, forma_pagamento, numero_parcela, total_parcelas, clientes(nome), pedidos(numero)",
+        "id, cliente_id, valor, vencimento, situacao, pago_em, forma_pagamento, valor_pago, forma_pagamento_baixa, observacao_baixa, numero_parcela, total_parcelas, clientes(nome), pedidos(numero)",
       )
       .order("vencimento"),
     supabase
       .from("contas_pagar")
-      .select("id, fornecedor_id, descricao, valor, vencimento, situacao, pago_em, fornecedores(nome)")
+      .select(
+        "id, fornecedor_id, descricao, valor, vencimento, situacao, pago_em, valor_pago, forma_pagamento_baixa, observacao_baixa, fornecedores(nome)",
+      )
       .order("vencimento"),
     supabase.from("fornecedores").select("*").eq("ativo", true).order("nome"),
   ]);
