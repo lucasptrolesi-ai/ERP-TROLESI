@@ -10,8 +10,8 @@ _Atualizado em 2026-07-14._
 | 1 — Mockup das telas principais | ✅ Gate técnico fechado | Estrutura aprovada; alinhamento com telas do toqMax fica como refinamento não-bloqueante (aguardando prints) |
 | 2 — Schema Supabase + Auth/RBAC + RLS | ✅ Concluída | Projeto real `trolesi-erp` (São Paulo, sa-east-1) criado pelo usuário. 7 migrations aplicadas com sucesso — 10 tabelas, RLS ativo em todas, 20 políticas. Verificado em 2026-07-13 |
 | 3 — Scaffold Next.js + layout + login | ✅ Concluída | Next.js 16 + Tailwind v4 + Supabase Auth. Build/lint limpos, code-review (8 ângulos) aplicado. Ver detalhes abaixo |
-| 4 — Implementação módulo a módulo | 🔶 Em andamento | Cadastros, Estoque, Pedidos e Financeiro concluídos. **Próxima:** Fiscal. Ordem: Cadastros → Estoque → Pedidos → Financeiro → Fiscal |
-| 5 — Importação dos dados reais | ⏳ Não iniciada | Depende da Fase 3/4 e de um projeto Supabase real |
+| 4 — Implementação módulo a módulo | 🔶 Em andamento | Cadastros, Estoque, Pedidos e Financeiro concluídos (Financeiro revisado após a Fase 5, ver abaixo). **Próxima:** Fiscal (aguardando o usuário escolher provedor de NF-e — Focus NFe/eNotas). Ordem: Cadastros → Estoque → Pedidos → Financeiro → Fiscal |
+| 5 — Importação dos dados reais | ✅ Concluída (2026-07-14) | 51 clientes, 44 produtos, 172 pedidos (949 itens), 160 contas_receber importados do GMax pro Supabase real, numa transação só. Ver detalhes abaixo |
 | 6 — Conferência fiscal (XML vs. GMax) | ⏳ Não iniciada | |
 | 7 — Deploy + liberação da emissão fiscal real | ⏳ Não iniciada | Requer autorização explícita |
 
@@ -115,11 +115,34 @@ Achados registrados mas **não corrigidos agora** (custo/benefício não compens
 - **Exceção registrada ao gate de mockup** (ver `DECISIONS.md`): o alerta de vencimentos foi construído direto em código a partir de uma especificação detalhada do usuário no chat, sem Artifact/preview prévio — aprovado via teste ao vivo em vez de mockup estático.
 - Build e lint confirmados limpos.
 
+## Fase 5 — Importação dos dados reais (concluída, 2026-07-14)
+
+- Script `migracao-dados/importar_dados_reais.py` roda em dois modos: `--relatorio` (só monta os dados em memória e escreve um relatório de contagens/amostras/linhas puladas, sem tocar no banco) e `--executar` (grava de verdade, numa transação só). Usado o modo relatório pra revisar antes de qualquer escrita real.
+- **51 clientes** importados de 97 `PESSOA` do GMax — filtrado o administrador/família (marcados como colaborador) e **37 entidades de sistema disfarçadas de cliente** descobertas durante a importação: TRIBUTOS, CORREIOS, DAS/DAE/DARF, concessionárias de energia/telefone, SESI/SENAI/SEBRAE etc., todas com `FISICA_JURIDICA='J'` e **zero pedidos reais** vinculados — filtro final: pessoa jurídica só entra se tiver pelo menos 1 pedido de verdade.
+- **44 produtos** com preço recalculado (`código = valor de venda ÷ 2,8`, multiplicador 2,8) batendo com o preço real do GMax; categoria inferida por palavra-chave no nome (best-effort, revisável depois pela tela de Estoque); estoque negativo do GMax (venda sem baixa correta no sistema antigo) zerado na importação.
+- **172 pedidos históricos + 949 itens** inseridos direto nas tabelas (sem passar pela function `criar_pedido`, que duplicaria a baixa de estoque já refletida na quantidade atual); status e forma de pagamento mapeados a partir dos códigos reais do GMax (`STATUS_PEDIDO`/`CONDICOES_PAGAMENTO`).
+- **160 contas_receber** (11 já pagas, 149 em aberto na importação) via `PARCELA_RECEBER` + `LANCAMENTO_RECEBER`.
+- Fotos do catálogo da landing page (791) ficaram de fora — sem chave de junção confiável com os produtos reais do GMax (decisão registrada em `DECISIONS.md`).
+- Antes de importar, os dados de teste que já estavam no banco (dos testes ao vivo dos módulos anteriores) foram apagados a pedido do usuário.
+
+## Financeiro — revisão da baixa de títulos (concluída, 2026-07-14)
+
+Com os 149 títulos em aberto reais importados (a maioria já vencida em relação à data de hoje), o usuário pediu uma forma organizada de "baixar os títulos" pra regularização. Revisão completa da tela de Contas a receber:
+
+- **Baixa completa**: modal com data real do pagamento, valor efetivamente recebido (pode diferir do valor da parcela por desconto de quitação ou juro/multa), forma de pagamento usada (fica separada da forma prevista do pedido — "desfazer baixa" é totalmente reversível sem perder o dado original) e observação livre.
+- **Agrupado por cliente** (accordion recolhido por padrão, ordenado pelo cliente com título mais atrasado primeiro), filtros por situação (Todos/Atrasados/Em dia/Pagos), seleção múltipla (checkbox global "selecionar todos" + por cliente + por título) com baixa em lote.
+- **Baixa em lote atômica**: migration `20260714000005` criou a function `dar_baixa_em_lote_contas_receber` — um único `UPDATE` no banco em vez de um loop de updates um por um, com `valor_pago = valor` (pega o valor de face de cada linha automaticamente) e `where situacao != 'pago'` (não sobrescreve baixa já feita por outra pessoa).
+- **Code-review de 5 ângulos** achou e corrigiu, antes do commit: bug de "Invalid Date" (`pago_em` é `timestamptz`, o formatador tratava como se fosse só data — achado por 2 agentes); risco de falha parcial/corrida na baixa em lote (achado por 4 agentes independentes, motivou a migration da function atômica); modal sem `<form>` (validação HTML5 nativa não disparava); duplicação de código entre as abas receber/pagar (extraídos `ResumoBaixa`/`AcaoBaixa`).
+- Contas a pagar manteve a tela simples (tabela), só ganhou o mesmo modal de baixa mais completo — o volume real ali é zero por enquanto.
+- Build e lint confirmados limpos.
+
 ## Pendências reais
 
 - **Prints do toqMax** ainda não recebidos — não bloqueia a Fase 4/5, os documentos imprimíveis de Pedidos já saíram batendo com o modelo real que o usuário já tinha.
 - **Reset da senha do banco** ainda recomendado (ver seção "Dados do projeto Supabase real" acima) — venho reusando a mesma senha compartilhada no início da Fase 2 pra aplicar migrations novas; nenhum problema até agora, mas continua sendo boa prática resetar.
+- **Fotos dos 44 produtos importados do GMax**: nenhuma tem foto ainda — anexar manualmente pela tela de Estoque quando o usuário quiser.
+- **Categorias dos produtos importados** foram atribuídas por um heurístico simples de palavra-chave no nome — vale uma revisão rápida pra ver se algum caiu em "Diversos" incorretamente.
 
 ## Próxima tarefa
 
-**Fase 4 — Fiscal/NF-e**: último módulo da Fase 4. Modo "gerar XML para conferência" — nada transmitido à SEFAZ real nesta fase, integração via provedor (Focus NFe/eNotas) conforme decidido no escopo inicial.
+**Fase 4 — Fiscal/NF-e**: último módulo da Fase 4. Modo "gerar XML para conferência" — nada transmitido à SEFAZ real nesta fase, integração via provedor (Focus NFe/eNotas) conforme decidido no escopo inicial. Aguardando o usuário decidir qual provedor usar (perguntado em 2026-07-14, resposta: decidir depois).

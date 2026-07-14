@@ -1,5 +1,20 @@
 # CHANGELOG — ERP Trolesi
 
+## 2026-07-14 (cont. 4) — Financeiro: baixa de títulos completa
+
+- Modal de baixa (contas a receber e a pagar) agora registra data real do pagamento, valor efetivamente recebido (pode diferir do valor da parcela — desconto de quitação ou juro/multa), forma de pagamento usada na baixa (separada da forma prevista do pedido) e observação livre.
+- Contas a receber reorganizada: agrupada por cliente (ordenada pelo mais atrasado primeiro), filtros por situação (Todos/Atrasados/Em dia/Pagos), seleção múltipla (checkbox global e por cliente) com baixa em lote.
+- Baixa em lote roda como um `UPDATE` atômico só via function no Postgres (`dar_baixa_em_lote_contas_receber`, migration `20260714000005`) — corrige um risco real de baixa parcial/corrida encontrado no code-review (loop de updates um por um sem transação).
+- Corrigido bug de "Invalid Date" na data de pagamento (`pago_em` é `timestamptz`, formatador tratava como se fosse só data) e passou a gravar a data escolhida ancorada ao meio-dia de Brasília, evitando virar o dia errado por fuso.
+- Code-review de 5 ângulos aplicado; build e lint confirmados limpos.
+
+## 2026-07-14 (cont. 3) — Fase 5: importação dos dados reais do GMax
+
+- Script `migracao-dados/importar_dados_reais.py` (modo relatório + modo execução) importou pro Supabase real: 51 clientes, 44 produtos, 172 pedidos históricos (949 itens) e 160 contas_receber, numa transação só.
+- Achado durante a importação: 37 registros de `PESSOA` no GMax (tributos, correios, concessionárias, sindicatos etc.) vinham marcados como cliente de fábrica mas nunca tiveram um pedido real — filtrados fora.
+- Preço dos produtos recalculado (código = valor de venda ÷ 2,8) batendo com o preço real do GMax; estoque negativo do sistema antigo zerado; fotos do catálogo da landing page (791) ficaram fora desta importação por falta de chave de junção confiável.
+- Dados de teste anteriores apagados do banco antes da importação real.
+
 ## 2026-07-14 (cont. 2) — Fase 4: Financeiro + alerta de vencimentos
 
 - Módulo Financeiro completo: contas a receber (alimentadas por Pedidos), contas a pagar (CRUD manual), baixa ("marcar como pago"/"desfazer") nas duas, KPIs (a receber/a pagar em 30 dias, recebíveis em atraso), acesso restrito a admin/financeiro com mensagem explícita pra quem não tem permissão.
