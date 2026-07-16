@@ -26,6 +26,14 @@ export function isoEmDias(dias: number): string {
   return paraIso(data);
 }
 
+/** Extrai a data "AAAA-MM-DD" de um timestamptz (ex: `pedidos.criado_em`,
+ * `contas_pagar.pago_em`) no fuso de Brasília — usar sempre que precisar
+ * agrupar/filtrar por dia um valor que vem de uma coluna `timestamptz`,
+ * senão o dia pode deslocar conforme o fuso do servidor. */
+export function dataLocalDoTimestamptz(iso: string): string {
+  return paraIso(new Date(iso));
+}
+
 // Colunas `date` (ex: vencimento) chegam como "AAAA-MM-DD" puro — vira meio-
 // dia local antes de formatar, self-consistente independente do fuso do
 // runtime. Colunas `timestamptz` (ex: pago_em) já vêm com hora e offset —

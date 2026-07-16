@@ -3,6 +3,9 @@
 import { useMemo, useState, useTransition } from "react";
 import { ContaPagarForm } from "@/components/conta-pagar-form";
 import { BaixaContaModal } from "@/components/baixa-conta-modal";
+import { KpiCard } from "@/components/kpi-card";
+import { FechamentoCaixa } from "./fechamento-caixa";
+import type { PedidoRelatorio } from "@/lib/relatorios";
 import {
   darBaixaContaReceber,
   desfazerBaixaContaReceber,
@@ -12,16 +15,9 @@ import {
 } from "@/lib/actions/financeiro";
 import { formatarMoeda } from "@/lib/formatar-moeda";
 import { FORMA_LABEL } from "@/lib/forma-pagamento";
-import { hojeIso, isoEmDias, formatarDataIso } from "@/lib/datas";
+import { isoEmDias, formatarDataIso } from "@/lib/datas";
+import { situacaoEfetiva } from "@/lib/situacao-conta";
 import type { ContaPagar, ContaReceberFinanceiro, FormaPagamento, Fornecedor, SituacaoConta } from "@/lib/types";
-
-/** situação guardada no banco não muda sozinha com o tempo — "atrasado" é
- * sempre calculado na hora, comparando vencimento com hoje, exceto quando
- * já foi baixada como paga (aí prevalece o que está no banco). */
-function situacaoEfetiva(situacao: SituacaoConta, vencimento: string): SituacaoConta {
-  if (situacao === "pago") return "pago";
-  return vencimento < hojeIso() ? "atrasado" : "em_dia";
-}
 
 const SITUACAO_ESTILO: Record<SituacaoConta, { rotulo: string; classe: string }> = {
   em_dia: { rotulo: "Em dia", classe: "bg-ok-bg text-ok" },
@@ -40,16 +36,18 @@ function resumir(itens: { valor: number }[]) {
   return { total: itens.reduce((s, i) => s + i.valor, 0), qtd: itens.length };
 }
 
-type Aba = "receber" | "pagar";
+type Aba = "receber" | "pagar" | "fechamento";
 
 export function FinanceiroView({
   contasReceber,
   contasPagar,
   fornecedores,
+  pedidos,
 }: {
   contasReceber: ContaReceberFinanceiro[];
   contasPagar: ContaPagar[];
   fornecedores: Fornecedor[];
+  pedidos: PedidoRelatorio[];
 }) {
   const [aba, setAba] = useState<Aba>("receber");
   const [busca, setBusca] = useState("");
@@ -157,14 +155,23 @@ export function FinanceiroView({
   return (
     <div className="flex flex-col gap-4">
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <KpiCard label="A receber (30 dias)" valor={kpis.aReceber30.total} nota={`${kpis.aReceber30.qtd} parcela(s)`} />
+        <KpiCard
+          label="A receber (30 dias)"
+          valor={formatarMoeda(kpis.aReceber30.total)}
+          nota={`${kpis.aReceber30.qtd} parcela(s)`}
+        />
         <KpiCard
           label="Recebíveis em atraso"
-          valor={kpis.emAtraso.total}
+          valor={formatarMoeda(kpis.emAtraso.total)}
           nota={`${kpis.emAtraso.qtd} parcela(s)`}
           tom="crit"
         />
-        <KpiCard label="A pagar (30 dias)" valor={kpis.aPagar30.total} nota={`${kpis.aPagar30.qtd} conta(s)`} tom="warn" />
+        <KpiCard
+          label="A pagar (30 dias)"
+          valor={formatarMoeda(kpis.aPagar30.total)}
+          nota={`${kpis.aPagar30.qtd} conta(s)`}
+          tom="warn"
+        />
       </div>
 
       <div className="rounded-[14px] border border-line bg-surface shadow-sm">
@@ -186,25 +193,35 @@ export function FinanceiroView({
             >
               Contas a pagar
             </button>
+            <button
+              onClick={() => setAba("fechamento")}
+              className={`border-b-2 py-3 text-sm font-semibold ${
+                aba === "fechamento" ? "border-rose text-rose-deep" : "border-transparent text-text-soft"
+              }`}
+            >
+              Fechamento de caixa
+            </button>
           </div>
         </div>
 
-        <div className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
-          <input
-            value={busca}
-            onChange={(e) => setBusca(e.target.value)}
-            placeholder={aba === "receber" ? "Buscar por cliente" : "Buscar por descrição ou fornecedor"}
-            className="w-full rounded-full border border-line bg-cream px-4 py-2 text-sm text-ink outline-none focus:border-rose sm:max-w-xs"
-          />
-          {aba === "pagar" && (
-            <button
-              onClick={() => setContaPagarEditando(null)}
-              className="shrink-0 rounded-full bg-gradient-to-br from-rose to-rose-deep px-4 py-2 text-sm font-semibold text-white"
-            >
-              + Nova conta a pagar
-            </button>
-          )}
-        </div>
+        {aba !== "fechamento" && (
+          <div className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+            <input
+              value={busca}
+              onChange={(e) => setBusca(e.target.value)}
+              placeholder={aba === "receber" ? "Buscar por cliente" : "Buscar por descrição ou fornecedor"}
+              className="w-full rounded-full border border-line bg-cream px-4 py-2 text-sm text-ink outline-none focus:border-rose sm:max-w-xs"
+            />
+            {aba === "pagar" && (
+              <button
+                onClick={() => setContaPagarEditando(null)}
+                className="shrink-0 rounded-full bg-gradient-to-br from-rose to-rose-deep px-4 py-2 text-sm font-semibold text-white"
+              >
+                + Nova conta a pagar
+              </button>
+            )}
+          </div>
+        )}
 
         {aba === "receber" && (
           <div className="flex flex-wrap items-center justify-between gap-2 px-4 pb-3 sm:px-5">
@@ -416,6 +433,10 @@ export function FinanceiroView({
             </table>
           </div>
         )}
+
+        {aba === "fechamento" && (
+          <FechamentoCaixa pedidos={pedidos} contasReceber={contasReceber} contasPagar={contasPagar} />
+        )}
       </div>
 
       {contaPagarEditando !== undefined && (
@@ -462,27 +483,6 @@ export function FinanceiroView({
           aoConfirmar={(dados) => darBaixaContaPagar(baixaPagarAberta.id, dados)}
         />
       )}
-    </div>
-  );
-}
-
-function KpiCard({
-  label,
-  valor,
-  nota,
-  tom = "rose",
-}: {
-  label: string;
-  valor: number;
-  nota: string;
-  tom?: "rose" | "warn" | "crit";
-}) {
-  const corValor = tom === "crit" ? "text-crit" : tom === "warn" ? "text-warn" : "text-rose-deep";
-  return (
-    <div className="rounded-[14px] border border-line bg-surface p-4 shadow-sm">
-      <p className="text-xs font-semibold uppercase tracking-wide text-text-soft">{label}</p>
-      <p className={`mt-1 font-display text-2xl font-semibold tabular-nums ${corValor}`}>{formatarMoeda(valor)}</p>
-      <p className="mt-0.5 text-xs text-text-soft">{nota}</p>
     </div>
   );
 }

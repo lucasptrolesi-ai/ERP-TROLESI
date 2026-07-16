@@ -50,6 +50,8 @@ export type Produto = {
   preco: number;
   quantidade_estoque: number;
   estoque_minimo: number;
+  ncm: string | null;
+  csosn: string;
   ativo: boolean;
 };
 
@@ -101,6 +103,7 @@ export type SituacaoConta = "em_dia" | "atrasado" | "pago";
 export type ContaReceberFinanceiro = {
   id: string;
   cliente_id: string | null;
+  pedido_id: string | null;
   valor: number;
   vencimento: string;
   situacao: SituacaoConta;
@@ -143,4 +146,51 @@ export type ContaPagar = {
   forma_pagamento_baixa: FormaPagamento | null;
   observacao_baixa: string | null;
   fornecedores: { nome: string } | null;
+};
+
+export type StatusNotaFiscal = "rascunho" | "gerada" | "validada" | "autorizada" | "cancelada";
+
+export type NotaFiscal = {
+  id: string;
+  pedido_id: string;
+  cliente_id: string;
+  status: StatusNotaFiscal;
+  xml: string | null;
+  chave_acesso: string | null;
+  protocolo: string | null;
+  valor_total: number;
+  cfop: string;
+  natureza_operacao: string;
+  serie: string;
+  validada_por: string | null;
+  validada_em: string | null;
+  criado_em: string;
+  pedidos: { numero: number; criado_em: string } | null;
+  clientes: { nome: string; razao_social: string | null } | null;
+};
+
+/** Pedido faturado ainda sem nota — usado na lista "pendentes de emissão". */
+export type PedidoPendenteFiscal = {
+  id: string;
+  numero: number;
+  total: number;
+  valor_desconto: number;
+  valor_acrescimo: number;
+  subtotal: number;
+  criado_em: string;
+  clientes: {
+    nome: string;
+    razao_social: string | null;
+    cpf_cnpj: string | null;
+    endereco: string | null;
+    bairro: string | null;
+    cidade: string | null;
+    uf: string | null;
+    cep: string | null;
+  } | null;
+  pedido_itens: {
+    quantidade: number;
+    preco_unitario: number;
+    produtos: { nome: string; ncm: string | null; csosn: string } | null;
+  }[];
 };
