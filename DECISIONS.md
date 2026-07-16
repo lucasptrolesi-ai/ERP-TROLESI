@@ -2,6 +2,21 @@
 
 Histórico de decisões de escopo e arquitetura, na ordem em que foram tomadas. Decisões revistas ficam marcadas como tal, não apagadas.
 
+## 2026-07-16 — Fiscal: sem integração direta GMax↔Trolesi, DANFE fiel ao layout real
+
+- **Investigação de integração GMax↔Trolesi concluiu que não existe caminho seguro/suportado.** O usuário perguntou se dava pra emitir nota pelo GMax e controlar pedido/estoque pelo Trolesi ao mesmo tempo. Achados: GMax não tem API de terceiros documentada; o único mecanismo de sincronização externa (`SINCRON/`, `Config.ini` `[IMPORTA]`) é protocolo proprietário da TOQ Sistemas pra apps satélite (ecoPDV, ToqPed), baseado em arquivo (pipe-delimited), e só tem layout documentado pra `CLIENTE`, não pedido/item; os pedidos do GMax não carregam nenhum tributo calculado (971 itens históricos reais, 100% zerados) — o cálculo fiscal só acontece na emissão via `NFE_PEDIDO`. Escrita direta no Firebird foi avaliada como tecnicamente possível mas arriscada demais pra documento fiscal real (sem suporte do fabricante, exigiria engenharia reversa de triggers/sequências). **Decisão:** sem integração automática por enquanto; ponte manual (reentrar dados no GMax na hora de emitir) enquanto o módulo Fiscal do Trolesi amadurece até a Fase 7.
+- **DANFE reconstruído campo a campo pra bater com o padrão visual real**, não um layout genérico de referência. O usuário compartilhou uma DANFE real emitida pelo GMax (nota de entrada da CEFS Comércio de Semijoias) e pediu explicitamente "quero as notas nesse padrão" — motivo pra investir na fidelidade visual: o DANFE de conferência vai ser comparado lado a lado com o real na Fase 6, então divergência de layout atrapalharia a própria conferência, além de ser o documento que circula fisicamente no dia a dia da loja.
+- **CSOSN em vez de CST** confirmado como correto — a empresa é Simples Nacional (`CRT=1` no cadastro real do GMax), não regime normal.
+- **`unique(pedido_id)` em `notas_fiscais`** (migration `20260716000001`, achado do code-review): sem essa constraint, dois cliques rápidos ou duas abas abertas no mesmo pedido podiam criar duas notas fiscais pro mesmo pedido antes do primeiro insert terminar — a checagem em código (`select` antes do `insert`) sozinha não fecha essa janela de corrida.
+
+## 2026-07-15 — Dashboard/Fechamento: agregação em TypeScript, não SQL
+
+- **Faturamento do mês conta o total vendido, não o já recebido** — soma de `pedidos.total` com `status='faturado'` no período, independente de já ter sido pago. Confirmado com o usuário: a meta de R$55 mil é sobre venda, não sobre caixa recebido.
+- **Meta é mensal, fixa em R$55 mil** — não configurável pela UI nesta fase; se precisar mudar, é um valor no código (`META_FATURAMENTO_MENSAL`), não um cadastro.
+- **Fechamento de caixa virou terceira aba do Financeiro, não item novo no menu** — confirmado com o usuário; é uma visão sobre os mesmos dados de Pedidos/Financeiro, não um módulo novo.
+- **Agregação em TypeScript sobre dados buscados via `.select()`, não function SQL** — mesmo padrão já validado no Financeiro; volume real da Trolesi é dezenas de pedidos por mês, não milhares, então uma function de agregação no banco seria complexidade sem benefício real na escala atual.
+- **Tabela "Vendas do período" (cliente/valor/forma de pagamento) adicionada depois da primeira versão** — pedido de acompanhamento do usuário após ver o fechamento funcionando, não estava no desenho inicial.
+
 ## 2026-07-14 — Financeiro: baixa de títulos completa, pedida depois da Fase 5
 
 - **Baixa simples ("marcar como pago") não bastava assim que os dados reais entraram:** com 149 contas_receber em aberto de verdade (a maioria já vencida), o usuário pediu um jeito organizado de "baixar os títulos pra regularização" — perguntado diretamente o que a baixa precisa registrar (confirmado: data real do pagamento, valor recebido — pode diferir do valor da parcela por desconto/juro —, forma de pagamento usada, observação) e como a lista deveria se organizar (confirmado: agrupar por cliente, ordenar pelo mais atrasado, filtro por situação, baixa em lote).

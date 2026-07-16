@@ -1,5 +1,23 @@
 # CHANGELOG — ERP Trolesi
 
+## 2026-07-16 — Fase 4: Fiscal/NF-e (modo conferência)
+
+- Módulo Fiscal completo em modo conferência: lista pedidos faturados sem nota, "Gerar XML" cria a nota com CFOP automático (5101 dentro de MG / 6101 fora, batendo com o histórico real do GMax), tela de conferência com XML + CFOP/natureza editáveis, "Marcar como validada".
+- **DANFE printável reconstruído pra bater com o padrão visual real do GMax** — o usuário compartilhou uma DANFE real e pediu fidelidade; layout replicado campo a campo (canhoto, cabeçalho, chave de acesso, destinatário/remetente, cálculo do imposto, produtos, dados adicionais), com selo de rascunho em destaque.
+- Migration `20260715000001` (NCM/CSOSN em produtos, CFOP/natureza/série em notas_fiscais) + patch pontual preenchendo NCM/CSOSN reais dos 44 produtos. Migration `20260716000001` adiciona `unique(pedido_id)` em `notas_fiscais` contra corrida de duplo-clique.
+- Investigação prévia (a pedido do usuário) concluiu que não existe integração segura GMax↔Trolesi pra emissão — sem API suportada, sem layout documentado de pedidos no protocolo proprietário do GMax. Ver `DECISIONS.md`.
+- Code-review de 5 ângulos aplicado; achados reais corrigidos: CSOSN sem validação interpolado no nome da tag XML, texto "validado"/"ainda não validado" invertido no DANFE, `toISOString()` usado pra `dataEmissao` (mesma classe de bug de timezone já corrigida antes), tela de conferência sem `router.refresh()` após salvar/validar, `marcarComoValidada` sem checagem de linhas afetadas, lógica de montagem do XML duplicada (extraída pra `montarDadosNfe`).
+- Build e lint confirmados limpos.
+
+## 2026-07-15 — Dashboard, fechamento de caixa e meta de faturamento
+
+- Dashboard reescrito a partir do mockup já aprovado na Fase 1: KPIs (pedidos hoje, ticket médio, a receber em atraso/produtos ativos conforme papel, estoque baixo), faturamento do mês com barra de progresso até R$55 mil, pedidos recentes e estoque em alerta.
+- Fechamento de caixa: nova terceira aba em Financeiro, período Diário/Semanal/Mensal com navegação ◀▶, faturamento + variação vs. período anterior, quebra por forma de pagamento, contas a receber/pagar do período, top produtos, tabela "Vendas do período" (cliente/valor/forma de pagamento, pedido explícito do usuário).
+- Alerta de meta de R$55 mil/mês, mesmo padrão de `localStorage` do alerta de vencimentos.
+- Extraídos `relatorios.ts` (agregações compartilhadas), `situacao-conta.ts`, `status-pedido.ts`, `kpi-card.tsx`.
+- Code-review de 5 ângulos aplicado; achado real corrigido: `deslocarPeriodo` pulava fevereiro inteiro ao navegar a partir de 31/janeiro no modo mensal.
+- Build e lint confirmados limpos.
+
 ## 2026-07-14 (cont. 4) — Financeiro: baixa de títulos completa
 
 - Modal de baixa (contas a receber e a pagar) agora registra data real do pagamento, valor efetivamente recebido (pode diferir do valor da parcela — desconto de quitação ou juro/multa), forma de pagamento usada na baixa (separada da forma prevista do pedido) e observação livre.
