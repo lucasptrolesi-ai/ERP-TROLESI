@@ -1,18 +1,23 @@
 @import "tailwindcss";
 
+/* Paleta oficial — documento mestre, seção 26 (2026-07-20). Nomes de
+ * variável mantidos idênticos aos de antes de propósito: qualquer componente
+ * que já usa `bg-rose`, `text-ink` etc. muda de cor sem precisar tocar em
+ * nenhum arquivo de componente — só os valores hex mudaram. */
 :root {
-  --color-rose: #d46d82;
-  --color-rose-deep: #b14f65;
-  --color-rose-soft: #f3c0cf;
-  --color-gold-start: #c6a063;
-  --color-gold-end: #e1c389;
-  --color-cream: #f5efe6;
-  --color-ink: #3b2329;
-  --color-text: #6b5e55;
-  --color-text-soft: #9c8d84;
-  --color-line: #e7dcd2;
+  --color-rose: #d94a78; /* rosa Trolesi */
+  --color-rose-deep: #b23a63; /* derivado — vinho da paleta é escuro demais pra hover de botão rosa; ver docs/architecture */
+  --color-rose-soft: #f4a5be; /* rosa suave */
+  --color-gold-start: #d6b16b; /* dourado champagne */
+  --color-gold-end: #c58b7d; /* rose gold */
+  --color-cream: #f8f2ec; /* off-white */
+  --color-ink: #2a1218; /* vinho profundo */
+  --color-text: #6b4a50; /* derivado — tom intermediário legível entre vinho e rosa */
+  --color-text-soft: #9c8288; /* derivado — versão mais clara do texto secundário */
+  --color-line: #ece0e2;
   --color-surface: #ffffff;
-  --color-sidebar: #2b1b20;
+  --color-sidebar: #2a1218; /* vinho profundo — topo do degradê da sidebar */
+  --color-sidebar-to: #3a2227; /* marrom vinho — base do degradê da sidebar */
   --color-sidebar-text: #d9c3ba;
   --color-ok: #5c8a5c;
   --color-ok-bg: #e9f1e6;
@@ -24,13 +29,14 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --color-cream: #201317;
+    --color-cream: #1c1013;
     --color-ink: #f2e4de;
-    --color-text: #cdb9b1;
-    --color-text-soft: #8f7a72;
-    --color-line: #40282c;
-    --color-surface: #2c1a1f;
-    --color-sidebar: #170d10;
+    --color-text: #cdb2ac;
+    --color-text-soft: #8f7772;
+    --color-line: #3d2529;
+    --color-surface: #271519;
+    --color-sidebar: #170b0e;
+    --color-sidebar-to: #0e0709;
     --color-sidebar-text: #cdb2a8;
     --color-ok-bg: #22301f;
     --color-warn-bg: #362a15;
@@ -51,6 +57,7 @@
   --color-line: var(--color-line);
   --color-surface: var(--color-surface);
   --color-sidebar: var(--color-sidebar);
+  --color-sidebar-to: var(--color-sidebar-to);
   --color-sidebar-text: var(--color-sidebar-text);
   --color-ok: var(--color-ok);
   --color-ok-bg: var(--color-ok-bg);

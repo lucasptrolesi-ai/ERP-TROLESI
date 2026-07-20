@@ -1,17 +1,27 @@
 # Schema Supabase — ERP Trolesi
 
-Migrations em `migrations/`, na ordem em que devem ser aplicadas (prefixo de timestamp já garante a ordem certa pro Supabase CLI).
+Migrations em `migrations/`, na ordem em que devem ser aplicadas (prefixo de timestamp já garante a ordem certa).
 
-## Como aplicar (quando o projeto Supabase existir)
+## Como as migrations são aplicadas hoje (nota histórica — atualizado 2026-07-20)
 
-Nenhum projeto Supabase foi criado ainda — isso requer a conta do usuário. Quando existir:
+O projeto Supabase real (`trolesi-erp`) já existe e está em produção desde a Fase 2. Na prática, todas as migrations até aqui foram aplicadas por um script Python (`psycopg2`) conectando direto no *session pooler* do projeto (`aws-1-sa-east-1.pooler.supabase.com`), não pelo `supabase db push` — o CLI nunca chegou a ser usado neste projeto. Não existe ambiente de staging separado; toda migration nova roda direto contra produção.
 
+## Convenção de rollback (a partir de 2026-07-20, Fase 1 do documento mestre)
+
+Migrations aplicadas **antes** desta data (`20260713*` a `20260716*`, 21 arquivos) não foram reescritas — não têm rollback formal, só o registro de que foram aplicadas com sucesso e verificadas por contagem/consulta direta ao catálogo do Postgres.
+
+**Toda migration nova a partir daqui** ganha um cabeçalho `-- ROLLBACK:` comentado, descrevendo o SQL exato pra reverter aquela migration especificamente (não um "down.sql" separado — mantém a reversão ao lado da mudança, mais fácil de não ficar desatualizado). Exemplo:
+
+```sql
+-- ROLLBACK:
+-- drop table if exists public.pending_decisions;
+
+create table public.pending_decisions (
+  ...
+);
 ```
-supabase link --project-ref <ref-do-projeto>
-supabase db push
-```
 
-Isso roda as 7 migrations na ordem, criando todo o schema + RLS de uma vez. Nenhuma delas insere dado real — são só estrutura.
+Antes de rodar qualquer migration nova contra o banco real de produção, o rollback comentado é revisado junto — se something der errado depois de aplicada, o comando de reversão já está pronto, não precisa ser improvisado sob pressão.
 
 ## Tabelas por módulo
 

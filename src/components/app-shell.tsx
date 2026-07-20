@@ -35,7 +35,8 @@ export function AppShell({
       )}
 
       <aside
-        className={`fixed inset-y-0 left-0 z-40 flex w-64 flex-col gap-7 bg-sidebar p-[1.1rem] text-sidebar-text transition-transform duration-200 print:hidden md:static md:z-auto md:w-auto md:translate-x-0 ${
+        style={{ background: "linear-gradient(180deg, var(--color-sidebar) 0%, var(--color-sidebar-to) 100%)" }}
+        className={`fixed inset-y-0 left-0 z-40 flex w-64 flex-col gap-7 p-[1.1rem] text-sidebar-text transition-transform duration-200 print:hidden md:static md:z-auto md:w-auto md:translate-x-0 ${
           menuAberto ? "translate-x-0" : "-translate-x-full"
         }`}
       >

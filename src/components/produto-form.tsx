@@ -6,6 +6,7 @@ import { FormField } from "@/components/form-field";
 import { salvarProduto, excluirProduto } from "@/lib/actions/produtos";
 import { useFecharAoSalvar } from "@/lib/use-fechar-ao-salvar";
 import { formatarMoeda } from "@/lib/formatar-moeda";
+import { calcularPrecoUnitario, MULTIPLICADOR_PADRAO } from "@/lib/precificacao";
 import type { Produto } from "@/lib/types";
 
 export function ProdutoForm({
@@ -23,7 +24,7 @@ export function ProdutoForm({
   const [erroExcluir, setErroExcluir] = useState<string | null>(null);
   const [excluindo, iniciarExclusao] = useTransition();
   const [codigoPeca, setCodigoPeca] = useState(produto?.codigo_peca ?? 0);
-  const [multiplicador, setMultiplicador] = useState(produto?.multiplicador ?? 2.8);
+  const [multiplicador, setMultiplicador] = useState(produto?.multiplicador ?? MULTIPLICADOR_PADRAO);
   useFecharAoSalvar(pending, state?.erro, onFechar);
 
   function handleExcluir() {
@@ -88,13 +89,15 @@ export function ProdutoForm({
             step="0.1"
             min={0}
             max={99.99}
-            defaultValue={produto?.multiplicador ?? 2.8}
+            defaultValue={produto?.multiplicador ?? MULTIPLICADOR_PADRAO}
             onChange={(e) => setMultiplicador(Number(e.target.value) || 0)}
           />
         </div>
         <p className="-mt-2 text-xs text-text-soft">
           Preço de venda calculado:{" "}
-          <span className="font-semibold text-rose-deep">{formatarMoeda(codigoPeca * multiplicador)}</span>
+          <span className="font-semibold text-rose-deep">
+            {formatarMoeda(calcularPrecoUnitario(codigoPeca, multiplicador))}
+          </span>
         </p>
 
         <div className="grid grid-cols-2 gap-3">

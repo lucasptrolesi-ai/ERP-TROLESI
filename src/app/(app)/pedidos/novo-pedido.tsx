@@ -7,6 +7,7 @@ import { criarPedido } from "@/lib/actions/pedidos";
 import { formatarMoeda } from "@/lib/formatar-moeda";
 import { parseMoeda } from "@/lib/parse-moeda";
 import { hojeIso } from "@/lib/datas";
+import { calcularPrecoUnitario } from "@/lib/precificacao";
 import type { Cliente, FormaPagamento, ItemCarrinho, Parcela, Produto } from "@/lib/types";
 
 function somaMeses(dataIso: string, meses: number): string {
@@ -146,7 +147,7 @@ export function NovoPedido({
     setCarrinho((atual) =>
       atual.map((i) =>
         i.produto_id === produtoId
-          ? { ...i, codigo_peca: codigoPeca, preco_unitario: Math.round(codigoPeca * i.multiplicador * 100) / 100 }
+          ? { ...i, codigo_peca: codigoPeca, preco_unitario: calcularPrecoUnitario(codigoPeca, i.multiplicador) }
           : i,
       ),
     );
