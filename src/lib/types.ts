@@ -140,6 +140,54 @@ export type EstatisticasCliente = {
   meses_inatividade: number | null;
 };
 
+export type AbatimentoStatus = "avaliando" | "aprovado" | "reprovado" | "vinculado";
+
+export type Abatimento = {
+  id: string;
+  pedido_id: string | null;
+  cliente_id: string;
+  material: string | null;
+  tipo_peca: string | null;
+  marca_presente: boolean;
+  danificada: boolean;
+  tem_pedra: boolean;
+  tem_perola: boolean;
+  eh_fita_ou_fio: boolean;
+  ultima_colecao: boolean;
+  eh_relogio: boolean;
+  estado_descricao: string | null;
+  motivo_avaliacao: string | null;
+  valor_atribuido: number | null;
+  status: AbatimentoStatus;
+  criado_em: string;
+  clientes: { nome: string } | null;
+};
+
+export type Garantia = {
+  id: string;
+  pedido_id: string | null;
+  produto_id: string | null;
+  cliente_id: string;
+  tipo: GarantiaProdutoTipo;
+  percentual_descascamento: number | null;
+  marca_presente: boolean | null;
+  peca_completa: boolean | null;
+  partes_faltando: string | null;
+  limpeza_realizada: boolean | null;
+  sinais_mau_uso: boolean | null;
+  alianca: boolean;
+  parecer: string | null;
+  aprovado: boolean | null;
+  justificativa: string | null;
+  numero_serie: string | null;
+  protocolo_fabricante: string | null;
+  status_orient: string | null;
+  custo_reparo: number | null;
+  criado_em: string;
+  clientes: { nome: string } | null;
+  produtos: { nome: string } | null;
+};
+
 export type ItemCarrinho = {
   produto_id: string;
   nome: string;
