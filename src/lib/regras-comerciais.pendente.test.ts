@@ -6,24 +6,12 @@ import { describe, it } from "vitest";
  * implementar a regra — nenhuma fase é considerada concluída enquanto o teste
  * correspondente continuar como `todo` em vez de passar de verdade.
  *
- * Itens já cobertos com teste real: multiplicador 2,8 (ver precificacao.test.ts).
+ * Itens já cobertos com teste real: multiplicador 2,8 (ver precificacao.test.ts),
+ * desconto automático por forma de pagamento (ver desconto.test.ts), limiares
+ * de parcelamento sem juros (ver parcelamento.test.ts).
  */
 
-describe("Fase 3 — desconto", () => {
-  it.todo("dinheiro à vista aplica 10% sobre a base elegível");
-  it.todo("Pix aplica 7% sobre a base elegível");
-  it.todo("débito aplica 7% sobre a base elegível");
-  it.todo("fornitura nunca recebe desconto, mesmo com outros itens elegíveis no carrinho");
-  it.todo(
-    "venda com R$1000 elegível + R$100 de fornitura, pagamento em dinheiro → desconto = R$100 (nunca R$110)",
-  );
-});
-
-describe("Fase 3 — parcelamento por limiar de valor", () => {
-  it.todo("venda de R$199,99 não libera 2x sem juros");
-  it.todo("venda de R$200,00 libera até 2x sem juros");
-  it.todo("venda de R$299,99 libera até 2x sem juros (não 3x)");
-  it.todo("venda de R$300,00 libera até 3x sem juros");
+describe("Fase 3 — parcelamento por limiar de valor (UI)", () => {
   it.todo("interface nunca mostra opção de parcela que a regra não permite para aquela venda");
 });
 

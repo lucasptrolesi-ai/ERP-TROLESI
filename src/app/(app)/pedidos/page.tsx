@@ -6,7 +6,7 @@ export default async function PedidosPage() {
   const perfil = await getPerfilAtual();
   const supabase = await createClient();
 
-  const [{ data: pedidos }, { data: clientes }, { data: produtos }] = await Promise.all([
+  const [{ data: pedidos }, { data: clientes }, { data: produtos }, { data: faixas }] = await Promise.all([
     supabase
       .from("pedidos")
       .select(
@@ -15,6 +15,7 @@ export default async function PedidosPage() {
       .order("criado_em", { ascending: false }),
     supabase.from("clientes").select("*").eq("ativo", true).order("nome"),
     supabase.from("produtos").select("*").eq("ativo", true).order("nome"),
+    supabase.from("faixas_parcelamento").select("forma_pagamento, valor_minimo, parcelas_sem_juros"),
   ]);
 
   return (
@@ -23,6 +24,7 @@ export default async function PedidosPage() {
       pedidos={pedidos ?? []}
       clientes={clientes ?? []}
       produtos={produtos ?? []}
+      faixasParcelamento={faixas ?? []}
     />
   );
 }

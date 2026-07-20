@@ -7,20 +7,24 @@ import { formatarMoeda } from "@/lib/formatar-moeda";
 import { FORMA_LABEL } from "@/lib/forma-pagamento";
 import { podeEditarPedidos } from "@/lib/permissoes";
 import { STATUS_LABEL } from "@/lib/status-pedido";
-import type { Cliente, Pedido, Produto } from "@/lib/types";
+import type { Cliente, FaixaParcelamentoDb, Pedido, Produto } from "@/lib/types";
 
 export function PedidosView({
   papelAtual,
   pedidos,
   clientes,
   produtos,
+  faixasParcelamento,
 }: {
   papelAtual: string;
   pedidos: Pedido[];
   clientes: Cliente[];
   produtos: Produto[];
+  faixasParcelamento: FaixaParcelamentoDb[];
 }) {
-  const [aba, setAba] = useState<"lista" | "novo">("lista");
+  // PDV abre direto na tela de venda — é a tela principal do app agora
+  // (Dashboard/Financeiro/Fiscal saíram do menu, ver sidebar-nav.tsx).
+  const [aba, setAba] = useState<"lista" | "novo">(podeEditarPedidos(papelAtual) ? "novo" : "lista");
   const [busca, setBusca] = useState("");
   const [pedidoAberto, setPedidoAberto] = useState<Pedido | null>(null);
   const podeCriar = podeEditarPedidos(papelAtual);
@@ -37,14 +41,6 @@ export function PedidosView({
     <div className="rounded-[14px] border border-line bg-surface shadow-sm">
       <div className="flex items-center justify-between border-b border-line px-4 sm:px-5">
         <div className="flex gap-6">
-          <button
-            onClick={() => setAba("lista")}
-            className={`border-b-2 py-3 text-sm font-semibold ${
-              aba === "lista" ? "border-rose text-rose-deep" : "border-transparent text-text-soft"
-            }`}
-          >
-            Todos os pedidos
-          </button>
           {podeCriar && (
             <button
               onClick={() => setAba("novo")}
@@ -52,9 +48,17 @@ export function PedidosView({
                 aba === "novo" ? "border-rose text-rose-deep" : "border-transparent text-text-soft"
               }`}
             >
-              + Novo pedido
+              Nova venda
             </button>
           )}
+          <button
+            onClick={() => setAba("lista")}
+            className={`border-b-2 py-3 text-sm font-semibold ${
+              aba === "lista" ? "border-rose text-rose-deep" : "border-transparent text-text-soft"
+            }`}
+          >
+            Vendas registradas
+          </button>
         </div>
       </div>
 
@@ -129,7 +133,12 @@ export function PedidosView({
       )}
 
       {aba === "novo" && podeCriar && (
-        <NovoPedido clientes={clientes} produtos={produtos} onVoltarParaLista={() => setAba("lista")} />
+        <NovoPedido
+          clientes={clientes}
+          produtos={produtos}
+          faixasParcelamento={faixasParcelamento}
+          onVoltarParaLista={() => setAba("lista")}
+        />
       )}
 
       {pedidoAberto && (

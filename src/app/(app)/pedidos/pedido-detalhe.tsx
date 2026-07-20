@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { Modal } from "@/components/modal";
-import { ajustarPedido, extornarPedido } from "@/lib/actions/pedidos";
+import { ajustarPedido, extornarPedido, marcarLancadoNoGmax } from "@/lib/actions/pedidos";
 import { formatarMoeda } from "@/lib/formatar-moeda";
 import { parseMoeda } from "@/lib/parse-moeda";
 import type { Pedido } from "@/lib/types";
@@ -21,12 +21,28 @@ export function PedidoDetalhe({
   const [erro, setErro] = useState<string | null>(null);
   const [salvando, iniciarSalvamento] = useTransition();
   const [extornando, iniciarEstorno] = useTransition();
+  const [lancando, iniciarLancamento] = useTransition();
 
   const numDesconto = parseMoeda(valorDesconto);
   const numAcrescimo = parseMoeda(valorAcrescimo);
   const totalRecalculado = Math.max(0, pedido.subtotal - numDesconto + numAcrescimo);
   const cancelado = pedido.status === "cancelado";
-  const editavel = podeEditar && !cancelado;
+  const aguardandoGmax = pedido.status === "aguardando_lancamento_gmax";
+  const lancadoGmax = pedido.status === "lancado_gmax";
+  // 'aguardando_lancamento_gmax' continua ajustável/extornável normalmente
+  // (não afeta estoque/financeiro real, não há risco em corrigir antes de
+  // transcrever) — só 'cancelado' e 'lancado_gmax' (já conferido e digitado
+  // no GMax) viram estado terminal.
+  const editavel = podeEditar && !cancelado && !lancadoGmax;
+
+  function marcarLancado() {
+    setErro(null);
+    iniciarLancamento(async () => {
+      const resultado = await marcarLancadoNoGmax(pedido.id);
+      if (resultado.erro) setErro(resultado.erro);
+      else onFechar();
+    });
+  }
 
   function salvarAjuste() {
     setErro(null);
@@ -148,6 +164,27 @@ export function PedidoDetalhe({
             </a>
           )}
         </div>
+
+        {aguardandoGmax && (
+          <div className="rounded-lg border-2 border-warn bg-warn-bg p-3 text-sm text-warn">
+            <p className="mb-2 font-semibold">📝 Venda registrada, aguardando lançamento no GMax.</p>
+            {editavel && (
+              <button
+                type="button"
+                onClick={marcarLancado}
+                disabled={lancando}
+                className="rounded-full bg-warn px-4 py-2 text-xs font-semibold text-white disabled:opacity-60"
+              >
+                {lancando ? "Marcando…" : "✓ Marcar como lançado no GMax"}
+              </button>
+            )}
+          </div>
+        )}
+        {lancadoGmax && (
+          <p className="text-center text-sm font-semibold text-ok">
+            ✓ Já lançado no GMax{pedido.lancado_gmax_em ? ` em ${new Date(pedido.lancado_gmax_em).toLocaleString("pt-BR")}` : ""}.
+          </p>
+        )}
 
         {editavel && (
           <div className="flex gap-3">

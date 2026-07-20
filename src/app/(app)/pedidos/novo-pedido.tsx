@@ -1,14 +1,24 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { ClienteForm } from "@/components/cliente-form";
-import { criarPedido } from "@/lib/actions/pedidos";
+import { criarPedido, buscarEstatisticasCliente } from "@/lib/actions/pedidos";
 import { formatarMoeda } from "@/lib/formatar-moeda";
 import { parseMoeda } from "@/lib/parse-moeda";
 import { hojeIso } from "@/lib/datas";
 import { calcularPrecoUnitario } from "@/lib/precificacao";
-import type { Cliente, FormaPagamento, ItemCarrinho, Parcela, Produto } from "@/lib/types";
+import { calcularDescontoAutomatico } from "@/lib/desconto";
+import { maxParcelasSemJuros } from "@/lib/parcelamento";
+import type {
+  Cliente,
+  EstatisticasCliente,
+  FaixaParcelamentoDb,
+  FormaPagamento,
+  ItemCarrinho,
+  Parcela,
+  Produto,
+} from "@/lib/types";
 
 function somaMeses(dataIso: string, meses: number): string {
   const data = new Date(`${dataIso}T00:00:00`);
@@ -16,13 +26,17 @@ function somaMeses(dataIso: string, meses: number): string {
   return data.toISOString().slice(0, 10);
 }
 
+const FORMAS_COM_DESCONTO_AUTOMATICO: FormaPagamento[] = ["dinheiro", "pix", "debito"];
+
 export function NovoPedido({
   clientes,
   produtos,
+  faixasParcelamento,
   onVoltarParaLista,
 }: {
   clientes: Cliente[];
   produtos: Produto[];
+  faixasParcelamento: FaixaParcelamentoDb[];
   onVoltarParaLista: () => void;
 }) {
   const [clienteSelecionado, setClienteSelecionado] = useState<Cliente | null>(null);
@@ -41,10 +55,30 @@ export function NovoPedido({
   const [primeiroVencimento, setPrimeiroVencimento] = useState(hojeIso());
   const [valorComJuros, setValorComJuros] = useState<string>("");
 
+  const [estatisticasCliente, setEstatisticasCliente] = useState<EstatisticasCliente | null>(null);
+  const [justificativaExcecao, setJustificativaExcecao] = useState("");
+
+  const [idempotencyKey, setIdempotencyKey] = useState<string>(() => crypto.randomUUID());
   const [erro, setErro] = useState<string | null>(null);
   const [salvando, iniciarSalvamento] = useTransition();
   const [pedidoCriado, setPedidoCriado] = useState<{ id: string; promissoria: boolean } | null>(null);
   const router = useRouter();
+
+  const produtosPorId = useMemo(() => new Map(produtos.map((p) => [p.id, p])), [produtos]);
+
+  useEffect(() => {
+    // Limpar quando não há cliente selecionado acontece nos próprios
+    // handlers que trocam `clienteSelecionado` (não aqui) — setState
+    // síncrono direto no corpo do efeito é o padrão que o lint proíbe.
+    if (!clienteSelecionado) return;
+    let cancelado = false;
+    buscarEstatisticasCliente(clienteSelecionado.id).then((stats) => {
+      if (!cancelado) setEstatisticasCliente(stats);
+    });
+    return () => {
+      cancelado = true;
+    };
+  }, [clienteSelecionado]);
 
   const clientesFiltrados = useMemo(() => {
     const termo = buscaCliente.trim().toLowerCase();
@@ -73,14 +107,51 @@ export function NovoPedido({
   }, [produtos, buscaProduto]);
 
   const subtotal = carrinho.reduce((soma, i) => soma + i.quantidade * i.preco_unitario, 0);
-  const numDesconto = parseMoeda(valorDesconto);
+
+  // Desconto automático por forma de pagamento (dinheiro 10%/Pix 7%/débito
+  // 7%) aplicado só sobre a base elegível — fornitura nunca entra. Pra
+  // essas 3 formas, o desconto manual fica desligado (o cálculo é sempre o
+  // automático); cartão de crédito/promissória continuam com desconto
+  // manual, já que não têm regra automática.
+  const temDescontoAutomatico = FORMAS_COM_DESCONTO_AUTOMATICO.includes(formaPagamento);
+  const descontoAutomatico = calcularDescontoAutomatico(
+    carrinho.map((i) => ({
+      valor: i.quantidade * i.preco_unitario,
+      elegivel: !produtosPorId.get(i.produto_id)?.eh_fornitura,
+    })),
+    formaPagamento,
+  );
+  const numDesconto = temDescontoAutomatico ? descontoAutomatico.valorDesconto : parseMoeda(valorDesconto);
   const numAcrescimo = parseMoeda(valorAcrescimo);
   const total = Math.max(0, subtotal - numDesconto + numAcrescimo);
 
-  const parcelasSemJuros = formaPagamento === "cartao_credito" && numeroParcelas <= 3;
-  const parcelasComJuros = formaPagamento === "cartao_credito" && numeroParcelas >= 4;
   const ehPromissoria = formaPagamento === "promissoria";
   const temParcelamento = formaPagamento === "cartao_credito" || ehPromissoria;
+
+  // Limiares de parcelamento sem juros por valor da venda (seção 9): a
+  // partir de R$200 até 2x, a partir de R$300 até 3x — nunca a interface
+  // oferece uma parcela "sem juros" que a venda não atinge.
+  const maxSemJuros = maxParcelasSemJuros(
+    total,
+    faixasParcelamento
+      .filter((f) => f.forma_pagamento === "cartao_credito")
+      .map((f) => ({ valorMinimo: f.valor_minimo, parcelasSemJuros: f.parcelas_sem_juros })),
+  );
+  const parcelasSemJuros = formaPagamento === "cartao_credito" && numeroParcelas <= maxSemJuros;
+  const parcelasComJuros = formaPagamento === "cartao_credito" && numeroParcelas > maxSemJuros;
+
+  // Primeira compra / reativação (seção 10) — checagem client-side só pra
+  // avisar cedo; a validação de verdade acontece no servidor dentro de
+  // criar_pedido, que é quem realmente bloqueia.
+  const minimoRequerido = (() => {
+    if (!estatisticasCliente) return null;
+    if (!estatisticasCliente.data_primeira_compra) return { valor: 1000, motivo: "primeira compra" };
+    const meses = estatisticasCliente.meses_inatividade ?? 0;
+    if (meses >= 12) return { valor: 800, motivo: "reativação (12+ meses sem comprar)" };
+    if (meses >= 6) return { valor: 600, motivo: "reativação (6-11 meses sem comprar)" };
+    return null;
+  })();
+  const abaixoDoMinimo = minimoRequerido !== null && carrinho.length > 0 && total < minimoRequerido.valor;
 
   // No cartão 4-12x, o valor total já vem com o juros da maquininha — a
   // pessoa digita o total cobrado, o simulador só divide igualmente pra
@@ -169,15 +240,26 @@ export function NovoPedido({
     setNumeroParcelas(1);
     setPrimeiroVencimento(hojeIso());
     setValorComJuros("");
+    setJustificativaExcecao("");
+    setEstatisticasCliente(null);
+    // Chave nova pra próxima venda — a antiga já foi consumida (ou nunca foi
+    // usada, se essa tentativa deu erro antes de chegar no servidor).
+    setIdempotencyKey(crypto.randomUUID());
   }
 
-  function salvar(status: "orcamento" | "faturado") {
+  function salvar(status: "orcamento" | "faturado" | "aguardando_lancamento_gmax") {
     if (!clienteSelecionado) {
       setErro("Selecione um cliente.");
       return;
     }
     if (carrinho.length === 0) {
       setErro("Adicione pelo menos um produto.");
+      return;
+    }
+    if (status !== "orcamento" && abaixoDoMinimo && !justificativaExcecao.trim()) {
+      setErro(
+        `Venda de ${minimoRequerido!.motivo} exige mínimo de ${formatarMoeda(minimoRequerido!.valor)} (valor atual: ${formatarMoeda(total)}). Informe a justificativa de exceção pra prosseguir abaixo do mínimo.`,
+      );
       return;
     }
     const parcelas = parcelasCalculadas();
@@ -200,7 +282,11 @@ export function NovoPedido({
         status,
         {
           valorDesconto: numDesconto,
-          percentualDesconto: percentualDesconto ? parseMoeda(percentualDesconto) : null,
+          percentualDesconto: temDescontoAutomatico
+            ? descontoAutomatico.percentual * 100
+            : percentualDesconto
+              ? parseMoeda(percentualDesconto)
+              : null,
           // Quando o cartão tem juros da maquininha, dobra a diferença no
           // acréscimo enviado pro servidor — ver comentário de juroCartao.
           valorAcrescimo: numAcrescimo + juroCartao,
@@ -209,6 +295,11 @@ export function NovoPedido({
           percentualAcrescimo: juroCartao !== 0 ? null : percentualAcrescimo ? parseMoeda(percentualAcrescimo) : null,
         },
         parcelas,
+        {
+          idempotencyKey,
+          parcelasPlanejadas: parcelas,
+          excecaoJustificativa: justificativaExcecao.trim() || undefined,
+        },
       );
       if (resultado.erro) {
         setErro(resultado.erro);
@@ -272,15 +363,30 @@ export function NovoPedido({
       <div>
         <label className="text-xs font-semibold uppercase tracking-wide text-text-soft">Cliente</label>
         {clienteSelecionado ? (
-          <div className="mt-1.5 flex items-center justify-between rounded-lg border border-line bg-cream px-3 py-2">
-            <span className="text-sm font-semibold text-ink">{clienteSelecionado.nome}</span>
-            <button
-              type="button"
-              onClick={() => setClienteSelecionado(null)}
-              className="text-xs font-semibold text-rose-deep hover:underline"
-            >
-              Trocar
-            </button>
+          <div className="mt-1.5 flex flex-col gap-1 rounded-lg border border-line bg-cream px-3 py-2">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-semibold text-ink">{clienteSelecionado.nome}</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setClienteSelecionado(null);
+                  setEstatisticasCliente(null);
+                }}
+                className="text-xs font-semibold text-rose-deep hover:underline"
+              >
+                Trocar
+              </button>
+            </div>
+            {clienteSelecionado.cpf_cnpj && (
+              <span className="text-xs text-text-soft">CPF/CNPJ: {clienteSelecionado.cpf_cnpj}</span>
+            )}
+            {estatisticasCliente && (
+              <span className="text-xs text-text-soft">
+                {estatisticasCliente.data_primeira_compra
+                  ? `Cliente desde ${new Date(estatisticasCliente.data_primeira_compra).toLocaleDateString("pt-BR")} · total comprado ${formatarMoeda(estatisticasCliente.total_comprado)}`
+                  : "Sem compras anteriores registradas — primeira compra"}
+              </span>
+            )}
           </div>
         ) : (
           <div className="relative mt-1.5">
@@ -307,6 +413,7 @@ export function NovoPedido({
                       type="button"
                       onClick={() => {
                         setClienteSelecionado(c);
+                        setEstatisticasCliente(null);
                         setBuscaCliente("");
                       }}
                       className="block w-full px-3 py-2 text-left text-sm hover:bg-rose-soft/40"
@@ -422,26 +529,55 @@ export function NovoPedido({
         <p className="mb-3 text-xs font-bold uppercase tracking-wide text-text-soft">
           Desconto / acréscimo
         </p>
+
+        {temDescontoAutomatico ? (
+          <div className="mb-3 flex flex-col gap-1 rounded-lg border border-line bg-surface p-3 text-sm">
+            <div className="flex justify-between text-text-soft">
+              <span>Subtotal bruto</span>
+              <span className="tabular-nums">{formatarMoeda(descontoAutomatico.subtotalBruto)}</span>
+            </div>
+            {descontoAutomatico.totalNaoElegivel > 0 && (
+              <div className="flex justify-between text-text-soft">
+                <span>Itens não elegíveis (fornitura)</span>
+                <span className="tabular-nums">{formatarMoeda(descontoAutomatico.totalNaoElegivel)}</span>
+              </div>
+            )}
+            <div className="flex justify-between text-text-soft">
+              <span>Base elegível</span>
+              <span className="tabular-nums">{formatarMoeda(descontoAutomatico.baseElegivel)}</span>
+            </div>
+            <div className="flex justify-between font-semibold text-ok">
+              <span>Desconto automático ({(descontoAutomatico.percentual * 100).toFixed(0)}%)</span>
+              <span className="tabular-nums">− {formatarMoeda(descontoAutomatico.valorDesconto)}</span>
+            </div>
+            <p className="mt-1 text-[0.7rem] text-text-soft">
+              Aplicado automaticamente sobre a base elegível (seção 8) — fornitura nunca entra no cálculo.
+            </p>
+          </div>
+        ) : null}
+
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <div className="flex flex-col gap-1">
             <label className="text-[0.7rem] text-text-soft">Desconto (%)</label>
             <input
-              value={percentualDesconto}
+              value={temDescontoAutomatico ? (descontoAutomatico.percentual * 100).toFixed(0) : percentualDesconto}
+              disabled={temDescontoAutomatico}
               onChange={(e) => {
                 setPercentualDesconto(e.target.value);
                 const p = Number(e.target.value.replace(",", "."));
                 if (Number.isFinite(p)) setValorDesconto(((subtotal * p) / 100).toFixed(2));
               }}
               placeholder="0"
-              className="rounded-lg border border-line bg-surface px-2 py-1.5 text-sm"
+              className="rounded-lg border border-line bg-surface px-2 py-1.5 text-sm disabled:opacity-60"
             />
           </div>
           <div className="flex flex-col gap-1">
             <label className="text-[0.7rem] text-text-soft">Desconto (R$)</label>
             <input
-              value={valorDesconto}
+              value={temDescontoAutomatico ? descontoAutomatico.valorDesconto.toFixed(2) : valorDesconto}
+              disabled={temDescontoAutomatico}
               onChange={(e) => setValorDesconto(e.target.value)}
-              className="rounded-lg border border-line bg-surface px-2 py-1.5 text-sm"
+              className="rounded-lg border border-line bg-surface px-2 py-1.5 text-sm disabled:opacity-60"
             />
           </div>
           <div className="flex flex-col gap-1">
@@ -477,6 +613,7 @@ export function NovoPedido({
             [
               ["dinheiro", "Dinheiro"],
               ["pix", "Pix"],
+              ["debito", "Cartão de débito"],
               ["cartao_credito", "Cartão de crédito"],
               ["promissoria", "Promissória"],
             ] as const
@@ -510,10 +647,15 @@ export function NovoPedido({
               >
                 {Array.from({ length: 12 }, (_, i) => i + 1).map((n) => (
                   <option key={n} value={n}>
-                    {n}x {n <= 3 ? "sem juros" : ""}
+                    {n}x {n <= maxSemJuros ? "sem juros" : "com juros"}
                   </option>
                 ))}
               </select>
+              <p className="text-[0.7rem] text-text-soft">
+                {maxSemJuros > 1
+                  ? `Essa venda libera até ${maxSemJuros}x sem juros.`
+                  : "Abaixo de R$200, só é liberado parcelamento com juros."}
+              </p>
             </div>
 
             {parcelasSemJuros && (
@@ -630,13 +772,31 @@ export function NovoPedido({
         </div>
       </div>
 
+      {abaixoDoMinimo && minimoRequerido && (
+        <div className="flex flex-col gap-2 rounded-lg border-2 border-warn bg-warn-bg p-3 text-sm text-warn">
+          <p className="font-semibold">
+            Venda de {minimoRequerido.motivo} exige mínimo de {formatarMoeda(minimoRequerido.valor)} (valor atual:{" "}
+            {formatarMoeda(total)}).
+          </p>
+          <label className="text-[0.7rem] font-semibold uppercase tracking-wide">
+            Justificativa de exceção (exige permissão autorizada)
+          </label>
+          <input
+            value={justificativaExcecao}
+            onChange={(e) => setJustificativaExcecao(e.target.value)}
+            placeholder="Motivo pra liberar abaixo do mínimo"
+            className="rounded-lg border border-warn bg-surface px-2 py-1.5 text-sm text-ink"
+          />
+        </div>
+      )}
+
       {erro && (
         <p role="alert" className="rounded-lg bg-crit-bg px-3 py-2 text-sm font-medium text-crit">
           {erro}
         </p>
       )}
 
-      <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
+      <div className="flex flex-col gap-3 sm:flex-row sm:justify-end sm:items-center">
         <button
           type="button"
           disabled={salvando}
@@ -649,9 +809,18 @@ export function NovoPedido({
           type="button"
           disabled={salvando}
           onClick={() => salvar("faturado")}
+          className="rounded-full border border-line px-5 py-2.5 text-sm font-semibold text-ink disabled:opacity-60"
+          title="Desconta estoque de verdade — use só quando essa venda for realmente saída do nosso estoque (loja/mostruário)"
+        >
+          Finalizar e faturar (afeta estoque)
+        </button>
+        <button
+          type="button"
+          disabled={salvando}
+          onClick={() => salvar("aguardando_lancamento_gmax")}
           className="rounded-full bg-gradient-to-br from-gold-start to-gold-end px-5 py-2.5 text-sm font-semibold text-[#3b2914] disabled:opacity-60"
         >
-          {salvando ? "Processando…" : "Finalizar e faturar pedido"}
+          {salvando ? "Processando…" : "Registrar venda (lançar no GMax depois)"}
         </button>
       </div>
 

@@ -3,13 +3,15 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+// Dashboard/Financeiro/Fiscal saem do menu (2026-07-20, fusão com o
+// documento mestre do PDV) — o código continua no repositório, só não fica
+// mais acessível pela navegação enquanto essas fases não voltam ao roadmap
+// reconstruídas (Caixa/Comissões/Relatórios, fases 4/5). PDV (antiga tela
+// de Pedidos) vira a tela principal.
 const ITENS = [
-  { href: "/", label: "Dashboard", icone: "📊" },
+  { href: "/pedidos", label: "PDV", icone: "🧾" },
   { href: "/cadastros", label: "Cadastros", icone: "👥" },
   { href: "/estoque", label: "Produtos & Estoque", icone: "💍" },
-  { href: "/pedidos", label: "Pedidos", icone: "🧾" },
-  { href: "/financeiro", label: "Financeiro", icone: "💰" },
-  { href: "/fiscal", label: "Fiscal / NF-e", icone: "🧾" },
 ];
 
 export function SidebarNav({ onNavegar }: { onNavegar?: () => void }) {
@@ -18,7 +20,8 @@ export function SidebarNav({ onNavegar }: { onNavegar?: () => void }) {
   return (
     <nav className="flex flex-col gap-1">
       {ITENS.map((item) => {
-        const ativo = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
+        // "/" redireciona pro PDV — trata como ativo também nesse caso.
+        const ativo = pathname.startsWith(item.href) || (item.href === "/pedidos" && pathname === "/");
         return (
           <Link
             key={item.href}

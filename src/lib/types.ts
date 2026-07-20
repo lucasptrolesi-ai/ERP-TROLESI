@@ -89,8 +89,14 @@ export type Produto = {
   localizacao_id: string | null;
 };
 
-export type StatusPedido = "orcamento" | "pedido" | "faturado" | "cancelado";
-export type FormaPagamento = "dinheiro" | "pix" | "cartao_credito" | "promissoria";
+export type StatusPedido =
+  | "orcamento"
+  | "pedido"
+  | "faturado"
+  | "cancelado"
+  | "aguardando_lancamento_gmax"
+  | "lancado_gmax";
+export type FormaPagamento = "dinheiro" | "pix" | "debito" | "cartao_credito" | "promissoria";
 
 export type EventoComissao = "venda" | "recebimento" | "fechamento_mensal";
 
@@ -121,6 +127,19 @@ export type LocalEstoque = {
   ativo: boolean;
 };
 
+export type FaixaParcelamentoDb = {
+  forma_pagamento: FormaPagamento;
+  valor_minimo: number;
+  parcelas_sem_juros: number;
+};
+
+export type EstatisticasCliente = {
+  data_primeira_compra: string | null;
+  data_ultima_compra: string | null;
+  total_comprado: number;
+  meses_inatividade: number | null;
+};
+
 export type ItemCarrinho = {
   produto_id: string;
   nome: string;
@@ -149,6 +168,8 @@ export type Pedido = {
   numero_parcelas: number;
   total: number;
   criado_em: string;
+  parcelas_planejadas: Parcela[] | null;
+  lancado_gmax_em: string | null;
   clientes: { nome: string; cpf_cnpj: string | null; endereco: string | null; bairro: string | null; cidade: string | null; uf: string | null } | null;
   pedido_itens: { quantidade: number; preco_unitario: number; produtos: { nome: string } | null }[];
 };
