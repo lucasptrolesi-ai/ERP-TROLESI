@@ -37,6 +37,8 @@ export type Funcionario = {
   ativo: boolean;
 };
 
+export type GarantiaProdutoTipo = "sem_garantia" | "folheado_ouro" | "autenticidade_prata_aco" | "orient";
+
 export type Produto = {
   id: string;
   nome: string;
@@ -53,10 +55,71 @@ export type Produto = {
   ncm: string | null;
   csosn: string;
   ativo: boolean;
+  // Atributos comerciais — seção 17 do documento mestre.
+  codigo_barras: string | null;
+  referencia: string | null;
+  descricao: string | null;
+  material: string | null;
+  tipo_banho: string | null;
+  tem_pedra: boolean;
+  tem_perola: boolean;
+  tem_resina: boolean;
+  eh_fita: boolean;
+  eh_fio: boolean;
+  eh_correntaria: boolean;
+  eh_fornitura: boolean;
+  eh_embalagem: boolean;
+  eh_relogio: boolean;
+  colecao: string | null;
+  ultima_colecao: boolean;
+  cor: string | null;
+  tamanho: string | null;
+  peso: number | null;
+  genero: string | null;
+  garantia_tipo: GarantiaProdutoTipo;
+  marca_gravada: boolean;
+  fornecedor_id: string | null;
+  custo_aquisicao: number | null;
+  usa_cotacao_diaria: boolean;
+  preco_promocional: number | null;
+  cest: string | null;
+  cfop_padrao: string | null;
+  cst: string | null;
+  origem_mercadoria: string;
+  localizacao_id: string | null;
 };
 
 export type StatusPedido = "orcamento" | "pedido" | "faturado" | "cancelado";
 export type FormaPagamento = "dinheiro" | "pix" | "cartao_credito" | "promissoria";
+
+export type EventoComissao = "venda" | "recebimento" | "fechamento_mensal";
+
+export type Vendedor = {
+  id: string;
+  profile_id: string;
+  comissao_percentual: number | null;
+  comissao_fixa: number | null;
+  evento_gerador: EventoComissao;
+  meta_mensal: number | null;
+  ativo: boolean;
+};
+
+export type CondicaoPagamento = {
+  id: string;
+  forma_pagamento: FormaPagamento;
+  valor_minimo_venda: number;
+  parcelas_maximas_sem_juros: number;
+  parcelas_maximas_com_juros: number;
+  valor_minimo_parcela: number;
+  ativo: boolean;
+};
+
+export type LocalEstoque = {
+  id: string;
+  nome: string;
+  tipo: string;
+  ativo: boolean;
+};
 
 export type ItemCarrinho = {
   produto_id: string;

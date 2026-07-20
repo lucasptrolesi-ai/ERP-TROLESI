@@ -11,6 +11,12 @@ function numeroOuZero(valor: FormDataEntryValue | null): number {
   return Number.isFinite(n) ? n : 0;
 }
 
+function numeroOuNulo(valor: FormDataEntryValue | null): number | null {
+  if (valor === null || String(valor).trim() === "") return null;
+  const n = Number(String(valor).replace(",", "."));
+  return Number.isFinite(n) ? n : null;
+}
+
 export async function salvarProduto(_prev: ResultadoForm, formData: FormData): Promise<ResultadoForm> {
   const nome = normalizarCampo(formData.get("nome"));
   const categoria = normalizarCampo(formData.get("categoria"));
@@ -37,6 +43,35 @@ export async function salvarProduto(_prev: ResultadoForm, formData: FormData): P
     quantidade_estoque: Math.max(0, Math.trunc(numeroOuZero(formData.get("quantidade_estoque")))),
     estoque_minimo: Math.max(0, Math.trunc(numeroOuZero(formData.get("estoque_minimo")))),
     ativo: formData.get("ativo") === "on",
+    codigo_barras: normalizarCampo(formData.get("codigo_barras")),
+    referencia: normalizarCampo(formData.get("referencia")),
+    descricao: normalizarCampo(formData.get("descricao")),
+    material: normalizarCampo(formData.get("material")),
+    tipo_banho: normalizarCampo(formData.get("tipo_banho")),
+    tem_pedra: formData.get("tem_pedra") === "on",
+    tem_perola: formData.get("tem_perola") === "on",
+    tem_resina: formData.get("tem_resina") === "on",
+    eh_fita: formData.get("eh_fita") === "on",
+    eh_fio: formData.get("eh_fio") === "on",
+    eh_correntaria: formData.get("eh_correntaria") === "on",
+    eh_fornitura: formData.get("eh_fornitura") === "on",
+    eh_embalagem: formData.get("eh_embalagem") === "on",
+    eh_relogio: formData.get("eh_relogio") === "on",
+    colecao: normalizarCampo(formData.get("colecao")),
+    ultima_colecao: formData.get("ultima_colecao") === "on",
+    cor: normalizarCampo(formData.get("cor")),
+    tamanho: normalizarCampo(formData.get("tamanho")),
+    peso: numeroOuNulo(formData.get("peso")),
+    genero: normalizarCampo(formData.get("genero")),
+    garantia_tipo: normalizarCampo(formData.get("garantia_tipo")) ?? "sem_garantia",
+    marca_gravada: formData.get("marca_gravada") === "on",
+    custo_aquisicao: numeroOuNulo(formData.get("custo_aquisicao")),
+    usa_cotacao_diaria: formData.get("usa_cotacao_diaria") === "on",
+    preco_promocional: numeroOuNulo(formData.get("preco_promocional")),
+    cest: normalizarCampo(formData.get("cest")),
+    cfop_padrao: normalizarCampo(formData.get("cfop_padrao")),
+    cst: normalizarCampo(formData.get("cst")),
+    origem_mercadoria: normalizarCampo(formData.get("origem_mercadoria")) ?? "0",
   };
 
   const supabase = await createClient();
