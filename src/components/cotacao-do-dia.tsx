@@ -6,6 +6,12 @@ import { informarCotacao } from "@/lib/actions/cotacoes";
 import { formatarMoeda } from "@/lib/formatar-moeda";
 import type { CotacaoDiaria } from "@/lib/types";
 
+// O casamento com `produtos.material` na venda (novo-pedido.tsx) é exato
+// (case-insensitive), de propósito: "Ouro" aqui não deve casar com
+// "Folheado a ouro" (material diferente, precificado por multiplicador, não
+// por cotação) — um match parcial arriscaria aplicar cotação de ouro puro
+// num produto banhado. Cadastrar o produto com material exatamente "Ouro"
+// ou "Cobre" é o que ativa o cálculo por cotação.
 const MATERIAIS_COM_COTACAO = ["Ouro", "Cobre"];
 
 /** Cotação diária (seção 6, decisão registrada em pending_decisions pra
