@@ -1,5 +1,16 @@
 # CHANGELOG — ERP Trolesi
 
+## 2026-07-21 — Documento mestre: Fases 1-4 (fundação, cadastros, núcleo do PDV, regras especiais) + correções de code-review
+
+Pivô de escopo grande: fusão com um documento mestre de regras comerciais de PDV/loja de joalheria trazido pelo usuário (ver `DECISIONS.md`), executado de forma autônoma (`/goal`) fase a fase, com commit e push a cada fase.
+
+- **Fase 1 (fundação):** decisão de dinheiro documentada, Vitest instalado (`calcularPrecoUnitario` extraído e testado), `pending_decisions` (11 ambiguidades do documento, feature-flagged), `permissoes_usuario`/`tem_permissao()` (16 permissões granulares estendendo os 4 papéis), `audit_log`/`registrar_auditoria()` central, paleta oficial aplicada (mesmos nomes de variável CSS, valores novos), convenção de rollback pras migrations novas.
+- **Fase 2 (cadastros estendidos):** produtos ganharam ~25 atributos comerciais (material, tipo de banho, pedra/pérola/fornitura/relógio/última coleção, garantia, custo de aquisição, CEST/CFOP/CST/origem etc.), `vendedores`, `condicoes_pagamento`, `locais_estoque` — tudo aditivo.
+- **Fase 3 (núcleo do PDV):** status `aguardando_lancamento_gmax`/`lancado_gmax`, forma de pagamento `debito`, desconto automático por forma de pagamento e parcelamento por limiar de valor extraídos como funções puras testadas, `criar_pedido` v4 (idempotência, `parcelas_planejadas`, validação de primeira compra/reativação com exceção auditada), Dashboard/Financeiro/Fiscal saem do menu, PDV vira tela principal.
+- **Fase 4 (regras especiais):** schema completo de abatimento/garantias/crediário legado/comissões/frete, regras testadas como funções puras (limite de 20% do abatimento, elegibilidade de peça, aprovação de garantia de folheado, classificação de autenticidade, cálculo de comissão), UI funcional pra abatimentos e garantias (exceção registrada ao gate de mockup — ver `DECISIONS.md`).
+- **Code-review parcial** (`/code-review xhigh`, 10 ângulos — 8 pararam por limite de sessão da conta, retomar depois): os 2 que completaram encontraram e corrigiram 5 bugs reais — aprovação de abatimento/garantia sem checar permissão granular nem auditar (3 functions SQL novas: `aprovar_abatimento`/`reprovar_abatimento`/`aprovar_reprovar_garantia`), `extornar_pedido`/`ajustar_valor_pedido` não bloqueando pedido já `lancado_gmax`, reimpressão de promissória de venda cancelada (fallback de `parcelas_planejadas` não limpo no extorno), mais um `|| null` tratando 0% de descascamento como campo vazio (achado à parte) e reuso de `parseMoeda` não aproveitado.
+- Build, lint e suíte Vitest confirmados limpos em cada fase (42 testes reais passando, 19 `it.todo` documentando regras pendentes de teste de integração).
+
 ## 2026-07-16 — Fase 4: Fiscal/NF-e (modo conferência)
 
 - Módulo Fiscal completo em modo conferência: lista pedidos faturados sem nota, "Gerar XML" cria a nota com CFOP automático (5101 dentro de MG / 6101 fora, batendo com o histórico real do GMax), tela de conferência com XML + CFOP/natureza editáveis, "Marcar como validada".

@@ -2,15 +2,19 @@
 
 Substituição enxuta do GMax/Sincron (ERP atual da Trolesi Joias, Firebird 2.5) por um sistema web. Ver plano completo em `C:\Users\Micro\.claude\plans\glowing-dreaming-music.md` e status atual em `PROJECT_STATUS.md`.
 
+**Pivô de escopo (2026-07-20/21):** o projeto foi fundido com um "documento mestre" de regras comerciais de PDV/loja de joalheria (desconto automático, parcelamento por limiar, primeira compra/reativação, abatimento de peças, garantias, crediário legado, comissões, frete), trazido pelo usuário. Esse documento mestre virou o processo oficial permanente (Fases 1-5: Fundação → Cadastros → Núcleo do PDV → Regras especiais → Relatórios/qualidade), estendendo o schema/código já existente em vez de recomeçar. Dashboard/Financeiro/Fiscal saíram do menu (código mantido, só desvinculado da navegação) — PDV (antiga tela de Pedidos) é a tela principal agora. Detalhes completos em `PROJECT_STATUS.md` e `DECISIONS.md`.
+
 ## Regras de processo (não negociáveis)
 
-1. **Gate de mockup.** Nenhuma tela vira código de aplicação sem aprovação visual prévia (Artifact tool / dev server). Mudanças visuais relevantes são sempre pré-visualizadas antes de codar.
-2. **Gate de code-review.** Nenhum módulo é considerado "pronto" sem passar pela skill `code-review`.
-3. **Módulo a módulo.** Não implementar todos os módulos de uma vez — seguir a ordem do plano (Cadastros → Estoque → Pedidos → Financeiro → Fiscal).
+1. **Gate de mockup.** Nenhuma tela vira código de aplicação sem aprovação visual prévia (Artifact tool / dev server). Mudanças visuais relevantes são sempre pré-visualizadas antes de codar. **Exceção registrada:** as telas de Abatimentos/Garantias (Fase 4 do documento mestre) foram construídas direto em código, sem mockup prévio, sob autorização explícita do usuário pra trabalhar de forma autônoma e rápida (`/loop`-style, "não precisa me perguntar nada") — ver `DECISIONS.md`. Não é precedente pra pular o gate por padrão; próximas telas novas com liberdade de design voltam a exigir mockup.
+2. **Gate de code-review.** Nenhum módulo é considerado "pronto" sem passar pela skill `code-review`. Rodado sobre as Fases 1-4 em 2026-07-21; 8 dos 10 agentes de revisão pararam por limite de sessão da conta antes de terminar — os 2 que completaram encontraram bugs reais, já corrigidos (ver `CHANGELOG.md`). Os 8 ângulos restantes (line-by-line, removed-behavior, cross-file, language-pitfall, reuse, simplification, efficiency, altitude, conventions — faltam a maioria) **ainda não rodaram** e são dívida de revisão pendente registrada, não escondida.
+3. **Ordem de construção do documento mestre.** Fase 1 (Fundação) → Fase 2 (Cadastros estendidos) → Fase 3 (Núcleo do PDV) → Fase 4 (Regras especiais) → Fase 5 (Relatórios/qualidade). As 5 fases dos módulos originais (Cadastros/Estoque/Pedidos/Financeiro/Fiscal) continuam existindo no código; Financeiro/Fiscal/Dashboard só saíram da navegação, não foram apagados.
 4. **Nunca usar o Firebird de produção.** Qualquer leitura do GMax é sobre cópia, nunca `erp trolesi/GMax/GMaxERP.FDB` diretamente.
-5. **Nenhuma emissão fiscal real** até a Fase 7, e só com autorização explícita do usuário. Até lá, o módulo fiscal só gera XML para conferência.
+5. **Nenhuma emissão fiscal real** até a Fase 7 original, e só com autorização explícita do usuário. Até lá, o módulo fiscal só gera XML para conferência (o módulo continua no código, só está fora do menu por ora).
 6. **Dados sensíveis nunca em git:** `*.FDB`, `migracao-dados/export_csv/` (dados reais de clientes), `.env*`, certificado `.p12`/`.key` — ver `.gitignore`.
 7. **Deploy só com autorização explícita.** Nunca fazer push para Vercel/produção automaticamente.
+8. **Toda migration nova segue a convenção de rollback** (bloco `-- ROLLBACK:` comentado no cabeçalho) desde 2026-07-20 — ver `supabase/README.md`.
+9. **Ambiguidades de regra de negócio nunca são decididas por suposição.** Ficam registradas na tabela `pending_decisions` (banco real), com a funcionalidade correspondente atrás de `ativo=false`, até um humano autorizado decidir.
 
 ## Stack
 
