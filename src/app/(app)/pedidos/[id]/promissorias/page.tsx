@@ -11,7 +11,11 @@ export default async function PromissoriasPage({ params }: { params: Promise<{ i
   if (!detalhe) notFound();
   const { pedido, parcelas } = detalhe;
 
-  if (pedido.forma_pagamento !== "promissoria" || parcelas.length === 0) {
+  // "cancelado" checado explicitamente mesmo que extornar_pedido já limpe
+  // parcelas_planejadas — defesa em profundidade contra reimprimir nota
+  // promissória de uma venda cancelada se algum caminho futuro esquecer de
+  // limpar esse campo (achado real do code-review, 2026-07-21).
+  if (pedido.forma_pagamento !== "promissoria" || parcelas.length === 0 || pedido.status === "cancelado") {
     notFound();
   }
 

@@ -56,17 +56,21 @@ export async function registrarAbatimento(_prev: ResultadoForm, formData: FormDa
   return undefined;
 }
 
-export async function aprovarAbatimento(id: string): Promise<{ erro?: string }> {
+export async function aprovarAbatimento(id: string, justificativa?: string): Promise<{ erro?: string }> {
   const supabase = await createClient();
-  const { error } = await supabase.from("abatimentos").update({ status: "aprovado" }).eq("id", id).eq("status", "avaliando");
+  const { error } = await supabase.rpc("aprovar_abatimento", {
+    p_id: id,
+    p_valor_final: null,
+    p_justificativa: justificativa ?? null,
+  });
   if (error) return { erro: error.message };
   revalidatePath("/abatimentos");
   return {};
 }
 
-export async function reprovarAbatimento(id: string): Promise<{ erro?: string }> {
+export async function reprovarAbatimento(id: string, justificativa?: string): Promise<{ erro?: string }> {
   const supabase = await createClient();
-  const { error } = await supabase.from("abatimentos").update({ status: "reprovado" }).eq("id", id).eq("status", "avaliando");
+  const { error } = await supabase.rpc("reprovar_abatimento", { p_id: id, p_justificativa: justificativa ?? null });
   if (error) return { erro: error.message };
   revalidatePath("/abatimentos");
   return {};

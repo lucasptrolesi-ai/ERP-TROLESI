@@ -220,7 +220,28 @@ export function AbatimentosView({ abatimentos, clientes }: { abatimentos: Abatim
 
 function LinhaAbatimento({ abatimento }: { abatimento: Abatimento }) {
   const [pending, iniciar] = useTransition();
+  const [erro, setErro] = useState<string | null>(null);
   const status = STATUS_LABEL[abatimento.status] ?? { rotulo: abatimento.status, classe: "bg-line text-text-soft" };
+
+  function aprovar() {
+    const justificativa = prompt("Justificativa da aprovação (fica registrada na auditoria):");
+    if (justificativa === null) return;
+    setErro(null);
+    iniciar(async () => {
+      const resultado = await aprovarAbatimento(abatimento.id, justificativa);
+      if (resultado.erro) setErro(resultado.erro);
+    });
+  }
+
+  function reprovar() {
+    const justificativa = prompt("Motivo da reprovação:");
+    if (justificativa === null) return;
+    setErro(null);
+    iniciar(async () => {
+      const resultado = await reprovarAbatimento(abatimento.id, justificativa);
+      if (resultado.erro) setErro(resultado.erro);
+    });
+  }
 
   return (
     <tr className="border-t border-line">
@@ -231,6 +252,7 @@ function LinhaAbatimento({ abatimento }: { abatimento: Abatimento }) {
       </td>
       <td className="px-5 py-2.5">
         <span className={`w-fit rounded-full px-2.5 py-1 text-xs font-bold ${status.classe}`}>{status.rotulo}</span>
+        {erro && <p className="mt-1 text-xs font-medium text-crit">{erro}</p>}
       </td>
       <td className="px-5 py-2.5 text-right">
         {abatimento.status === "avaliando" && (
@@ -238,11 +260,7 @@ function LinhaAbatimento({ abatimento }: { abatimento: Abatimento }) {
             <button
               type="button"
               disabled={pending}
-              onClick={() =>
-                iniciar(async () => {
-                  await aprovarAbatimento(abatimento.id);
-                })
-              }
+              onClick={aprovar}
               className="rounded-full border border-ok px-3 py-1 text-xs font-semibold text-ok disabled:opacity-60"
             >
               Aprovar
@@ -250,11 +268,7 @@ function LinhaAbatimento({ abatimento }: { abatimento: Abatimento }) {
             <button
               type="button"
               disabled={pending}
-              onClick={() =>
-                iniciar(async () => {
-                  await reprovarAbatimento(abatimento.id);
-                })
-              }
+              onClick={reprovar}
               className="rounded-full border border-crit px-3 py-1 text-xs font-semibold text-crit disabled:opacity-60"
             >
               Reprovar

@@ -1,7 +1,7 @@
 "use client";
 
-import { useActionState, useMemo, useState } from "react";
-import { registrarGarantia } from "@/lib/actions/garantias";
+import { useActionState, useMemo, useState, useTransition } from "react";
+import { registrarGarantia, decidirGarantia } from "@/lib/actions/garantias";
 import { avaliarGarantiaFolheado } from "@/lib/garantia";
 import type { Cliente, Garantia, GarantiaProdutoTipo, Produto } from "@/lib/types";
 
@@ -202,32 +202,16 @@ export function GarantiasView({
                 <th className="px-5 py-2">Produto</th>
                 <th className="px-5 py-2">Tipo</th>
                 <th className="px-5 py-2">Resultado</th>
+                <th className="px-5 py-2" />
               </tr>
             </thead>
             <tbody>
               {garantias.map((g) => (
-                <tr key={g.id} className="border-t border-line">
-                  <td className="px-5 py-2.5">{g.clientes?.nome ?? "—"}</td>
-                  <td className="px-5 py-2.5">{g.produtos?.nome ?? "—"}</td>
-                  <td className="px-5 py-2.5">{TIPO_LABEL[g.tipo]}</td>
-                  <td className="px-5 py-2.5">
-                    {g.tipo === "orient" ? (
-                      <span className="rounded-full bg-warn-bg px-2.5 py-1 text-xs font-bold text-warn">
-                        {g.status_orient ?? "aguardando_fabricante"}
-                      </span>
-                    ) : g.aprovado === null ? (
-                      <span className="rounded-full bg-line px-2.5 py-1 text-xs font-bold text-text-soft">—</span>
-                    ) : g.aprovado ? (
-                      <span className="rounded-full bg-ok-bg px-2.5 py-1 text-xs font-bold text-ok">Aprovada</span>
-                    ) : (
-                      <span className="rounded-full bg-crit-bg px-2.5 py-1 text-xs font-bold text-crit">Reprovada</span>
-                    )}
-                  </td>
-                </tr>
+                <LinhaGarantia key={g.id} garantia={g} />
               ))}
               {garantias.length === 0 && (
                 <tr>
-                  <td colSpan={4} className="px-5 py-8 text-center text-sm text-text-soft">
+                  <td colSpan={5} className="px-5 py-8 text-center text-sm text-text-soft">
                     Nenhuma garantia registrada ainda.
                   </td>
                 </tr>
@@ -237,5 +221,68 @@ export function GarantiasView({
         </div>
       </div>
     </div>
+  );
+}
+
+function LinhaGarantia({ garantia: g }: { garantia: Garantia }) {
+  const [pending, iniciar] = useTransition();
+  const [erro, setErro] = useState<string | null>(null);
+
+  function decidir(aprovado: boolean) {
+    const justificativa = prompt(
+      `Justificativa pra ${aprovado ? "aprovar" : "reprovar"} essa garantia (fica registrada na auditoria):`,
+    );
+    if (justificativa === null) return;
+    setErro(null);
+    iniciar(async () => {
+      const resultado = await decidirGarantia(g.id, aprovado, justificativa);
+      if (resultado.erro) setErro(resultado.erro);
+    });
+  }
+
+  return (
+    <tr className="border-t border-line">
+      <td className="px-5 py-2.5">{g.clientes?.nome ?? "—"}</td>
+      <td className="px-5 py-2.5">{g.produtos?.nome ?? "—"}</td>
+      <td className="px-5 py-2.5">{TIPO_LABEL[g.tipo]}</td>
+      <td className="px-5 py-2.5">
+        {g.tipo === "orient" && g.aprovado === null ? (
+          <span className="rounded-full bg-warn-bg px-2.5 py-1 text-xs font-bold text-warn">
+            {g.status_orient ?? "aguardando_fabricante"}
+          </span>
+        ) : g.aprovado === null ? (
+          <span className="rounded-full bg-line px-2.5 py-1 text-xs font-bold text-text-soft">
+            Aguardando decisão
+          </span>
+        ) : g.aprovado ? (
+          <span className="rounded-full bg-ok-bg px-2.5 py-1 text-xs font-bold text-ok">Aprovada</span>
+        ) : (
+          <span className="rounded-full bg-crit-bg px-2.5 py-1 text-xs font-bold text-crit">Reprovada</span>
+        )}
+        {erro && <p className="mt-1 text-xs font-medium text-crit">{erro}</p>}
+      </td>
+      <td className="px-5 py-2.5 text-right">
+        {g.aprovado === null && (
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              disabled={pending}
+              onClick={() => decidir(true)}
+              className="rounded-full border border-ok px-3 py-1 text-xs font-semibold text-ok disabled:opacity-60"
+            >
+              Aprovar
+            </button>
+            <button
+              type="button"
+              disabled={pending}
+              onClick={() => decidir(false)}
+              className="rounded-full border border-crit px-3 py-1 text-xs font-semibold text-crit disabled:opacity-60"
+            >
+              Reprovar
+            </button>
+          </div>
+        )}
+      </td>
+    </tr>
   );
 }

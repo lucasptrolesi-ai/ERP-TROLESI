@@ -52,3 +52,24 @@ export async function registrarGarantia(_prev: ResultadoForm, formData: FormData
   revalidatePath("/garantias");
   return undefined;
 }
+
+/** Decisão manual de garantia (Orient — decisão pertence à fabricante mas
+ * alguém aqui registra o resultado —, autenticidade prata/aço, ou uma
+ * revisão manual de um veredito automático de folheado a ouro). Exige a
+ * permissão granular `aprovar_reprovar_garantia` — nunca um UPDATE direto
+ * na tabela, senão não fica auditado (achado do code-review). */
+export async function decidirGarantia(
+  id: string,
+  aprovado: boolean,
+  justificativa?: string,
+): Promise<{ erro?: string }> {
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("aprovar_reprovar_garantia", {
+    p_id: id,
+    p_aprovado: aprovado,
+    p_justificativa: justificativa ?? null,
+  });
+  if (error) return { erro: error.message };
+  revalidatePath("/garantias");
+  return {};
+}
