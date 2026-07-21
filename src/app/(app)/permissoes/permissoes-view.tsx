@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { concederPermissao, revogarPermissao } from "@/lib/actions/permissoes";
+import { criarFuncionario } from "@/lib/actions/funcionarios";
 import { PERMISSAO_LABEL, PERMISSOES_ORDENADAS } from "@/lib/permissao-especial";
 import { formatarDataHoraIso } from "@/lib/datas";
 import type { PermissaoUsuario } from "@/lib/types";
@@ -12,6 +13,8 @@ const PAPEL_LABEL: Record<string, string> = {
   financeiro: "Financeiro",
   estoque: "Estoque",
 };
+
+const PAPEIS_CADASTRAVEIS = ["vendedor", "financeiro", "estoque"] as const;
 
 export function PermissoesView({ perfis, permissoes }: { perfis: PerfilComPapel[]; permissoes: PermissaoUsuario[] }) {
   const [selecionadoId, setSelecionadoId] = useState<string | null>(perfis[0]?.id ?? null);
@@ -29,7 +32,9 @@ export function PermissoesView({ perfis, permissoes }: { perfis: PerfilComPapel[
   const permissoesDoSelecionado = selecionado ? (permissoesPorPerfil.get(selecionado.id) ?? new Map()) : new Map();
 
   return (
-    <div className="flex flex-col gap-5 sm:flex-row">
+    <div className="flex flex-col gap-5">
+      <CadastrarFuncionario />
+      <div className="flex flex-col gap-5 sm:flex-row">
       <div className="w-full shrink-0 rounded-[14px] border border-line bg-surface shadow-sm sm:w-72">
         <div className="border-b border-line px-4 py-3">
           <h2 className="font-display text-base font-semibold text-ink">Usuários</h2>
@@ -80,6 +85,91 @@ export function PermissoesView({ perfis, permissoes }: { perfis: PerfilComPapel[
           </div>
         )}
       </div>
+      </div>
+    </div>
+  );
+}
+
+function CadastrarFuncionario() {
+  const [nome, setNome] = useState("");
+  const [email, setEmail] = useState("");
+  const [papel, setPapel] = useState<(typeof PAPEIS_CADASTRAVEIS)[number]>("vendedor");
+  const [pending, iniciar] = useTransition();
+  const [erro, setErro] = useState<string | null>(null);
+  const [senhaGerada, setSenhaGerada] = useState<string | null>(null);
+
+  function cadastrar() {
+    if (!nome.trim() || !email.trim()) {
+      setErro("Preencha nome e e-mail.");
+      return;
+    }
+    setErro(null);
+    setSenhaGerada(null);
+    iniciar(async () => {
+      const resultado = await criarFuncionario(nome, email, papel);
+      if (resultado.erro) setErro(resultado.erro);
+      if (resultado.senhaTemporaria) {
+        setSenhaGerada(resultado.senhaTemporaria);
+        setNome("");
+        setEmail("");
+        setPapel("vendedor");
+      }
+    });
+  }
+
+  return (
+    <div className="rounded-[14px] border border-line bg-surface p-4 shadow-sm sm:p-5">
+      <h2 className="mb-3 font-display text-base font-semibold text-ink">Cadastrar funcionário</h2>
+
+      {senhaGerada && (
+        <div className="mb-3 flex flex-col gap-1 rounded-lg border-2 border-ok bg-ok-bg p-3 text-sm">
+          <p className="font-semibold text-ok">Funcionário criado! Senha temporária (só aparece uma vez):</p>
+          <code className="select-all rounded bg-surface px-2 py-1 font-mono text-sm text-ink">{senhaGerada}</code>
+          <p className="text-xs text-text-soft">
+            Repasse com segurança — a pessoa pode trocar em &quot;Minha conta&quot; depois de entrar.
+          </p>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
+        <input
+          value={nome}
+          onChange={(e) => setNome(e.target.value)}
+          placeholder="Nome completo"
+          className="rounded-lg border border-line bg-cream px-3 py-2 text-sm text-ink"
+        />
+        <input
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          type="email"
+          placeholder="E-mail"
+          className="rounded-lg border border-line bg-cream px-3 py-2 text-sm text-ink"
+        />
+        <select
+          value={papel}
+          onChange={(e) => setPapel(e.target.value as (typeof PAPEIS_CADASTRAVEIS)[number])}
+          className="rounded-lg border border-line bg-cream px-3 py-2 text-sm text-ink"
+        >
+          {PAPEIS_CADASTRAVEIS.map((p) => (
+            <option key={p} value={p}>
+              {PAPEL_LABEL[p]}
+            </option>
+          ))}
+        </select>
+        <button
+          type="button"
+          disabled={pending}
+          onClick={cadastrar}
+          className="rounded-full bg-gradient-to-br from-rose to-rose-deep px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-60"
+        >
+          {pending ? "Criando…" : "Cadastrar"}
+        </button>
+      </div>
+      {erro && <p className="mt-2 text-sm font-medium text-crit">{erro}</p>}
+      <p className="mt-2 text-xs text-text-soft">
+        Pra criar outro administrador, use o Supabase Dashboard diretamente — por segurança, o cadastro pelo app só
+        cria os papéis operacionais.
+      </p>
     </div>
   );
 }
