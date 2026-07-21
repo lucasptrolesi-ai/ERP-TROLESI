@@ -31,6 +31,9 @@ export default async function GarantiasPage() {
       garantias={(garantias ?? []) as unknown as Garantia[]}
       clientes={(clientes ?? []) as Cliente[]}
       produtos={(produtos ?? []) as Produto[]}
+      // Só admin tem a permissão granular `aprovar_reprovar_garantia` hoje —
+      // mesmo raciocínio de abatimentos/page.tsx.
+      podeAprovar={perfil.papel === "admin"}
     />
   );
 }

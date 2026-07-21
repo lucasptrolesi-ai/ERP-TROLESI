@@ -16,10 +16,12 @@ export function GarantiasView({
   garantias,
   clientes,
   produtos,
+  podeAprovar,
 }: {
   garantias: Garantia[];
   clientes: Cliente[];
   produtos: Produto[];
+  podeAprovar: boolean;
 }) {
   const [state, formAction, pending] = useActionState(registrarGarantia, undefined);
   const [tipo, setTipo] = useState<GarantiaProdutoTipo>("folheado_ouro");
@@ -207,7 +209,7 @@ export function GarantiasView({
             </thead>
             <tbody>
               {garantias.map((g) => (
-                <LinhaGarantia key={g.id} garantia={g} />
+                <LinhaGarantia key={g.id} garantia={g} podeAprovar={podeAprovar} />
               ))}
               {garantias.length === 0 && (
                 <tr>
@@ -224,7 +226,7 @@ export function GarantiasView({
   );
 }
 
-function LinhaGarantia({ garantia: g }: { garantia: Garantia }) {
+function LinhaGarantia({ garantia: g, podeAprovar }: { garantia: Garantia; podeAprovar: boolean }) {
   const [pending, iniciar] = useTransition();
   const [erro, setErro] = useState<string | null>(null);
 
@@ -262,7 +264,7 @@ function LinhaGarantia({ garantia: g }: { garantia: Garantia }) {
         {erro && <p className="mt-1 text-xs font-medium text-crit">{erro}</p>}
       </td>
       <td className="px-5 py-2.5 text-right">
-        {g.aprovado === null && (
+        {podeAprovar && (
           <div className="flex justify-end gap-2">
             <button
               type="button"
@@ -270,7 +272,7 @@ function LinhaGarantia({ garantia: g }: { garantia: Garantia }) {
               onClick={() => decidir(true)}
               className="rounded-full border border-ok px-3 py-1 text-xs font-semibold text-ok disabled:opacity-60"
             >
-              Aprovar
+              {g.aprovado === null ? "Aprovar" : "Revisar → Aprovar"}
             </button>
             <button
               type="button"
@@ -278,7 +280,7 @@ function LinhaGarantia({ garantia: g }: { garantia: Garantia }) {
               onClick={() => decidir(false)}
               className="rounded-full border border-crit px-3 py-1 text-xs font-semibold text-crit disabled:opacity-60"
             >
-              Reprovar
+              {g.aprovado === null ? "Reprovar" : "Revisar → Reprovar"}
             </button>
           </div>
         )}

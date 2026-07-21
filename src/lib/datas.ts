@@ -52,6 +52,22 @@ export function formatarDataIso(iso: string): string {
   return new Date(`${iso}T00:00:00`).toLocaleDateString("pt-BR");
 }
 
+// Mesma lógica de formatarDataIso, mas com hora — pra telas que mostram
+// "quando" algo aconteceu (ex: pedido lançado no GMax às HH:MM), não só o
+// dia. Nunca usar `new Date(iso).toLocaleString()` puro pra isso: sem fuso
+// explícito, o horário renderiza no fuso do runtime/navegador, não no de
+// Brasília (mesma classe de bug que toISOString() causa pra "hoje").
+export function formatarDataHoraIso(iso: string): string {
+  return new Intl.DateTimeFormat("pt-BR", {
+    timeZone: FUSO_HORARIO,
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(iso));
+}
+
 // Converte uma data "AAAA-MM-DD" escolhida pelo usuário (sempre pensada no
 // fuso de Brasília) num timestamptz seguro pra gravar — meio-dia com o
 // offset de Brasília explícito, longe o bastante da meia-noite UTC pra

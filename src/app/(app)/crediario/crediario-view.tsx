@@ -4,7 +4,8 @@ import { useMemo, useState, useTransition } from "react";
 import { converterEmCrediario, lancarCrediario, receberCrediario } from "@/lib/actions/crediario";
 import { formatarMoeda } from "@/lib/formatar-moeda";
 import { formatarDataIso, hojeIso } from "@/lib/datas";
-import type { Cliente, CrediarioLancamento } from "@/lib/types";
+import { situacaoEfetiva } from "@/lib/situacao-conta";
+import type { Cliente, CrediarioLancamento, SituacaoConta } from "@/lib/types";
 
 const SITUACAO_LABEL: Record<string, { rotulo: string; classe: string }> = {
   em_dia: { rotulo: "Em dia", classe: "bg-ok-bg text-ok" },
@@ -221,7 +222,12 @@ export function CrediarioView({ clientes, lancamentos }: { clientes: Cliente[]; 
 function LinhaLancamento({ lancamento: l }: { lancamento: CrediarioLancamento }) {
   const [pending, iniciar] = useTransition();
   const [erro, setErro] = useState<string | null>(null);
-  const situacao = SITUACAO_LABEL[l.situacao] ?? { rotulo: l.situacao, classe: "bg-line text-text-soft" };
+  // "atrasado" nunca é gravado no banco — é sempre calculado na hora
+  // comparando vencimento com hoje (mesmo padrão de contas_receber/pagar,
+  // situacaoEfetiva), senão uma cobrança vencida ficava mostrando "Em dia"
+  // pra sempre até ser paga.
+  const situacaoCalculada = situacaoEfetiva(l.situacao as SituacaoConta, l.vencimento);
+  const situacao = SITUACAO_LABEL[situacaoCalculada] ?? { rotulo: situacaoCalculada, classe: "bg-line text-text-soft" };
 
   function receber() {
     const recibo = prompt("Nº do recibo (recebimento só em dinheiro entregue em mãos, seção 15):");

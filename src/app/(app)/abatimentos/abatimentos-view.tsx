@@ -13,7 +13,15 @@ const STATUS_LABEL: Record<string, { rotulo: string; classe: string }> = {
   vinculado: { rotulo: "Vinculado à venda", classe: "bg-line text-text-soft" },
 };
 
-export function AbatimentosView({ abatimentos, clientes }: { abatimentos: Abatimento[]; clientes: Cliente[] }) {
+export function AbatimentosView({
+  abatimentos,
+  clientes,
+  podeAprovar,
+}: {
+  abatimentos: Abatimento[];
+  clientes: Cliente[];
+  podeAprovar: boolean;
+}) {
   const [state, formAction, pending] = useActionState(registrarAbatimento, undefined);
   const [busca, setBusca] = useState("");
 
@@ -201,7 +209,7 @@ export function AbatimentosView({ abatimentos, clientes }: { abatimentos: Abatim
             </thead>
             <tbody>
               {abatimentosFiltrados.map((a) => (
-                <LinhaAbatimento key={a.id} abatimento={a} />
+                <LinhaAbatimento key={a.id} abatimento={a} podeAprovar={podeAprovar} />
               ))}
               {abatimentosFiltrados.length === 0 && (
                 <tr>
@@ -218,17 +226,23 @@ export function AbatimentosView({ abatimentos, clientes }: { abatimentos: Abatim
   );
 }
 
-function LinhaAbatimento({ abatimento }: { abatimento: Abatimento }) {
+function LinhaAbatimento({ abatimento, podeAprovar }: { abatimento: Abatimento; podeAprovar: boolean }) {
   const [pending, iniciar] = useTransition();
   const [erro, setErro] = useState<string | null>(null);
   const status = STATUS_LABEL[abatimento.status] ?? { rotulo: abatimento.status, classe: "bg-line text-text-soft" };
 
   function aprovar() {
+    const valorFinalTexto = prompt(
+      `Valor final do abatimento (Enter mantém o valor avaliado, ${abatimento.valor_atribuido != null ? formatarMoeda(abatimento.valor_atribuido) : "—"}):`,
+      abatimento.valor_atribuido != null ? String(abatimento.valor_atribuido) : "",
+    );
+    if (valorFinalTexto === null) return;
     const justificativa = prompt("Justificativa da aprovação (fica registrada na auditoria):");
     if (justificativa === null) return;
+    const valorFinal = valorFinalTexto.trim() ? Number(valorFinalTexto.replace(",", ".")) : undefined;
     setErro(null);
     iniciar(async () => {
-      const resultado = await aprovarAbatimento(abatimento.id, justificativa);
+      const resultado = await aprovarAbatimento(abatimento.id, justificativa, valorFinal);
       if (resultado.erro) setErro(resultado.erro);
     });
   }
@@ -255,7 +269,7 @@ function LinhaAbatimento({ abatimento }: { abatimento: Abatimento }) {
         {erro && <p className="mt-1 text-xs font-medium text-crit">{erro}</p>}
       </td>
       <td className="px-5 py-2.5 text-right">
-        {abatimento.status === "avaliando" && (
+        {abatimento.status === "avaliando" && podeAprovar && (
           <div className="flex justify-end gap-2">
             <button
               type="button"

@@ -21,19 +21,37 @@ export async function criarExpedicao(_prev: ResultadoForm, formData: FormData): 
   if (!pedidoId) return { erro: "Selecione um pedido." };
 
   const freteGratis = formData.get("frete_gratis") === "on";
+
+  let custo = 0;
+  if (!freteGratis) {
+    const custoTexto = String(formData.get("custo") ?? "").trim();
+    if (custoTexto !== "") {
+      const numerico = Number(custoTexto.replace(",", "."));
+      // Um valor digitado errado (ex: com o "R$" na frente, viraria NaN) não
+      // pode virar frete grátis silencioso via `|| 0` — campo em branco é 0
+      // de propósito, qualquer outra coisa que não parseie é erro explícito.
+      if (Number.isNaN(numerico) || numerico < 0) {
+        return { erro: "Custo do frete inválido. Digite só números (ex: 45,00)." };
+      }
+      custo = numerico;
+    }
+  }
+
   const supabase = await createClient();
-  const { error } = await supabase.from("expedicoes").insert({
-    pedido_id: pedidoId,
-    endereco_entrega: String(formData.get("endereco_entrega") ?? "") || null,
-    destinatario: String(formData.get("destinatario") ?? "") || null,
-    transportadora: String(formData.get("transportadora") ?? "") || null,
-    modalidade: String(formData.get("modalidade") ?? "") || null,
-    custo: freteGratis ? 0 : Number(String(formData.get("custo") ?? "0").replace(",", ".")) || 0,
-    frete_gratis: freteGratis,
-    motivo_frete_gratis: freteGratis ? String(formData.get("motivo_frete_gratis") ?? "") || null : null,
+  // Concede frete grátis exige a permissão `conceder_frete_gratis` e motivo
+  // obrigatório — checado dentro da function, não confiar em nada aqui.
+  const { error } = await supabase.rpc("criar_expedicao", {
+    p_pedido_id: pedidoId,
+    p_endereco_entrega: String(formData.get("endereco_entrega") ?? "") || null,
+    p_destinatario: String(formData.get("destinatario") ?? "") || null,
+    p_transportadora: String(formData.get("transportadora") ?? "") || null,
+    p_modalidade: String(formData.get("modalidade") ?? "") || null,
+    p_custo: custo,
+    p_frete_gratis: freteGratis,
+    p_motivo_frete_gratis: freteGratis ? String(formData.get("motivo_frete_gratis") ?? "") || null : null,
   });
 
-  if (error) return { erro: "Não foi possível criar a expedição. Tente novamente." };
+  if (error) return { erro: error.message };
 
   revalidatePath("/frete");
   return undefined;

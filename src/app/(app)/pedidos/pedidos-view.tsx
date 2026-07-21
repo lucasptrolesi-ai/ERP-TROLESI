@@ -7,6 +7,7 @@ import { formatarMoeda } from "@/lib/formatar-moeda";
 import { FORMA_LABEL } from "@/lib/forma-pagamento";
 import { podeEditarPedidos } from "@/lib/permissoes";
 import { STATUS_LABEL } from "@/lib/status-pedido";
+import { formatarDataIso } from "@/lib/datas";
 import type { Cliente, FaixaParcelamentoDb, Pedido, Produto } from "@/lib/types";
 
 export function PedidosView({
@@ -100,7 +101,7 @@ export function PedidosView({
                       <td className="px-5 py-2.5">#{p.numero}</td>
                       <td className="px-5 py-2.5">{p.clientes?.nome ?? "—"}</td>
                       <td className="px-5 py-2.5">
-                        {new Date(p.criado_em).toLocaleDateString("pt-BR")}
+                        {formatarDataIso(p.criado_em)}
                       </td>
                       <td className="px-5 py-2.5 tabular-nums">
                         {p.pedido_itens.reduce((soma, i) => soma + i.quantidade, 0)}

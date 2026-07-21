@@ -6,6 +6,7 @@ import { formatarMoeda } from "@/lib/formatar-moeda";
 import { FORMA_LABEL } from "@/lib/forma-pagamento";
 import {
   deslocarPeriodo,
+  dentroDoPeriodo,
   faturamentoTotal,
   limitesPeriodo,
   pedidosNoPeriodo,
@@ -15,7 +16,7 @@ import {
   type PedidoRelatorio,
   type TipoPeriodo,
 } from "@/lib/relatorios";
-import { hojeIso } from "@/lib/datas";
+import { dataLocalDoTimestamptz, hojeIso } from "@/lib/datas";
 import type { Abatimento, Garantia, Produto } from "@/lib/types";
 
 const PERIODOS: { valor: TipoPeriodo; rotulo: string }[] = [
@@ -56,12 +57,17 @@ export function RelatoriosView({
   const ticketMedio = vendasFaturadas.length > 0 ? faturamento / vendasFaturadas.length : 0;
   const quebraForma = quebraPorFormaPagamento(pedidosPeriodo);
 
-  const abatimentosPeriodo = abatimentos.filter((a) => a.criado_em >= inicio && a.criado_em <= fim + "T23:59:59");
+  // criado_em é timestamptz (UTC) — comparar a string direto contra
+  // "inicio"/"fim" (datas locais de Brasília) já causou esse exato bug de
+  // fuso antes neste projeto (rollover perto da meia-noite). Sempre passar
+  // pelo mesmo dentroDoPeriodo()/dataLocalDoTimestamptz() que pedidosNoPeriodo
+  // já usa, nunca comparação de string crua.
+  const abatimentosPeriodo = abatimentos.filter((a) => dentroDoPeriodo(dataLocalDoTimestamptz(a.criado_em), inicio, fim));
   const abatimentosAprovados = abatimentosPeriodo.filter((a) => a.status === "aprovado");
   const abatimentosReprovados = abatimentosPeriodo.filter((a) => a.status === "reprovado");
   const valorAbatido = abatimentosAprovados.reduce((s, a) => s + (a.valor_atribuido ?? 0), 0);
 
-  const garantiasPeriodo = garantias.filter((g) => g.criado_em >= inicio && g.criado_em <= fim + "T23:59:59");
+  const garantiasPeriodo = garantias.filter((g) => dentroDoPeriodo(dataLocalDoTimestamptz(g.criado_em), inicio, fim));
   const garantiasAprovadas = garantiasPeriodo.filter((g) => g.aprovado === true).length;
   const garantiasReprovadas = garantiasPeriodo.filter((g) => g.aprovado === false).length;
 

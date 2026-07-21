@@ -6,7 +6,7 @@ import { ClienteForm } from "@/components/cliente-form";
 import { criarPedido, buscarEstatisticasCliente } from "@/lib/actions/pedidos";
 import { formatarMoeda } from "@/lib/formatar-moeda";
 import { parseMoeda } from "@/lib/parse-moeda";
-import { hojeIso } from "@/lib/datas";
+import { formatarDataIso, hojeIso } from "@/lib/datas";
 import { calcularPrecoUnitario } from "@/lib/precificacao";
 import { calcularDescontoAutomatico } from "@/lib/desconto";
 import { maxParcelasSemJuros } from "@/lib/parcelamento";
@@ -256,6 +256,17 @@ export function NovoPedido({
       setErro("Adicione pelo menos um produto.");
       return;
     }
+    // juroCartao = totalParaDividir - total: se o valor digitado pra "total
+    // com juros da maquininha" for MENOR que o total do carrinho, isso vira
+    // um acréscimo negativo — funcionaria como um desconto extra não
+    // auditado (achado do code-review). O servidor também rejeita isso,
+    // mas travar aqui evita gastar uma chamada só pra descobrir o erro.
+    if (parcelasComJuros && juroCartao < 0) {
+      setErro(
+        `O valor com juros da maquininha (${formatarMoeda(totalParaDividir)}) não pode ser menor que o total da venda (${formatarMoeda(total)}).`,
+      );
+      return;
+    }
     if (status !== "orcamento" && abaixoDoMinimo && !justificativaExcecao.trim()) {
       setErro(
         `Venda de ${minimoRequerido!.motivo} exige mínimo de ${formatarMoeda(minimoRequerido!.valor)} (valor atual: ${formatarMoeda(total)}). Informe a justificativa de exceção pra prosseguir abaixo do mínimo.`,
@@ -383,7 +394,7 @@ export function NovoPedido({
             {estatisticasCliente && (
               <span className="text-xs text-text-soft">
                 {estatisticasCliente.data_primeira_compra
-                  ? `Cliente desde ${new Date(estatisticasCliente.data_primeira_compra).toLocaleDateString("pt-BR")} · total comprado ${formatarMoeda(estatisticasCliente.total_comprado)}`
+                  ? `Cliente desde ${formatarDataIso(estatisticasCliente.data_primeira_compra)} · total comprado ${formatarMoeda(estatisticasCliente.total_comprado)}`
                   : "Sem compras anteriores registradas — primeira compra"}
               </span>
             )}
@@ -730,7 +741,7 @@ export function NovoPedido({
               {Array.from({ length: numeroParcelas }, (_, i) => (
                 <li key={i}>
                   Parcela {i + 1}/{numeroParcelas} — vence{" "}
-                  {new Date(`${somaMeses(primeiroVencimento, i)}T00:00:00`).toLocaleDateString("pt-BR")}{" "}
+                  {formatarDataIso(somaMeses(primeiroVencimento, i))}{" "}
                   — <span className="font-semibold text-ink">{formatarMoeda(total / numeroParcelas)}</span>
                 </li>
               ))}

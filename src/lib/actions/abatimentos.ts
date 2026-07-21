@@ -57,11 +57,15 @@ export async function registrarAbatimento(_prev: ResultadoForm, formData: FormDa
   return undefined;
 }
 
-export async function aprovarAbatimento(id: string, justificativa?: string): Promise<{ erro?: string }> {
+export async function aprovarAbatimento(
+  id: string,
+  justificativa?: string,
+  valorFinal?: number,
+): Promise<{ erro?: string }> {
   const supabase = await createClient();
   const { error } = await supabase.rpc("aprovar_abatimento", {
     p_id: id,
-    p_valor_final: null,
+    p_valor_final: valorFinal ?? null,
     p_justificativa: justificativa ?? null,
   });
   if (error) return { erro: error.message };

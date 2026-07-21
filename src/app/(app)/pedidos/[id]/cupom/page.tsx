@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { buscarPedidoDetalhe } from "@/lib/buscar-pedido-detalhe";
 import { formatarMoeda } from "@/lib/formatar-moeda";
 import { FORMA_LABEL } from "@/lib/forma-pagamento";
-import { formatarDataIso } from "@/lib/datas";
+import { formatarDataHoraIso, formatarDataIso } from "@/lib/datas";
 import { EMPRESA } from "@/lib/empresa";
 import { BotaoImprimir } from "@/components/botao-imprimir";
 
@@ -28,7 +28,7 @@ export default async function CupomPage({ params }: { params: Promise<{ id: stri
         <div className="my-1 border-t border-dashed border-ink/40" />
 
         <p>Pedido #{pedido.numero}</p>
-        <p>{new Date(pedido.criado_em).toLocaleString("pt-BR")}</p>
+        <p>{formatarDataHoraIso(pedido.criado_em)}</p>
         <p>Cliente: {pedido.clientes?.nome ?? "—"}</p>
 
         <div className="my-1 border-t border-dashed border-ink/40" />

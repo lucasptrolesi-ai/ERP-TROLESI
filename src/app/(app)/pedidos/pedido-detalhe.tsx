@@ -5,6 +5,7 @@ import { Modal } from "@/components/modal";
 import { ajustarPedido, extornarPedido, marcarLancadoNoGmax } from "@/lib/actions/pedidos";
 import { formatarMoeda } from "@/lib/formatar-moeda";
 import { parseMoeda } from "@/lib/parse-moeda";
+import { formatarDataHoraIso } from "@/lib/datas";
 import type { Pedido } from "@/lib/types";
 
 export function PedidoDetalhe({
@@ -70,7 +71,7 @@ export function PedidoDetalhe({
       <div className="flex flex-col gap-4">
         <div className="text-sm text-text-soft">
           <p>Cliente: <span className="text-ink">{pedido.clientes?.nome ?? "—"}</span></p>
-          <p>Data: <span className="text-ink">{new Date(pedido.criado_em).toLocaleString("pt-BR")}</span></p>
+          <p>Data: <span className="text-ink">{formatarDataHoraIso(pedido.criado_em)}</span></p>
         </div>
 
         <div className="rounded-lg border border-line">
@@ -182,7 +183,7 @@ export function PedidoDetalhe({
         )}
         {lancadoGmax && (
           <p className="text-center text-sm font-semibold text-ok">
-            ✓ Já lançado no GMax{pedido.lancado_gmax_em ? ` em ${new Date(pedido.lancado_gmax_em).toLocaleString("pt-BR")}` : ""}.
+            ✓ Já lançado no GMax{pedido.lancado_gmax_em ? ` em ${formatarDataHoraIso(pedido.lancado_gmax_em)}` : ""}.
           </p>
         )}
 

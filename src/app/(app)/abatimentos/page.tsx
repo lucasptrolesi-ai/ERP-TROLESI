@@ -29,6 +29,11 @@ export default async function AbatimentosPage() {
     <AbatimentosView
       abatimentos={(abatimentos ?? []) as unknown as Abatimento[]}
       clientes={(clientes ?? []) as Cliente[]}
+      // Só admin tem a permissão granular `aprovar_valor_abatimento` hoje —
+      // ainda não existe UI de concessão de permissão pra outros papéis, então
+      // mostrar o botão pra vendedor só levaria a um erro de permissão em todo
+      // clique (achado do code-review). Ajustar quando essa UI existir.
+      podeAprovar={perfil.papel === "admin"}
     />
   );
 }

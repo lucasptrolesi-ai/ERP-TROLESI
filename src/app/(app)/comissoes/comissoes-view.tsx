@@ -194,12 +194,7 @@ function LancarComissao({
     }
     setErro(null);
     iniciar(async () => {
-      const resultado = await lancarComissao(
-        config.id,
-        Number(valorBase.replace(",", ".")) || 0,
-        config.comissao_percentual,
-        config.comissao_fixa,
-      );
+      const resultado = await lancarComissao(config.id, Number(valorBase.replace(",", ".")) || 0);
       if (resultado.erro) setErro(resultado.erro);
       else setValorBase("");
     });

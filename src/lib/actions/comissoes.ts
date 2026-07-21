@@ -29,18 +29,21 @@ export async function salvarConfigVendedor(
   return {};
 }
 
-export async function lancarComissao(
-  vendedorId: string,
-  valorBase: number,
-  percentual: number | null,
-  fixa: number | null,
-  pedidoId?: string,
-): Promise<{ erro?: string }> {
+export async function lancarComissao(vendedorId: string, valorBase: number, pedidoId?: string): Promise<{ erro?: string }> {
   const supabase = await createClient();
-  const { data: vendedor } = await supabase.from("vendedores").select("evento_gerador").eq("id", vendedorId).single();
+  // Relê a config do vendedor no servidor, não confia no percentual/fixa
+  // que o cliente mandar — se a config for atualizada enquanto uma aba
+  // antiga estiver aberta com o valor velho carregado, o lançamento usa
+  // sempre a taxa atual, nunca uma taxa desatualizada em memória (achado do
+  // code-review).
+  const { data: vendedor } = await supabase
+    .from("vendedores")
+    .select("evento_gerador, comissao_percentual, comissao_fixa")
+    .eq("id", vendedorId)
+    .single();
   if (!vendedor) return { erro: "Vendedor não encontrado." };
 
-  const valorComissao = calcularComissao(valorBase, percentual, fixa);
+  const valorComissao = calcularComissao(valorBase, vendedor.comissao_percentual, vendedor.comissao_fixa);
   const { error } = await supabase.from("comissoes_lancamentos").insert({
     vendedor_id: vendedorId,
     pedido_id: pedidoId ?? null,

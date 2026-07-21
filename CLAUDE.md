@@ -6,7 +6,7 @@ Substituição enxuta do GMax/Sincron (ERP atual da Trolesi Joias, Firebird 2.5)
 
 ## Regras de processo (não negociáveis)
 
-1. **Gate de mockup.** Nenhuma tela vira código de aplicação sem aprovação visual prévia (Artifact tool / dev server). Mudanças visuais relevantes são sempre pré-visualizadas antes de codar. **Exceção registrada:** as telas de Abatimentos/Garantias (Fase 4 do documento mestre) foram construídas direto em código, sem mockup prévio, sob autorização explícita do usuário pra trabalhar de forma autônoma e rápida (`/loop`-style, "não precisa me perguntar nada") — ver `DECISIONS.md`. Não é precedente pra pular o gate por padrão; próximas telas novas com liberdade de design voltam a exigir mockup.
+1. **Gate de mockup.** Nenhuma tela vira código de aplicação sem aprovação visual prévia (Artifact tool / dev server). Mudanças visuais relevantes são sempre pré-visualizadas antes de codar. **Exceção registrada:** todas as telas novas das Fases 4/5 do documento mestre (Abatimentos, Garantias, Crediário, Comissões, Frete, Relatórios) foram construídas direto em código, sem mockup prévio, sob autorização explícita do usuário pra trabalhar de forma autônoma e rápida (`/goal`, "não precisa me perguntar nada, pode tomar as decisões") — ver `DECISIONS.md`. Não é precedente pra pular o gate por padrão; próximas telas novas com liberdade de design voltam a exigir mockup.
 2. **Gate de code-review.** Nenhum módulo é considerado "pronto" sem passar pela skill `code-review`. Rodado sobre as Fases 1-4 em 2026-07-21; 8 dos 10 agentes de revisão pararam por limite de sessão da conta antes de terminar — os 2 que completaram encontraram bugs reais, já corrigidos (ver `CHANGELOG.md`). Os 8 ângulos restantes (line-by-line, removed-behavior, cross-file, language-pitfall, reuse, simplification, efficiency, altitude, conventions — faltam a maioria) **ainda não rodaram** e são dívida de revisão pendente registrada, não escondida.
 3. **Ordem de construção do documento mestre.** Fase 1 (Fundação) → Fase 2 (Cadastros estendidos) → Fase 3 (Núcleo do PDV) → Fase 4 (Regras especiais) → Fase 5 (Relatórios/qualidade). As 5 fases dos módulos originais (Cadastros/Estoque/Pedidos/Financeiro/Fiscal) continuam existindo no código; Financeiro/Fiscal/Dashboard só saíram da navegação, não foram apagados.
 4. **Nunca usar o Firebird de produção.** Qualquer leitura do GMax é sobre cópia, nunca `erp trolesi/GMax/GMaxERP.FDB` diretamente.
@@ -24,6 +24,7 @@ Substituição enxuta do GMax/Sincron (ERP atual da Trolesi Joias, Firebird 2.5)
 - Supabase: Postgres + Auth + Storage + RLS (schema em `supabase/migrations/`, ver `supabase/README.md`)
 - Vercel (hospedagem, quando autorizado)
 - Provedor de NF-e: Focus NFe (integração via API, sem reimplementar o motor fiscal)
+- Testes: Vitest (`npm run test`) desde 2026-07-20 — regras comerciais viram funções puras testadas em `src/*.test.ts` (ex: `desconto.ts`, `parcelamento.ts`, `abatimento.ts`, `garantia.ts`, `comissao.ts`); regras implementadas só em SQL ficam registradas como `it.todo` em `src/lib/regras-comerciais.pendente.test.ts` até ganharem teste de integração de verdade.
 
 ## RBAC
 
