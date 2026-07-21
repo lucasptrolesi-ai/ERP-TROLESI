@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { avaliarGarantiaFolheado } from "@/lib/garantia";
+import { parseMoeda } from "@/lib/parse-moeda";
 import { normalizarCampo } from "./erros";
 import type { GarantiaProdutoTipo } from "@/lib/types";
 
@@ -13,13 +14,19 @@ export async function registrarGarantia(_prev: ResultadoForm, formData: FormData
   if (!clienteId) return { erro: "Selecione um cliente." };
 
   const tipo = (normalizarCampo(formData.get("tipo")) ?? "sem_garantia") as GarantiaProdutoTipo;
+  // 0% de descascamento é um valor real e válido (peça praticamente
+  // intacta) — não pode virar `null` pelo fallback `|| null` de antes, que
+  // tratava esse zero como "campo não preenchido".
+  const percentualDescascamento = normalizarCampo(formData.get("percentual_descascamento"))
+    ? parseMoeda(String(formData.get("percentual_descascamento")))
+    : null;
 
   let aprovado: boolean | null = null;
   let justificativaAuto: string | null = null;
 
   if (tipo === "folheado_ouro") {
     const avaliacao = avaliarGarantiaFolheado({
-      percentualDescascamento: Number(String(formData.get("percentual_descascamento") ?? "0").replace(",", ".")) || 0,
+      percentualDescascamento: percentualDescascamento ?? 0,
       marcaPresente: formData.get("marca_presente") === "on",
       pecaCompleta: formData.get("peca_completa") === "on",
       alianca: formData.get("alianca") === "on",
@@ -34,7 +41,7 @@ export async function registrarGarantia(_prev: ResultadoForm, formData: FormData
     produto_id: normalizarCampo(formData.get("produto_id")),
     pedido_id: normalizarCampo(formData.get("pedido_id")),
     tipo,
-    percentual_descascamento: Number(String(formData.get("percentual_descascamento") ?? "0").replace(",", ".")) || null,
+    percentual_descascamento: percentualDescascamento,
     marca_presente: formData.get("marca_presente") === "on",
     peca_completa: formData.get("peca_completa") === "on",
     limpeza_realizada: formData.get("limpeza_realizada") === "on",

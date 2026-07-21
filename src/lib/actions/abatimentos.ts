@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { avaliarPecaParaAbatimento, valorAbatimentoValido, type PecaAbatimento } from "@/lib/abatimento";
+import { parseMoeda } from "@/lib/parse-moeda";
 import { normalizarCampo } from "./erros";
 
 type ResultadoForm = { erro?: string } | undefined;
@@ -24,8 +25,8 @@ export async function registrarAbatimento(_prev: ResultadoForm, formData: FormDa
 
   const avaliacao = avaliarPecaParaAbatimento(peca);
 
-  const baseElegivelInformada = Number(String(formData.get("base_elegivel") ?? "0").replace(",", ".")) || 0;
-  const valorAtribuido = Number(String(formData.get("valor_atribuido") ?? "0").replace(",", ".")) || 0;
+  const baseElegivelInformada = parseMoeda(String(formData.get("base_elegivel") ?? "0"));
+  const valorAtribuido = parseMoeda(String(formData.get("valor_atribuido") ?? "0"));
 
   if (avaliacao.elegivel && baseElegivelInformada > 0 && !valorAbatimentoValido(valorAtribuido, baseElegivelInformada)) {
     return { erro: `Valor de abatimento acima do limite de 20% da base elegível (R$${(baseElegivelInformada * 0.2).toFixed(2)}).` };
