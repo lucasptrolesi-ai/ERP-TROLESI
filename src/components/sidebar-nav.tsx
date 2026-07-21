@@ -14,6 +14,8 @@ const ITENS = [
   { href: "/estoque", label: "Produtos & Estoque", icone: "💍" },
   { href: "/abatimentos", label: "Abatimentos", icone: "♻️" },
   { href: "/garantias", label: "Garantias", icone: "🛡️" },
+  { href: "/crediario", label: "Crediário", icone: "💳" },
+  { href: "/relatorios", label: "Relatórios", icone: "📊" },
 ];
 
 export function SidebarNav({ onNavegar }: { onNavegar?: () => void }) {

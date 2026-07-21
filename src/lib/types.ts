@@ -18,6 +18,23 @@ export type Cliente = {
   porte: string | null;
   atividade_principal: string | null;
   ativo: boolean;
+  crediario_legado: boolean;
+  crediario_autorizado_em: string | null;
+  crediario_limite: number | null;
+  crediario_status: string;
+};
+
+export type CrediarioLancamento = {
+  id: string;
+  cliente_id: string;
+  pedido_id: string | null;
+  valor: number;
+  vencimento: string;
+  situacao: string;
+  pago_em: string | null;
+  recibo_numero: string | null;
+  criado_em: string;
+  clientes: { nome: string } | null;
 };
 
 export type Fornecedor = {
