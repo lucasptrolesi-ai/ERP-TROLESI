@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import Link from "next/link";
 import { BrandBadge } from "@/components/brand-badge";
 import { FormField } from "@/components/form-field";
 import { login } from "./actions";
@@ -42,6 +43,9 @@ export default function LoginPage() {
           >
             {pending ? "Entrando…" : "Entrar"}
           </button>
+          <Link href="/esqueci-senha" className="text-center text-sm font-semibold text-text-soft hover:underline">
+            Esqueci minha senha
+          </Link>
         </form>
       </div>
     </main>
