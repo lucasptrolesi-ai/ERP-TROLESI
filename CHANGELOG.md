@@ -1,5 +1,11 @@
 # CHANGELOG — ERP Trolesi
 
+## 2026-07-21 (cont. 4) — Deploy, recuperação/troca de senha, estoque negativo autorizado
+
+- **Deploy:** site publicado em `https://erp-trolesi.vercel.app` (Vercel, Git integration ligada — todo push em `master` gera deploy automático, por decisão explícita do usuário).
+- **Senha:** conta admin existente (`lucasptrolesi@gmail.com`) recuperada (senha resetada direto no banco, autorização explícita do usuário). Novo fluxo completo de recuperação de senha: `/esqueci-senha` (solicita link por e-mail) → `/redefinir-senha` (define nova senha a partir do link) — faltava desde a Fase 3. Nova tela `/conta` pra qualquer usuário logado trocar a própria senha a qualquer momento.
+- **Estoque negativo autorizado:** `criar_pedido` não bloqueia mais uma venda por falta de estoque contado no sistema — a baixa acontece do mesmo jeito, podendo deixar o saldo negativo (decisão do usuário: venda pode acontecer antes da contagem/reposição ser atualizada). Removidos os bloqueios equivalentes no cliente (`novo-pedido.tsx`: adicionar produto sem saldo, aumentar quantidade além do disponível) — vira aviso informativo, não impedimento.
+
 ## 2026-07-21 (cont. 3) — As 10 ambiguidades do documento mestre + UI de permissões + achado de segurança
 
 Por instrução direta do usuário ("nada dessas perguntas, devem fazer parte do sistema, a foto das regras é pra voce ter entendimento do funcionamento da loja"), as 10 ambiguidades da seção 27 do documento mestre foram decididas e implementadas nesta leva, em vez de ficarem paradas em `pending_decisions`. Cada decisão com sua razão está registrada no banco (`pending_decisions.decisao`) e em `DECISIONS.md`.

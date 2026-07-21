@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { SidebarNav } from "@/components/sidebar-nav";
 import { BrandBadge } from "@/components/brand-badge";
 import { AlertaVencimentos } from "@/components/alerta-vencimentos";
@@ -50,11 +51,16 @@ export function AppShell({
         <div className="mt-auto border-t border-white/10 pt-3 text-xs text-text-soft">
           <p className="font-semibold text-sidebar-text">{nome}</p>
           <p>{papelLabel}</p>
-          <form action={logout} className="mt-2">
-            <button type="submit" className="text-xs underline decoration-dotted hover:text-white">
-              Sair
-            </button>
-          </form>
+          <div className="mt-2 flex items-center gap-3">
+            <Link href="/conta" onClick={() => setMenuAberto(false)} className="text-xs underline decoration-dotted hover:text-white">
+              Minha conta
+            </Link>
+            <form action={logout}>
+              <button type="submit" className="text-xs underline decoration-dotted hover:text-white">
+                Sair
+              </button>
+            </form>
+          </div>
         </div>
       </aside>
 

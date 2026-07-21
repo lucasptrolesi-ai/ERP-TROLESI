@@ -125,6 +125,10 @@ export function NovoPedido({
 
   const subtotal = carrinho.reduce((soma, i) => soma + i.quantidade * i.preco_unitario, 0);
 
+  // Estoque negativo é autorizado (2026-07-21) — isso é só um aviso
+  // informativo, não bloqueia a venda.
+  const itensAcimaDoEstoque = carrinho.filter((i) => i.quantidade > i.estoqueDisponivel);
+
   const itensSemCotacaoHoje = carrinho.filter((i) => {
     const produto = produtosPorId.get(i.produto_id);
     if (!produto?.usa_cotacao_diaria) return false;
@@ -215,11 +219,12 @@ export function NovoPedido({
 
   function adicionarProduto(produto: Produto) {
     setBuscaProduto("");
-    if (produto.quantidade_estoque <= 0) return;
+    // Estoque negativo autorizado (2026-07-21): não bloqueia mais adicionar
+    // um produto sem saldo — só informa o estoque disponível (ver aviso no
+    // carrinho quando a quantidade escolhida ultrapassa esse valor).
     setCarrinho((atual) => {
       const existente = atual.find((i) => i.produto_id === produto.id);
       if (existente) {
-        if (existente.quantidade >= produto.quantidade_estoque) return atual;
         return atual.map((i) =>
           i.produto_id === produto.id ? { ...i, quantidade: i.quantidade + 1 } : i,
         );
@@ -249,11 +254,7 @@ export function NovoPedido({
 
   function alterarQuantidade(produtoId: string, quantidade: number) {
     setCarrinho((atual) =>
-      atual.map((i) =>
-        i.produto_id === produtoId
-          ? { ...i, quantidade: Math.max(1, Math.min(quantidade, i.estoqueDisponivel)) }
-          : i,
-      ),
+      atual.map((i) => (i.produto_id === produtoId ? { ...i, quantidade: Math.max(1, quantidade) } : i)),
     );
   }
 
@@ -522,11 +523,10 @@ export function NovoPedido({
                   <button
                     type="button"
                     onClick={() => adicionarProduto(p)}
-                    disabled={p.quantidade_estoque <= 0}
-                    className="flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-rose-soft/40 disabled:opacity-40"
+                    className="flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-rose-soft/40"
                   >
                     <span>{p.nome}</span>
-                    <span className="text-text-soft">
+                    <span className={p.quantidade_estoque <= 0 ? "font-semibold text-warn" : "text-text-soft"}>
                       {formatarMoeda(p.preco)} · {p.quantidade_estoque} em estoque
                     </span>
                   </button>
@@ -557,7 +557,6 @@ export function NovoPedido({
                   <input
                     type="number"
                     min={1}
-                    max={i.estoqueDisponivel}
                     value={i.quantidade}
                     onChange={(e) => alterarQuantidade(i.produto_id, Number(e.target.value) || 1)}
                     className="w-16 rounded border border-line bg-cream px-2 py-1 text-sm"
@@ -914,6 +913,12 @@ export function NovoPedido({
           </div>
         </div>
       </div>
+
+      {itensAcimaDoEstoque.length > 0 && (
+        <p className="rounded-lg bg-warn-bg px-3 py-2 text-xs font-medium text-warn">
+          Estoque ficará negativo para: {itensAcimaDoEstoque.map((i) => `${i.nome} (${i.estoqueDisponivel} em estoque)`).join(", ")}.
+        </p>
+      )}
 
       {itensSemCotacaoHoje.length > 0 && (
         <p className="rounded-lg bg-warn-bg px-3 py-2 text-xs font-medium text-warn">
