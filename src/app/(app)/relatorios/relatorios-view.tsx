@@ -17,7 +17,11 @@ import {
   type TipoPeriodo,
 } from "@/lib/relatorios";
 import { dataLocalDoTimestamptz, hojeIso } from "@/lib/datas";
-import type { Abatimento, Garantia, Produto } from "@/lib/types";
+import { situacaoEfetiva } from "@/lib/situacao-conta";
+import type { Abatimento, Cliente, CrediarioLancamento, Expedicao, Garantia, Produto, SituacaoConta } from "@/lib/types";
+
+type PedidoComCliente = PedidoRelatorio & { cliente_id: string | null };
+type ComissaoRelatorio = { valor_comissao: number; criado_em: string };
 
 const PERIODOS: { valor: TipoPeriodo; rotulo: string }[] = [
   { valor: "dia", rotulo: "Diário" },
@@ -30,11 +34,19 @@ export function RelatoriosView({
   abatimentos,
   garantias,
   produtos,
+  crediarioLancamentos,
+  expedicoes,
+  comissoes,
+  clientes,
 }: {
-  pedidos: PedidoRelatorio[];
+  pedidos: PedidoComCliente[];
   abatimentos: Abatimento[];
   garantias: Garantia[];
   produtos: Produto[];
+  crediarioLancamentos: CrediarioLancamento[];
+  expedicoes: Expedicao[];
+  comissoes: ComissaoRelatorio[];
+  clientes: Cliente[];
 }) {
   const [tipoPeriodo, setTipoPeriodo] = useState<TipoPeriodo>("mes");
   const [referencia, setReferencia] = useState(hojeIso());
@@ -72,6 +84,61 @@ export function RelatoriosView({
   const garantiasReprovadas = garantiasPeriodo.filter((g) => g.aprovado === false).length;
 
   const estoqueBaixo = produtos.filter((p) => p.quantidade_estoque < p.estoque_minimo);
+
+  // Primeira compra no período: entre as vendas do período, quantas são a
+  // primeira venda de verdade (faturado/aguardando/lançado) daquele cliente
+  // em toda a janela de histórico carregada (~13 meses), não só no período.
+  const vendasValidas = pedidos.filter(
+    (p) => p.status === "faturado" || p.status === "aguardando_lancamento_gmax" || p.status === "lancado_gmax",
+  );
+  const primeiraVendaPorCliente = useMemo(() => {
+    const mapa = new Map<string, string>();
+    for (const p of vendasValidas) {
+      if (!p.cliente_id) continue;
+      const atual = mapa.get(p.cliente_id);
+      if (!atual || p.criado_em < atual) mapa.set(p.cliente_id, p.criado_em);
+    }
+    return mapa;
+  }, [vendasValidas]);
+  const primeiraCompraNoPeriodo = vendasFaturadas.filter(
+    (p) => p.cliente_id && primeiraVendaPorCliente.get(p.cliente_id) === p.criado_em,
+  ).length;
+
+  // Clientes inativos: sem nenhuma venda válida nos últimos 6 meses (visão
+  // "hoje", independente do período navegado — não faz sentido "clientes
+  // inativos da semana passada").
+  const ultimaCompraPorCliente = useMemo(() => {
+    const mapa = new Map<string, string>();
+    for (const p of vendasValidas) {
+      if (!p.cliente_id) continue;
+      const atual = mapa.get(p.cliente_id);
+      if (!atual || p.criado_em > atual) mapa.set(p.cliente_id, p.criado_em);
+    }
+    return mapa;
+  }, [vendasValidas]);
+  const seiseMesesAtrasIso = (() => {
+    const [ano, mes, dia] = hojeIso().split("-").map(Number);
+    const data = new Date(ano, mes - 1 - 6, dia, 12);
+    return `${data.getFullYear()}-${String(data.getMonth() + 1).padStart(2, "0")}-${String(data.getDate()).padStart(2, "0")}`;
+  })();
+  const clientesInativos = clientes.filter((c) => {
+    const ultima = ultimaCompraPorCliente.get(c.id);
+    return !ultima || dataLocalDoTimestamptz(ultima) < seiseMesesAtrasIso;
+  }).length;
+
+  const crediarioComSituacao = crediarioLancamentos.map((l) => ({
+    ...l,
+    situacaoCalculada: situacaoEfetiva(l.situacao as SituacaoConta, l.vencimento),
+  }));
+  const crediarioAtrasado = crediarioComSituacao.filter((l) => l.situacaoCalculada === "atrasado");
+  const valorCrediarioAtrasado = crediarioAtrasado.reduce((s, l) => s + l.valor, 0);
+
+  const fretesGratisPeriodo = expedicoes.filter(
+    (e) => e.frete_gratis && dentroDoPeriodo(dataLocalDoTimestamptz(e.criado_em), inicio, fim),
+  );
+
+  const comissoesPeriodo = comissoes.filter((c) => dentroDoPeriodo(dataLocalDoTimestamptz(c.criado_em), inicio, fim));
+  const totalComissoes = comissoesPeriodo.reduce((s, c) => s + c.valor_comissao, 0);
 
   return (
     <div className="flex flex-col gap-5">
@@ -117,6 +184,23 @@ export function RelatoriosView({
         <KpiCard label="Vendas" valor={String(vendasFaturadas.length)} nota="pedidos faturados/registrados" />
         <KpiCard label="Ticket médio" valor={formatarMoeda(ticketMedio)} nota="por venda" />
         <KpiCard label="Cancelamentos" valor={String(cancelamentos)} nota="pedidos extornados" tom={cancelamentos > 0 ? "warn" : "ok"} />
+      </div>
+
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <KpiCard label="Primeira compra" valor={String(primeiraCompraNoPeriodo)} nota="clientes novos no período" />
+        <KpiCard
+          label="Clientes inativos"
+          valor={String(clientesInativos)}
+          nota="sem compra há 6+ meses"
+          tom={clientesInativos > 0 ? "warn" : "ok"}
+        />
+        <KpiCard
+          label="Crediário em atraso"
+          valor={String(crediarioAtrasado.length)}
+          nota={formatarMoeda(valorCrediarioAtrasado)}
+          tom={crediarioAtrasado.length > 0 ? "crit" : "ok"}
+        />
+        <KpiCard label="Comissões do período" valor={formatarMoeda(totalComissoes)} nota={`${comissoesPeriodo.length} lançamento(s)`} />
       </div>
 
       <div className="rounded-[14px] border border-line bg-surface p-4 shadow-sm sm:p-5">
@@ -169,6 +253,21 @@ export function RelatoriosView({
 
       <div className="rounded-[14px] border border-line bg-surface p-4 shadow-sm sm:p-5">
         <h2 className="mb-3 font-display text-base font-semibold text-ink">
+          Fretes grátis no período ({fretesGratisPeriodo.length})
+        </h2>
+        <div className="flex flex-col gap-1 text-sm text-text-soft">
+          {fretesGratisPeriodo.slice(0, 10).map((e) => (
+            <p key={e.id}>
+              Pedido #{e.pedidos?.numero ?? "—"} — {e.pedidos?.clientes?.nome ?? "—"}
+              {e.motivo_frete_gratis ? ` (${e.motivo_frete_gratis})` : ""}
+            </p>
+          ))}
+          {fretesGratisPeriodo.length === 0 && <p>Nenhum frete grátis concedido no período.</p>}
+        </div>
+      </div>
+
+      <div className="rounded-[14px] border border-line bg-surface p-4 shadow-sm sm:p-5">
+        <h2 className="mb-3 font-display text-base font-semibold text-ink">
           Estoque abaixo do mínimo ({estoqueBaixo.length})
         </h2>
         <div className="flex flex-wrap gap-2">
@@ -182,8 +281,9 @@ export function RelatoriosView({
       </div>
 
       <p className="text-center text-xs text-text-soft">
-        Indicadores ainda pendentes (seção 24 do documento mestre): primeira compra, clientes reativados/inativos,
-        crediários/atrasos, taxas de cartão, fretes grátis, comissões — próximos a construir.
+        Único indicador da seção 24 ainda fora do escopo: taxas de cartão — o schema não modela custo de maquininha
+        como dado consultável (só existe o simulador ad-hoc de juros na tela de venda), então fica registrado aqui
+        como lacuna deliberada em vez de indicador construído.
       </p>
     </div>
   );

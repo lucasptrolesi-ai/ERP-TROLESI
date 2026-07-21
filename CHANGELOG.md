@@ -1,5 +1,11 @@
 # CHANGELOG — ERP Trolesi
 
+## 2026-07-21 (cont. 2) — Code-review completo (2ª rodada) + Fase 5: relatórios e comissão automática
+
+- **Code-review dos 8 ângulos que faltavam** (`/code-review xhigh`, retomados após o limite de sessão da 1ª rodada) sobre as Fases 1-4: encontraram e corrigiram mais 9 problemas reais, o mais grave sendo uma regressão que o próprio processo desta sessão havia introduzido — `extornar_pedido` perdeu silenciosamente o bloqueio de "parcela já paga" (existente desde 2026-07-14) ao ganhar o bloqueio de `lancado_gmax` na correção anterior; restaurado com os dois bloqueios juntos. Outros achados: `criar_pedido` sem validação de acréscimo negativo (funcionava como desconto não auditado), corrida real de idempotência (select-then-insert), justificativa vazia aceita nas aprovações, botões de aprovar/reprovar visíveis pra quem nunca teria a permissão (sem UI de concessão ainda), veredito automático de garantia de folheado inalcançável pra revisão manual, frete grátis sem checar permissão nem auditar, comissão manual confiando na taxa client-side em vez de reler do servidor, `crediario-view` sem calcular "atrasado" dinamicamente, filtro de período de `/relatorios` reintroduzindo o bug de fuso horário UTC-vs-Brasília já corrigido antes em outros módulos, índices faltando em FKs consultadas de verdade.
+- **Fase 5 concluída:** `/relatorios` ganhou os indicadores que faltavam (primeira compra no período, clientes inativos 6+ meses, crediário em atraso com valor, fretes grátis concedidos, comissões lançadas) — único indicador da seção 24 fora de escopo é taxas de cartão (lacuna deliberada, documentada na própria tela, schema não modela custo de maquininha como dado consultável). `criar_pedido` v6 passou a gerar comissão automaticamente no evento `venda` (recebimento/fechamento mensal continuam manuais).
+- Build, lint e suíte Vitest confirmados limpos (42 testes reais, 19 `it.todo`).
+
 ## 2026-07-21 — Documento mestre: Fases 1-4 (fundação, cadastros, núcleo do PDV, regras especiais) + correções de code-review
 
 Pivô de escopo grande: fusão com um documento mestre de regras comerciais de PDV/loja de joalheria trazido pelo usuário (ver `DECISIONS.md`), executado de forma autônoma (`/goal`) fase a fase, com commit e push a cada fase.
