@@ -15,6 +15,8 @@ const ITENS = [
   { href: "/abatimentos", label: "Abatimentos", icone: "♻️" },
   { href: "/garantias", label: "Garantias", icone: "🛡️" },
   { href: "/crediario", label: "Crediário", icone: "💳" },
+  { href: "/comissoes", label: "Comissões", icone: "🤝" },
+  { href: "/frete", label: "Frete", icone: "📦" },
   { href: "/relatorios", label: "Relatórios", icone: "📊" },
 ];
 

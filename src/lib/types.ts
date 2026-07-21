@@ -137,6 +137,31 @@ export type CondicaoPagamento = {
   ativo: boolean;
 };
 
+export type StatusExpedicao =
+  | "aguardando_separacao"
+  | "em_separacao"
+  | "pronto_para_envio"
+  | "postado"
+  | "em_transporte"
+  | "entregue"
+  | "devolvido"
+  | "problema_transporte";
+
+export type Expedicao = {
+  id: string;
+  pedido_id: string;
+  endereco_entrega: string | null;
+  destinatario: string | null;
+  transportadora: string | null;
+  modalidade: string | null;
+  custo: number;
+  frete_gratis: boolean;
+  motivo_frete_gratis: string | null;
+  status: StatusExpedicao;
+  criado_em: string;
+  pedidos: { numero: number; clientes: { nome: string } | null } | null;
+};
+
 export type LocalEstoque = {
   id: string;
   nome: string;
