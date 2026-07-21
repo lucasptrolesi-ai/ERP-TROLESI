@@ -20,7 +20,8 @@ Substituição enxuta do GMax/Sincron (ERP atual da Trolesi Joias, Firebird 2.5)
 
 - Next.js 16 App Router (Turbopack) + TypeScript + Tailwind v4. **Atenção:** esta versão renomeou `middleware.ts` para `proxy.ts` (função exportada `proxy`, não `middleware`) e `cookies()`/`params`/`searchParams` são assíncronos — não assuma convenções de Next 13/14 sem checar `node_modules/next/dist/docs/` primeiro.
 - Auth: `@supabase/ssr` (`createBrowserClient`/`createServerClient`), sessão validada com `getUser()` (nunca confiar só em `getSession()`). Usuário+perfil atual: sempre usar `getPerfilAtual()` de `src/lib/supabase/auth.ts` (cache por request), não duplicar a busca em cada página.
-- Sem tela pública de auto-cadastro — usuários são criados manualmente pelo admin via Supabase Dashboard.
+- Sem tela pública de auto-cadastro. **Desde 2026-07-21:** admin pode cadastrar funcionário (papéis operacionais: vendedor/financeiro/estoque) direto pelo app em `/permissoes`, via Admin API do Supabase (`src/lib/supabase/admin.ts`, service_role key em `SUPABASE_SERVICE_ROLE_KEY` — server-only, nunca `NEXT_PUBLIC_`, configurada local e no Vercel). Criar outro **admin** continua exigindo o Supabase Dashboard diretamente (não exposto no cadastro pelo app, por segurança).
+- Recuperação/troca de senha: `/esqueci-senha` (link por e-mail) → `/redefinir-senha`; `/conta` pra trocar a senha já logado.
 - Supabase: Postgres + Auth + Storage + RLS (schema em `supabase/migrations/`, ver `supabase/README.md`)
 - Vercel (hospedagem, quando autorizado)
 - Provedor de NF-e: Focus NFe (integração via API, sem reimplementar o motor fiscal)
