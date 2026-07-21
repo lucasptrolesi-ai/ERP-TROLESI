@@ -10,7 +10,7 @@ export async function buscarPedidoDetalhe(
     supabase
       .from("pedidos")
       .select(
-        "*, clientes(nome, cpf_cnpj, endereco, bairro, cidade, uf), pedido_itens(quantidade, preco_unitario, produtos(nome))",
+        "*, clientes(nome, cpf_cnpj, endereco, bairro, cidade, uf), pedido_itens(quantidade, preco_unitario, produtos(nome)), pedido_pagamentos_mistos(forma_pagamento, valor)",
       )
       .eq("id", id)
       .single(),

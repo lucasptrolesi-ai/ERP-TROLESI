@@ -1,5 +1,28 @@
 # CHANGELOG — ERP Trolesi
 
+## 2026-07-21 (cont. 3) — As 10 ambiguidades do documento mestre + UI de permissões + achado de segurança
+
+Por instrução direta do usuário ("nada dessas perguntas, devem fazer parte do sistema, a foto das regras é pra voce ter entendimento do funcionamento da loja"), as 10 ambiguidades da seção 27 do documento mestre foram decididas e implementadas nesta leva, em vez de ficarem paradas em `pending_decisions`. Cada decisão com sua razão está registrada no banco (`pending_decisions.decisao`) e em `DECISIONS.md`.
+
+- **Primeira compra/prata 925 código≥20** (`novo-pedido.tsx`): conta normalmente no total do mínimo; subtotal exposto no carrinho quando presente.
+- **Frete grátis automático** (`criar_expedicao`): libera sozinho a partir de R$700 (base = total do pedido), sem exigir permissão/auditoria — é regra determinística, não exceção. Concessão manual abaixo do mínimo continua exigindo permissão + motivo + auditoria.
+- **Pagamento misto**: forma de pagamento nova (`misto`), tabela `pedido_pagamentos_mistos`, `criar_pedido` v7 valida soma == total, sem desconto automático. UI completa em `novo-pedido.tsx` (linhas de forma+valor, adicionar/remover, validação de soma); breakdown exibido em cupom e no detalhe do pedido.
+- **Código Ventilador**: investigado nos 44 produtos migrados do GMax (CSV real) — sem evidência de uso. Permanece não implementado.
+- **Comissão do crediário legado**: automática no recebimento (`receber_crediario`), via vendedor do pedido de origem.
+- **Bloqueio de crediário por atraso > 5 dias**: calculado dinamicamente (`crediarioBloqueadoPorAtraso`/`diasDeAtraso` em `situacao-conta.ts`, com teste real) — bloqueia novo `lancar_crediario` e mostra badge na tela.
+- **Medição de descascamento (garantia)**: confirmado que já era estimativa visual do atendente — decisão sem mudança de código.
+- **Destino do abatimento aprovado**: `aprovar_abatimento` agora seta `local_id` pro local "Abatimentos recebidos" automaticamente.
+- **Multiplicador ouro/cobre (cotação diária)**: tabela `cotacoes_diarias`, function `informar_cotacao`, card "Cotação do dia" em `/estoque`, `calcularPrecoPorCotacao` (testado) usado na venda quando o produto usa cotação diária, com aviso quando a cotação do dia não foi informada.
+- **Abatimento não reduz base de desconto/frete**: confirmado — já eram fluxos separados.
+
+**UI de concessão de permissões granulares** (`/permissoes`, novo): admin concede/revoga as 16 permissões especiais por usuário (lista de usuários + toggles), via `conceder_permissao`/`revogar_permissao` (SECURITY DEFINER, auditadas) — fecha a limitação de que só admin conseguia exercer qualquer ação protegida por `tem_permissao()`.
+
+**Checagem leve de segurança (sem subagentes):** achado real — `registrar_auditoria` (SECURITY DEFINER sem checagem de permissão nenhuma) e `tem_permissao` nunca tiveram trava de EXECUTE de verdade. Descoberto ao investigar: o padrão `revoke all ... from public` usado em ~15 migrations anteriores sempre foi um no-op, porque o Supabase concede EXECUTE direto a `anon`/`authenticated` (não via PUBLIC) em toda function nova. `registrar_auditoria` era a única exploração real (qualquer RPC, inclusive sem login, podia forjar uma linha de audit_log) — corrigido revogando das roles certas. As outras ~15 functions não foram tocadas: cada uma já verifica permissão no próprio corpo, então o risco prático sempre foi zero ali; reescrever o revoke nelas é higiene cosmética, não correção de vulnerabilidade, e ficou fora do escopo desta checagem leve.
+
+Migrations novas: `20260721000013` a `20260721000019` (permissões, resolução das 10 pendências, cotações diárias, frete grátis automático, pagamento misto — enum isolado numa migration própria por causa da restrição do Postgres de não usar um valor de enum na mesma transação em que foi criado —, e a correção de segurança). Todas aplicadas e verificadas em produção (`pg_proc`/`has_function_privilege` conferidos após cada uma).
+
+Build, lint e suíte Vitest confirmados limpos (novos testes: `situacao-conta.test.ts`, extensão de `precificacao.test.ts`).
+
 ## 2026-07-21 (cont. 2) — Code-review completo (2ª rodada) + Fase 5: relatórios e comissão automática
 
 - **Code-review dos 8 ângulos que faltavam** (`/code-review xhigh`, retomados após o limite de sessão da 1ª rodada) sobre as Fases 1-4: encontraram e corrigiram mais 9 problemas reais, o mais grave sendo uma regressão que o próprio processo desta sessão havia introduzido — `extornar_pedido` perdeu silenciosamente o bloqueio de "parcela já paga" (existente desde 2026-07-14) ao ganhar o bloqueio de `lancado_gmax` na correção anterior; restaurado com os dois bloqueios juntos. Outros achados: `criar_pedido` sem validação de acréscimo negativo (funcionava como desconto não auditado), corrida real de idempotência (select-then-insert), justificativa vazia aceita nas aprovações, botões de aprovar/reprovar visíveis pra quem nunca teria a permissão (sem UI de concessão ainda), veredito automático de garantia de folheado inalcançável pra revisão manual, frete grátis sem checar permissão nem auditar, comissão manual confiando na taxa client-side em vez de reler do servidor, `crediario-view` sem calcular "atrasado" dinamicamente, filtro de período de `/relatorios` reintroduzindo o bug de fuso horário UTC-vs-Brasília já corrigido antes em outros módulos, índices faltando em FKs consultadas de verdade.

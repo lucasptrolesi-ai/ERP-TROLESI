@@ -8,7 +8,7 @@ import { FORMA_LABEL } from "@/lib/forma-pagamento";
 import { podeEditarPedidos } from "@/lib/permissoes";
 import { STATUS_LABEL } from "@/lib/status-pedido";
 import { formatarDataIso } from "@/lib/datas";
-import type { Cliente, FaixaParcelamentoDb, Pedido, Produto } from "@/lib/types";
+import type { Cliente, CotacaoDiaria, FaixaParcelamentoDb, Pedido, Produto } from "@/lib/types";
 
 export function PedidosView({
   papelAtual,
@@ -16,12 +16,14 @@ export function PedidosView({
   clientes,
   produtos,
   faixasParcelamento,
+  cotacoesHoje,
 }: {
   papelAtual: string;
   pedidos: Pedido[];
   clientes: Cliente[];
   produtos: Produto[];
   faixasParcelamento: FaixaParcelamentoDb[];
+  cotacoesHoje: CotacaoDiaria[];
 }) {
   // PDV abre direto na tela de venda — é a tela principal do app agora
   // (Dashboard/Financeiro/Fiscal saíram do menu, ver sidebar-nav.tsx).
@@ -138,6 +140,7 @@ export function PedidosView({
           clientes={clientes}
           produtos={produtos}
           faixasParcelamento={faixasParcelamento}
+          cotacoesHoje={cotacoesHoje}
           onVoltarParaLista={() => setAba("lista")}
         />
       )}

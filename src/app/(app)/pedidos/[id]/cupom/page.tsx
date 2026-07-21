@@ -68,6 +68,13 @@ export default async function CupomPage({ params }: { params: Promise<{ id: stri
         <div className="my-1 border-t border-dashed border-ink/40" />
 
         <p>Pagamento: {pedido.forma_pagamento ? FORMA_LABEL[pedido.forma_pagamento] : "—"}</p>
+        {pedido.forma_pagamento === "misto" &&
+          pedido.pedido_pagamentos_mistos.map((p, i) => (
+            <div key={i} className="flex justify-between gap-2">
+              <span>{FORMA_LABEL[p.forma_pagamento]}</span>
+              <span className="tabular-nums">{formatarMoeda(p.valor)}</span>
+            </div>
+          ))}
         {parcelas.length > 0 &&
           parcelas.map((p) => (
             <p key={p.id}>

@@ -31,6 +31,7 @@ export async function criarPedido(
     idempotencyKey?: string;
     parcelasPlanejadas?: Parcela[];
     excecaoJustificativa?: string;
+    pagamentosMistos?: { forma: FormaPagamento; valor: number }[];
   },
 ): Promise<{ erro?: string; pedidoId?: string }> {
   if (!clienteId) return { erro: "Selecione um cliente." };
@@ -55,6 +56,8 @@ export async function criarPedido(
     p_parcelas_planejadas:
       opcoes?.parcelasPlanejadas && opcoes.parcelasPlanejadas.length > 0 ? opcoes.parcelasPlanejadas : null,
     p_excecao_justificativa: opcoes?.excecaoJustificativa ?? null,
+    p_pagamentos_mistos:
+      opcoes?.pagamentosMistos && opcoes.pagamentosMistos.length > 0 ? opcoes.pagamentosMistos : null,
   });
 
   if (error) {

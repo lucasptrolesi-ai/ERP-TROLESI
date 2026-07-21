@@ -7,11 +7,12 @@ import { criarPedido, buscarEstatisticasCliente } from "@/lib/actions/pedidos";
 import { formatarMoeda } from "@/lib/formatar-moeda";
 import { parseMoeda } from "@/lib/parse-moeda";
 import { formatarDataIso, hojeIso } from "@/lib/datas";
-import { calcularPrecoUnitario } from "@/lib/precificacao";
+import { calcularPrecoPorCotacao, calcularPrecoUnitario } from "@/lib/precificacao";
 import { calcularDescontoAutomatico } from "@/lib/desconto";
 import { maxParcelasSemJuros } from "@/lib/parcelamento";
 import type {
   Cliente,
+  CotacaoDiaria,
   EstatisticasCliente,
   FaixaParcelamentoDb,
   FormaPagamento,
@@ -32,11 +33,13 @@ export function NovoPedido({
   clientes,
   produtos,
   faixasParcelamento,
+  cotacoesHoje,
   onVoltarParaLista,
 }: {
   clientes: Cliente[];
   produtos: Produto[];
   faixasParcelamento: FaixaParcelamentoDb[];
+  cotacoesHoje: CotacaoDiaria[];
   onVoltarParaLista: () => void;
 }) {
   const [clienteSelecionado, setClienteSelecionado] = useState<Cliente | null>(null);
@@ -54,6 +57,10 @@ export function NovoPedido({
   const [numeroParcelas, setNumeroParcelas] = useState(1);
   const [primeiroVencimento, setPrimeiroVencimento] = useState(hojeIso());
   const [valorComJuros, setValorComJuros] = useState<string>("");
+  const [pagamentosMistos, setPagamentosMistos] = useState<{ forma: FormaPagamento; valor: string }[]>([
+    { forma: "dinheiro", valor: "" },
+    { forma: "pix", valor: "" },
+  ]);
 
   const [estatisticasCliente, setEstatisticasCliente] = useState<EstatisticasCliente | null>(null);
   const [justificativaExcecao, setJustificativaExcecao] = useState("");
@@ -65,6 +72,16 @@ export function NovoPedido({
   const router = useRouter();
 
   const produtosPorId = useMemo(() => new Map(produtos.map((p) => [p.id, p])), [produtos]);
+
+  // Cotação diária (seção 6, decisão registrada em pending_decisions pra
+  // 'multiplicador_ouro_cobre'): produtos com usa_cotacao_diaria usam
+  // peso × cotação do dia × multiplicador em vez de código × multiplicador.
+  // Sem cotação informada hoje, cai pro preço já cadastrado do produto (com
+  // aviso), em vez de travar a venda.
+  const cotacaoPorMaterial = useMemo(
+    () => new Map(cotacoesHoje.map((c) => [c.material.trim().toLowerCase(), c.valor])),
+    [cotacoesHoje],
+  );
 
   useEffect(() => {
     // Limpar quando não há cliente selecionado acontece nos próprios
@@ -108,6 +125,12 @@ export function NovoPedido({
 
   const subtotal = carrinho.reduce((soma, i) => soma + i.quantidade * i.preco_unitario, 0);
 
+  const itensSemCotacaoHoje = carrinho.filter((i) => {
+    const produto = produtosPorId.get(i.produto_id);
+    if (!produto?.usa_cotacao_diaria) return false;
+    return cotacaoPorMaterial.get((produto.material ?? "").trim().toLowerCase()) == null;
+  });
+
   // Desconto automático por forma de pagamento (dinheiro 10%/Pix 7%/débito
   // 7%) aplicado só sobre a base elegível — fornitura nunca entra. Pra
   // essas 3 formas, o desconto manual fica desligado (o cálculo é sempre o
@@ -127,6 +150,8 @@ export function NovoPedido({
 
   const ehPromissoria = formaPagamento === "promissoria";
   const temParcelamento = formaPagamento === "cartao_credito" || ehPromissoria;
+  const ehMisto = formaPagamento === "misto";
+  const somaPagamentosMistos = pagamentosMistos.reduce((s, p) => s + (parseMoeda(p.valor) || 0), 0);
 
   // Limiares de parcelamento sem juros por valor da venda (seção 9): a
   // partir de R$200 até 2x, a partir de R$300 até 3x — nunca a interface
@@ -152,6 +177,16 @@ export function NovoPedido({
     return null;
   })();
   const abaixoDoMinimo = minimoRequerido !== null && carrinho.length > 0 && total < minimoRequerido.valor;
+
+  // Prata 925 código≥20 (seção 10, decisão registrada em pending_decisions):
+  // conta normalmente dentro do total geral pro mínimo de primeira compra —
+  // não tem uma cota separada — mas fica exposto à parte pra dar
+  // visibilidade ao vendedor, como o documento pede.
+  const totalPrata925CodigoAlto = carrinho.reduce((soma, i) => {
+    const material = (produtosPorId.get(i.produto_id)?.material ?? "").toLowerCase();
+    const ehPrata925CodigoAlto = material.includes("prata") && material.includes("925") && i.codigo_peca >= 20;
+    return ehPrata925CodigoAlto ? soma + i.quantidade * i.preco_unitario : soma;
+  }, 0);
 
   // No cartão 4-12x, o valor total já vem com o juros da maquininha — a
   // pessoa digita o total cobrado, o simulador só divide igualmente pra
@@ -189,6 +224,14 @@ export function NovoPedido({
           i.produto_id === produto.id ? { ...i, quantidade: i.quantidade + 1 } : i,
         );
       }
+      const cotacao = produto.usa_cotacao_diaria
+        ? cotacaoPorMaterial.get((produto.material ?? "").trim().toLowerCase())
+        : undefined;
+      const precoUnitario =
+        cotacao != null && produto.peso != null
+          ? calcularPrecoPorCotacao(produto.peso, cotacao, produto.multiplicador)
+          : produto.preco;
+
       return [
         ...atual,
         {
@@ -197,7 +240,7 @@ export function NovoPedido({
           quantidade: 1,
           codigo_peca: produto.codigo_peca,
           multiplicador: produto.multiplicador,
-          preco_unitario: produto.preco,
+          preco_unitario: precoUnitario,
           estoqueDisponivel: produto.quantidade_estoque,
         },
       ];
@@ -240,6 +283,10 @@ export function NovoPedido({
     setNumeroParcelas(1);
     setPrimeiroVencimento(hojeIso());
     setValorComJuros("");
+    setPagamentosMistos([
+      { forma: "dinheiro", valor: "" },
+      { forma: "pix", valor: "" },
+    ]);
     setJustificativaExcecao("");
     setEstatisticasCliente(null);
     // Chave nova pra próxima venda — a antiga já foi consumida (ou nunca foi
@@ -281,6 +328,19 @@ export function NovoPedido({
         return;
       }
     }
+    if (ehMisto) {
+      const linhasValidas = pagamentosMistos.filter((p) => parseMoeda(p.valor) > 0);
+      if (linhasValidas.length < 2) {
+        setErro("Pagamento misto precisa de pelo menos duas formas com valor.");
+        return;
+      }
+      if (Math.abs(somaPagamentosMistos - total) > 0.01) {
+        setErro(
+          `A soma das formas de pagamento (${formatarMoeda(somaPagamentosMistos)}) precisa bater com o total (${formatarMoeda(total)}).`,
+        );
+        return;
+      }
+    }
     if (total <= 0 && !confirm("O valor a pagar deste pedido é R$0,00. Confirma finalizar mesmo assim?")) {
       return;
     }
@@ -310,6 +370,11 @@ export function NovoPedido({
           idempotencyKey,
           parcelasPlanejadas: parcelas,
           excecaoJustificativa: justificativaExcecao.trim() || undefined,
+          pagamentosMistos: ehMisto
+            ? pagamentosMistos
+                .filter((p) => parseMoeda(p.valor) > 0)
+                .map((p) => ({ forma: p.forma, valor: parseMoeda(p.valor) }))
+            : undefined,
         },
       );
       if (resultado.erro) {
@@ -627,6 +692,7 @@ export function NovoPedido({
               ["debito", "Cartão de débito"],
               ["cartao_credito", "Cartão de crédito"],
               ["promissoria", "Promissória"],
+              ["misto", "Pagamento misto"],
             ] as const
           ).map(([valor, rotulo]) => (
             <button
@@ -748,6 +814,72 @@ export function NovoPedido({
             </ul>
           </div>
         )}
+
+        {ehMisto && (
+          <div className="mt-3 flex flex-col gap-2">
+            <p className="text-[0.7rem] text-text-soft">
+              Sem desconto automático em pagamento misto (seção 16) — informe cada forma e o valor recebido nela; a
+              soma precisa bater com o total.
+            </p>
+            {pagamentosMistos.map((linha, indice) => (
+              <div key={indice} className="flex items-center gap-2">
+                <select
+                  value={linha.forma}
+                  onChange={(e) =>
+                    setPagamentosMistos((atual) =>
+                      atual.map((l, i) => (i === indice ? { ...l, forma: e.target.value as FormaPagamento } : l)),
+                    )
+                  }
+                  className="rounded-lg border border-line bg-surface px-2 py-1.5 text-sm"
+                >
+                  {(["dinheiro", "pix", "debito", "cartao_credito", "promissoria"] as const).map((f) => (
+                    <option key={f} value={f}>
+                      {f === "dinheiro"
+                        ? "Dinheiro"
+                        : f === "pix"
+                          ? "Pix"
+                          : f === "debito"
+                            ? "Cartão de débito"
+                            : f === "cartao_credito"
+                              ? "Cartão de crédito"
+                              : "Promissória"}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  value={linha.valor}
+                  onChange={(e) =>
+                    setPagamentosMistos((atual) =>
+                      atual.map((l, i) => (i === indice ? { ...l, valor: e.target.value } : l)),
+                    )
+                  }
+                  placeholder="Valor (R$)"
+                  className="w-32 rounded-lg border border-line bg-surface px-2 py-1.5 text-sm"
+                />
+                {pagamentosMistos.length > 2 && (
+                  <button
+                    type="button"
+                    onClick={() => setPagamentosMistos((atual) => atual.filter((_, i) => i !== indice))}
+                    className="text-text-soft hover:text-crit"
+                    aria-label="Remover forma de pagamento"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+            ))}
+            <button
+              type="button"
+              onClick={() => setPagamentosMistos((atual) => [...atual, { forma: "dinheiro", valor: "" }])}
+              className="w-fit rounded-full border border-line px-3 py-1 text-xs font-semibold text-rose-deep"
+            >
+              + Adicionar forma
+            </button>
+            <p className={`text-sm ${Math.abs(somaPagamentosMistos - total) > 0.01 ? "text-crit" : "text-ok"}`}>
+              Soma: {formatarMoeda(somaPagamentosMistos)} / Total: {formatarMoeda(total)}
+            </p>
+          </div>
+        )}
       </div>
 
       <div className="flex justify-end">
@@ -782,6 +914,20 @@ export function NovoPedido({
           </div>
         </div>
       </div>
+
+      {itensSemCotacaoHoje.length > 0 && (
+        <p className="rounded-lg bg-warn-bg px-3 py-2 text-xs font-medium text-warn">
+          {itensSemCotacaoHoje.map((i) => i.nome).join(", ")}: cotação do dia não informada — usando o preço já
+          cadastrado do produto. Informe a cotação em Estoque pra usar o preço do dia.
+        </p>
+      )}
+
+      {totalPrata925CodigoAlto > 0 && (
+        <p className="rounded-lg bg-cream px-3 py-2 text-xs text-text-soft">
+          Prata 925 código≥20 no carrinho: <strong className="text-ink">{formatarMoeda(totalPrata925CodigoAlto)}</strong>{" "}
+          (conta normalmente no total do mínimo de primeira compra/reativação — seção 10)
+        </p>
+      )}
 
       {abaixoDoMinimo && minimoRequerido && (
         <div className="flex flex-col gap-2 rounded-lg border-2 border-warn bg-warn-bg p-3 text-sm text-warn">

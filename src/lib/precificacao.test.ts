@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { calcularPrecoUnitario, MULTIPLICADOR_PADRAO } from "./precificacao";
+import { calcularPrecoPorCotacao, calcularPrecoUnitario, MULTIPLICADOR_PADRAO } from "./precificacao";
 
 describe("calcularPrecoUnitario", () => {
   it("multiplica código da peça pelo multiplicador (seção 6 do documento mestre)", () => {
@@ -16,5 +16,15 @@ describe("calcularPrecoUnitario", () => {
 
   it("multiplicador zero é um valor explícito válido (ex: brinde), não deve virar o padrão silenciosamente", () => {
     expect(calcularPrecoUnitario(10, 0)).toBe(0);
+  });
+});
+
+describe("calcularPrecoPorCotacao", () => {
+  it("multiplica peso × cotação do grama × multiplicador (seção 6 — ouro/cobre)", () => {
+    expect(calcularPrecoPorCotacao(2, 350, 2.8)).toBeCloseTo(1960, 2);
+  });
+
+  it("arredonda pra 2 casas decimais", () => {
+    expect(calcularPrecoPorCotacao(1.111, 100, 2.8)).toBe(311.08);
   });
 });

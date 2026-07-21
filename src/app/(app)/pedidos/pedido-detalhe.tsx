@@ -6,6 +6,7 @@ import { ajustarPedido, extornarPedido, marcarLancadoNoGmax } from "@/lib/action
 import { formatarMoeda } from "@/lib/formatar-moeda";
 import { parseMoeda } from "@/lib/parse-moeda";
 import { formatarDataHoraIso } from "@/lib/datas";
+import { FORMA_LABEL } from "@/lib/forma-pagamento";
 import type { Pedido } from "@/lib/types";
 
 export function PedidoDetalhe({
@@ -130,6 +131,18 @@ export function PedidoDetalhe({
               </div>
             )}
           </>
+        )}
+
+        {pedido.forma_pagamento === "misto" && pedido.pedido_pagamentos_mistos.length > 0 && (
+          <div className="flex flex-col gap-1 rounded-lg bg-cream px-3 py-2 text-sm text-text-soft">
+            <span className="text-xs font-semibold uppercase tracking-wide">Pagamento misto</span>
+            {pedido.pedido_pagamentos_mistos.map((p, i) => (
+              <div key={i} className="flex justify-between">
+                <span>{FORMA_LABEL[p.forma_pagamento]}</span>
+                <span className="tabular-nums">{formatarMoeda(p.valor)}</span>
+              </div>
+            ))}
+          </div>
         )}
 
         <div className="flex justify-between border-t border-line pt-2 font-display text-lg font-semibold text-rose-deep">

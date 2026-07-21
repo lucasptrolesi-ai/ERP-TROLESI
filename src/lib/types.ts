@@ -113,7 +113,15 @@ export type StatusPedido =
   | "cancelado"
   | "aguardando_lancamento_gmax"
   | "lancado_gmax";
-export type FormaPagamento = "dinheiro" | "pix" | "debito" | "cartao_credito" | "promissoria";
+export type FormaPagamento = "dinheiro" | "pix" | "debito" | "cartao_credito" | "promissoria" | "misto";
+
+export type PagamentoMistoLinha = {
+  id: string;
+  pedido_id: string;
+  forma_pagamento: FormaPagamento;
+  valor: number;
+  criado_em: string;
+};
 
 export type EventoComissao = "venda" | "recebimento" | "fechamento_mensal";
 
@@ -262,6 +270,7 @@ export type Pedido = {
   lancado_gmax_em: string | null;
   clientes: { nome: string; cpf_cnpj: string | null; endereco: string | null; bairro: string | null; cidade: string | null; uf: string | null } | null;
   pedido_itens: { quantidade: number; preco_unitario: number; produtos: { nome: string } | null }[];
+  pedido_pagamentos_mistos: { forma_pagamento: FormaPagamento; valor: number }[];
 };
 
 export type ContaReceber = {
@@ -367,4 +376,39 @@ export type PedidoPendenteFiscal = {
     preco_unitario: number;
     produtos: { nome: string; ncm: string | null; csosn: string } | null;
   }[];
+};
+
+export type PermissaoEspecial =
+  | "alterar_preco_multiplicador"
+  | "informar_cotacao"
+  | "conceder_desconto_acima_limite"
+  | "liberar_primeira_compra_abaixo_minimo"
+  | "liberar_reativacao_abaixo_minimo"
+  | "aprovar_valor_abatimento"
+  | "aprovar_reprovar_garantia"
+  | "criar_excecao_crediario"
+  | "receber_crediario"
+  | "reabrir_caixa"
+  | "cancelar_venda"
+  | "estornar_pagamento"
+  | "alterar_estoque_manual"
+  | "conceder_frete_gratis"
+  | "acessar_codigo_interno"
+  | "consultar_custo_margem";
+
+export type CotacaoDiaria = {
+  id: string;
+  material: string;
+  valor: number;
+  data: string;
+  informado_por: string | null;
+  criado_em: string;
+};
+
+export type PermissaoUsuario = {
+  id: string;
+  profile_id: string;
+  permissao: PermissaoEspecial;
+  concedida_por: string | null;
+  concedida_em: string;
 };

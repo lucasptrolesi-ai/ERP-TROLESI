@@ -4,7 +4,7 @@ import { useMemo, useState, useTransition } from "react";
 import { converterEmCrediario, lancarCrediario, receberCrediario } from "@/lib/actions/crediario";
 import { formatarMoeda } from "@/lib/formatar-moeda";
 import { formatarDataIso, hojeIso } from "@/lib/datas";
-import { situacaoEfetiva } from "@/lib/situacao-conta";
+import { crediarioBloqueadoPorAtraso, situacaoEfetiva } from "@/lib/situacao-conta";
 import type { Cliente, CrediarioLancamento, SituacaoConta } from "@/lib/types";
 
 const SITUACAO_LABEL: Record<string, { rotulo: string; classe: string }> = {
@@ -16,6 +16,22 @@ const SITUACAO_LABEL: Record<string, { rotulo: string; classe: string }> = {
 export function CrediarioView({ clientes, lancamentos }: { clientes: Cliente[]; lancamentos: CrediarioLancamento[] }) {
   const clientesCrediario = useMemo(() => clientes.filter((c) => c.crediario_legado), [clientes]);
   const clientesElegiveis = useMemo(() => clientes.filter((c) => !c.crediario_legado), [clientes]);
+
+  // Bloqueio por atraso (seção 15, decisão registrada em pending_decisions):
+  // atraso > 5 dias em qualquer lançamento não pago bloqueia o cliente —
+  // calculado na hora a partir dos lançamentos, nunca lido de uma flag
+  // armazenada (que ficaria desatualizada, mesmo erro já corrigido em
+  // contas_receber/pagar).
+  const bloqueadoPorCliente = useMemo(() => {
+    const mapa = new Map<string, boolean>();
+    for (const c of clientesCrediario) {
+      const doCliente = lancamentos
+        .filter((l) => l.cliente_id === c.id)
+        .map((l) => ({ situacao: l.situacao as SituacaoConta, vencimento: l.vencimento }));
+      mapa.set(c.id, crediarioBloqueadoPorAtraso(doCliente));
+    }
+    return mapa;
+  }, [clientesCrediario, lancamentos]);
 
   const [clienteConversao, setClienteConversao] = useState("");
   const [limite, setLimite] = useState("");
@@ -131,7 +147,15 @@ export function CrediarioView({ clientes, lancamentos }: { clientes: Cliente[]; 
                   <td className="px-3 py-2 tabular-nums">
                     {c.crediario_limite != null ? formatarMoeda(c.crediario_limite) : "—"}
                   </td>
-                  <td className="px-3 py-2">{c.crediario_status}</td>
+                  <td className="px-3 py-2">
+                    {bloqueadoPorCliente.get(c.id) ? (
+                      <span className="rounded-full bg-crit-bg px-2.5 py-1 text-xs font-bold text-crit">
+                        Bloqueado (atraso &gt; 5 dias)
+                      </span>
+                    ) : (
+                      c.crediario_status
+                    )}
+                  </td>
                   <td className="px-3 py-2">
                     {c.crediario_autorizado_em ? formatarDataIso(c.crediario_autorizado_em) : "—"}
                   </td>

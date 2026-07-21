@@ -18,6 +18,7 @@ const ITENS = [
   { href: "/comissoes", label: "Comissões", icone: "🤝" },
   { href: "/frete", label: "Frete", icone: "📦" },
   { href: "/relatorios", label: "Relatórios", icone: "📊" },
+  { href: "/permissoes", label: "Permissões", icone: "🔑" },
 ];
 
 export function SidebarNav({ onNavegar }: { onNavegar?: () => void }) {

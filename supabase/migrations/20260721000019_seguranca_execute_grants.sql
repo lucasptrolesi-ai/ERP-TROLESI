@@ -1,0 +1,37 @@
+-- Fase 5: checagem leve de segurança — achado mais sério que o esperado.
+-- `registrar_auditoria` nunca teve nenhuma trava de EXECUTE, e é SECURITY
+-- DEFINER sem checagem de permissão nenhuma dentro do corpo — qualquer
+-- chamada via RPC (inclusive `anon`, ou seja, sem nem estar logado, só com
+-- a chave pública) conseguia inserir uma linha arbitrária em audit_log,
+-- minando a garantia da seção 25 ("toda exceção... registro auditável, sem
+-- exceção a essa regra" — um log forjável não é garantia nenhuma).
+--
+-- Descoberta importante ao investigar isso: o padrão já usado em todo o
+-- projeto ("revoke all on function ... from public; grant execute ... to
+-- authenticated") NUNCA revogou nada de verdade. O Supabase configura
+-- default privileges (`pg_default_acl`) que concedem EXECUTE direto a
+-- anon/authenticated/service_role em toda function nova criada pela role
+-- `postgres` — ou seja, o grant é individual por role, não via o
+-- pseudo-role PUBLIC. `revoke ... from public` só afeta o pseudo-role
+-- PUBLIC (que nunca teve grant nenhum aqui pra começo de conversa) — é um
+-- no-op. Isso não vazou nada nas outras functions porque todas elas checam
+-- papel/permissão no próprio corpo (`assert_papel`/`tem_permissao`), então
+-- a barreira real sempre foi essa checagem interna, não o grant. Mas
+-- `registrar_auditoria` não tinha checagem nenhuma — por isso é a única
+-- exploração real encontrada. Correção aqui revoga das roles certas
+-- (anon, authenticated) em vez do PUBLIC inofensivo.
+--
+-- `tem_permissao` teve o mesmo problema numa correção anterior desta mesma
+-- leva (20260721000015_cotacoes_diarias.sql tentou "revoke all ... from
+-- public", que também não fez nada pelo motivo acima). Ela não escreve nada
+-- (só retorna um boolean sobre a própria permissão de quem chama, não é
+-- perigosa de verdade), mas agora tem um chamador legítimo real (a tela de
+-- Estoque, via `authenticated`) — corrige aqui revogando de `anon`
+-- especificamente, mantendo `authenticated`.
+--
+-- ROLLBACK:
+-- grant execute on function public.registrar_auditoria(text, uuid, text, jsonb, jsonb, text) to anon, authenticated;
+-- grant execute on function public.tem_permissao(public.permissao_especial) to anon;
+
+revoke execute on function public.registrar_auditoria(text, uuid, text, jsonb, jsonb, text) from anon, authenticated;
+revoke execute on function public.tem_permissao(public.permissao_especial) from anon;

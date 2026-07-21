@@ -11,3 +11,11 @@ export const MULTIPLICADOR_PADRAO = 2.8;
 export function calcularPrecoUnitario(codigoPeca: number, multiplicador: number): number {
   return Math.round(codigoPeca * multiplicador * 100) / 100;
 }
+
+/** Preço unitário pra material com cotação diária (ouro/cobre — seção 6,
+ * decisão registrada em pending_decisions pra 'multiplicador_ouro_cobre'):
+ * a cotação do dia é o preço-base do grama, o multiplicador comercial
+ * aplica a margem em cima — sem isso a venda sairia a preço de custo. */
+export function calcularPrecoPorCotacao(peso: number, cotacaoGrama: number, multiplicador: number): number {
+  return Math.round(peso * cotacaoGrama * multiplicador * 100) / 100;
+}

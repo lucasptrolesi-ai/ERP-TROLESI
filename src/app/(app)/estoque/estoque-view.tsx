@@ -2,10 +2,11 @@
 
 import { useMemo, useState } from "react";
 import { ProdutoForm } from "@/components/produto-form";
+import { CotacaoDoDia } from "@/components/cotacao-do-dia";
 import { filtra } from "@/lib/filtra";
 import { formatarMoeda } from "@/lib/formatar-moeda";
 import { podeEditarProdutos } from "@/lib/permissoes";
-import type { Produto } from "@/lib/types";
+import type { CotacaoDiaria, Produto } from "@/lib/types";
 
 function statusEstoque(produto: Produto): { rotulo: string; classe: string } {
   if (produto.quantidade_estoque <= 0) return { rotulo: "Sem estoque", classe: "bg-crit-bg text-crit" };
@@ -15,7 +16,17 @@ function statusEstoque(produto: Produto): { rotulo: string; classe: string } {
   return { rotulo: `${produto.quantidade_estoque} em estoque`, classe: "bg-ok-bg text-ok" };
 }
 
-export function EstoqueView({ papelAtual, produtos }: { papelAtual: string; produtos: Produto[] }) {
+export function EstoqueView({
+  papelAtual,
+  produtos,
+  cotacoesHoje,
+  podeInformarCotacao,
+}: {
+  papelAtual: string;
+  produtos: Produto[];
+  cotacoesHoje: CotacaoDiaria[];
+  podeInformarCotacao: boolean;
+}) {
   const [busca, setBusca] = useState("");
   const [categoriaAtiva, setCategoriaAtiva] = useState<string | null>(null);
   const [produtoEditando, setProdutoEditando] = useState<Produto | null | undefined>(undefined);
@@ -47,7 +58,9 @@ export function EstoqueView({ papelAtual, produtos }: { papelAtual: string; prod
   }, [produtos, categoriaAtiva, busca]);
 
   return (
-    <div className="rounded-[14px] border border-line bg-surface shadow-sm">
+    <div className="flex flex-col gap-4">
+      <CotacaoDoDia cotacoesHoje={cotacoesHoje} podeInformar={podeInformarCotacao} />
+      <div className="rounded-[14px] border border-line bg-surface shadow-sm">
       <div className="flex flex-col gap-3 border-b border-line px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
         <input
           value={busca}
@@ -131,6 +144,7 @@ export function EstoqueView({ papelAtual, produtos }: { papelAtual: string; prod
             Nenhum produto encontrado.
           </p>
         )}
+      </div>
       </div>
 
       {produtoEditando !== undefined && (

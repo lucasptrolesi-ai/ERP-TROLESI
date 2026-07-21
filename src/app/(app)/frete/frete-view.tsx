@@ -65,11 +65,12 @@ export function FreteView({ expedicoes, pendentes }: { expedicoes: Expedicao[]; 
               onChange={(e) => setFreteGratis(e.target.checked)}
               className="h-4 w-4 accent-rose"
             />
-            Frete grátis
+            Frete grátis (concessão manual — exige motivo)
             {pedidoSelecionado && (
               <span className="text-xs text-text-soft">
-                (pedido de {formatarMoeda(pedidoSelecionado.total)} — critério de R$700 é a pendência #2, decisão em
-                aberto)
+                {pedidoSelecionado.total >= 700
+                  ? `pedido de ${formatarMoeda(pedidoSelecionado.total)} já libera frete grátis automaticamente (≥ R$700) — marque aqui só pra conceder abaixo do mínimo`
+                  : `pedido de ${formatarMoeda(pedidoSelecionado.total)} — abaixo de R$700, frete grátis só manual`}
               </span>
             )}
           </label>
