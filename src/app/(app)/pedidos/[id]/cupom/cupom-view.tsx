@@ -64,30 +64,35 @@ export function CupomView({ pedido, parcelas }: { pedido: Pedido; parcelas: Cont
       <style>{`
         @media print {
           @page { size: 58mm auto; margin: 0; }
+          * { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
         }
       `}</style>
 
-      <div className="print:w-[54mm] print:p-[2mm] w-[54mm] rounded border border-line bg-surface p-[2mm] font-mono text-[10px] leading-snug text-ink shadow-sm print:shadow-none">
-        <p className="text-center text-[9px] font-bold tracking-wide">
+      {/* Preto puro (não o --color-ink da marca, que é um marrom escuro) —
+          numa impressora térmica monocromática, qualquer cor que não seja
+          #000 sai como uma trama cinza mais fraca em vez de preto sólido. */}
+      <div className="print:w-[54mm] print:p-[2mm] w-[54mm] rounded border border-line bg-surface p-[2mm] font-sans text-[11px] font-medium leading-snug text-black shadow-sm print:shadow-none">
+        <p className="text-center text-[10px] font-bold tracking-wide">
           {via === "loja" ? "VIA LOJA" : "VIA CLIENTE"}
         </p>
         <div className="text-center">
           <p className="text-xs font-bold">{EMPRESA.nome}</p>
           <p>CNPJ {EMPRESA.cpfCnpj}</p>
           <p>
-            {EMPRESA.endereco.logradouro}, {EMPRESA.endereco.numero} — {EMPRESA.endereco.bairro}
+            {EMPRESA.endereco.logradouro}, {EMPRESA.endereco.numero}
           </p>
+          <p>{EMPRESA.endereco.bairro}</p>
           <p>
             {EMPRESA.endereco.cidade}/{EMPRESA.endereco.uf}
           </p>
         </div>
-        <div className="my-1 border-t border-dashed border-ink/40" />
+        <div className="my-1 border-t border-dashed border-black/50" />
 
         <p>Pedido #{pedido.numero}</p>
         <p>{formatarDataHoraIso(pedido.criado_em)}</p>
         <p>Cliente: {pedido.clientes?.nome ?? "—"}</p>
 
-        <div className="my-1 border-t border-dashed border-ink/40" />
+        <div className="my-1 border-t border-dashed border-black/50" />
 
         {pedido.pedido_itens.map((item, i) => (
           <div key={i} className="mb-0.5 flex justify-between gap-2">
@@ -98,7 +103,7 @@ export function CupomView({ pedido, parcelas }: { pedido: Pedido; parcelas: Cont
           </div>
         ))}
 
-        <div className="my-1 border-t border-dashed border-ink/40" />
+        <div className="my-1 border-t border-dashed border-black/50" />
 
         <div className="flex justify-between">
           <span>Subtotal</span>
@@ -121,7 +126,7 @@ export function CupomView({ pedido, parcelas }: { pedido: Pedido; parcelas: Cont
           <span className="tabular-nums">{formatarMoeda(pedido.total)}</span>
         </div>
 
-        <div className="my-1 border-t border-dashed border-ink/40" />
+        <div className="my-1 border-t border-dashed border-black/50" />
 
         <p>Pagamento: {pedido.forma_pagamento ? FORMA_LABEL[pedido.forma_pagamento] : "—"}</p>
         {pedido.forma_pagamento === "misto" &&
@@ -139,9 +144,9 @@ export function CupomView({ pedido, parcelas }: { pedido: Pedido; parcelas: Cont
             </p>
           ))}
 
-        <div className="my-1 border-t border-dashed border-ink/40" />
+        <div className="my-1 border-t border-dashed border-black/50" />
         <p className="text-center">Obrigado pela preferência!</p>
-        <p className="text-center text-[8px] text-text-soft">Documento não fiscal</p>
+        <p className="text-center text-[9px] text-black/70">Documento não fiscal</p>
       </div>
 
       <div className="flex flex-col items-center gap-3 print:hidden">
