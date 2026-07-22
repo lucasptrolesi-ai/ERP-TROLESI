@@ -1,8 +1,10 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { Modal } from "@/components/modal";
 import { FormField } from "@/components/form-field";
+import { createClient } from "@/lib/supabase/client";
 import { criarFuncionario, atualizarFuncionario, resetarSenhaFuncionario } from "@/lib/actions/funcionarios";
 import type { Funcionario } from "@/lib/types";
 
@@ -20,12 +22,16 @@ export function FuncionarioForm({
   aberto,
   onFechar,
   funcionario,
+  meuId,
 }: {
   aberto: boolean;
   onFechar: () => void;
   funcionario: Funcionario | null;
+  meuId: string;
 }) {
+  const router = useRouter();
   const ehEdicao = funcionario !== null;
+  const ehVoceMesmo = funcionario?.id === meuId;
   const [nome, setNome] = useState(funcionario?.nome ?? "");
   const [email, setEmail] = useState("");
   const [papel, setPapel] = useState<string>(funcionario?.papel ?? "vendedor");
@@ -56,8 +62,19 @@ export function FuncionarioForm({
 
   function resetarSenha() {
     if (!funcionario) return;
+    // Gerar senha aleatória só faz sentido pra resetar a senha de outra
+    // pessoa — resetando a própria conta, uma senha que você mesmo não
+    // escolheu e não vai ver (a sessão morre antes de mostrar) te deixaria
+    // travado fora sem saber qual é.
+    if (ehVoceMesmo && !novaSenha.trim()) {
+      setErro("Digite a nova senha — pra sua própria conta, não dá pra gerar uma aleatória (você seria desconectado sem vê-la).");
+      return;
+    }
     if (novaSenha && novaSenha.length < 8) {
       setErro("A nova senha precisa ter pelo menos 8 caracteres.");
+      return;
+    }
+    if (ehVoceMesmo && !confirm("Isso vai desconectar sua sessão atual — você precisará entrar de novo com a nova senha. Continuar?")) {
       return;
     }
     setErro(null);
@@ -66,6 +83,17 @@ export function FuncionarioForm({
       const resultado = await resetarSenhaFuncionario(funcionario.id, novaSenha || undefined);
       if (resultado.erro) {
         setErro(resultado.erro);
+        return;
+      }
+      // Trocar a própria senha por aqui (API administrativa) invalida a
+      // sessão atual — diferente de "Minha conta", que atualiza a sessão no
+      // mesmo lugar. Desloga explicitamente em vez de deixar a pessoa
+      // navegando com uma sessão já morta até um clique qualquer falhar sem
+      // explicação (foi exatamente isso que aconteceu antes dessa correção).
+      if (ehVoceMesmo) {
+        const supabase = createClient();
+        await supabase.auth.signOut();
+        router.push("/login");
         return;
       }
       if (resultado.senhaTemporaria) {
@@ -127,11 +155,19 @@ export function FuncionarioForm({
         {ehEdicao && (
           <div className="flex flex-col gap-1.5 rounded-lg border border-line p-3">
             <label className="text-xs font-semibold uppercase tracking-wide text-text-soft">Trocar senha</label>
+            {ehVoceMesmo && (
+              <p className="rounded-lg bg-warn-bg px-2 py-1.5 text-xs font-medium text-warn">
+                Essa é a sua própria conta — trocar por aqui vai desconectar sua sessão atual (você entra de novo com
+                a senha nova). Pra trocar sem sair, use &quot;Minha conta&quot; no menu lateral.
+              </p>
+            )}
             <input
               type="text"
               value={novaSenha}
               onChange={(e) => setNovaSenha(e.target.value)}
-              placeholder="Digite a nova senha (deixe em branco pra gerar uma aleatória)"
+              placeholder={
+                ehVoceMesmo ? "Digite a nova senha" : "Digite a nova senha (deixe em branco pra gerar uma aleatória)"
+              }
               className="rounded-lg border border-line bg-cream px-3 py-2 text-sm text-ink outline-none focus:border-rose focus:ring-2 focus:ring-rose-soft"
             />
             {senhaDefinida && <p className="text-xs font-medium text-ok">Senha alterada com sucesso.</p>}

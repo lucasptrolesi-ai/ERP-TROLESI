@@ -250,6 +250,7 @@ export function CadastrosView({
           aberto
           onFechar={() => setFuncionarioEditando(undefined)}
           funcionario={funcionarioEditando}
+          meuId={meuId}
         />
       )}
     </div>
