@@ -3,15 +3,17 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-// Dashboard/Financeiro/Fiscal saem do menu (2026-07-20, fusão com o
-// documento mestre do PDV) — o código continua no repositório, só não fica
-// mais acessível pela navegação enquanto essas fases não voltam ao roadmap
-// reconstruídas (Caixa/Comissões/Relatórios, fases 4/5). PDV (antiga tela
-// de Pedidos) vira a tela principal.
+// Dashboard/Fiscal seguem fora do menu (2026-07-20, fusão com o documento
+// mestre do PDV) — código mantido no repositório, só não fica acessível
+// pela navegação por ora. Financeiro voltou ao menu em 2026-07-22 (pedido
+// direto do usuário — precisa de contas a receber completo, dar baixa e
+// estornar) — a tela já existia inteira desde antes do pivô, só estava
+// desvinculada.
 const ITENS = [
   { href: "/pedidos", label: "PDV", icone: "🧾" },
   { href: "/cadastros", label: "Cadastros", icone: "👥" },
   { href: "/estoque", label: "Produtos & Estoque", icone: "💍" },
+  { href: "/financeiro", label: "Financeiro", icone: "💰" },
   { href: "/abatimentos", label: "Abatimentos", icone: "♻️" },
   { href: "/garantias", label: "Garantias", icone: "🛡️" },
   { href: "/crediario", label: "Crediário", icone: "💳" },
