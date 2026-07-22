@@ -145,7 +145,7 @@ export function ConferenciaView({ nota, itens }: { nota: NotaFiscal; itens: Item
                   <button
                     onClick={validar}
                     disabled={validando}
-                    className="rounded-full bg-gradient-to-br from-gold-start to-gold-end px-4 py-2 text-xs font-semibold text-[#3b2914] disabled:opacity-60"
+                    className="rounded-full bg-gradient-to-br from-gold-start to-gold-end px-4 py-2 text-xs font-semibold text-gold-ink disabled:opacity-60"
                   >
                     {validando ? "Validando…" : "✓ Marcar como validada"}
                   </button>

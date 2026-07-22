@@ -36,7 +36,7 @@ export function SidebarNav({ onNavegar }: { onNavegar?: () => void }) {
             onClick={onNavegar}
             className={`flex items-center gap-2.5 rounded-[10px] px-3.5 py-2.5 text-sm font-medium ${
               ativo
-                ? "bg-gradient-to-br from-rose to-rose-deep text-white shadow-md"
+                ? "bg-gradient-to-br from-gold-start to-gold-end text-gold-ink shadow-md"
                 : "text-sidebar-text hover:bg-white/5 hover:text-white"
             }`}
           >

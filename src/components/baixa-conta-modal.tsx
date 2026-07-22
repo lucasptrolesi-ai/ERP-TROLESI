@@ -126,7 +126,7 @@ export function BaixaContaModal(props: Props) {
         <button
           type="submit"
           disabled={pendente}
-          className="rounded-full bg-gradient-to-br from-rose to-rose-deep py-2.5 text-sm font-semibold text-white disabled:opacity-60"
+          className="rounded-full bg-gradient-to-br from-gold-start to-gold-end py-2.5 text-sm font-semibold text-gold-ink disabled:opacity-60"
         >
           {pendente ? "Salvando…" : "Confirmar baixa"}
         </button>

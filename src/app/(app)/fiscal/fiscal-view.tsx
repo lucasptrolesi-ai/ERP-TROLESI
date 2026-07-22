@@ -144,7 +144,7 @@ function LinhaPendente({ pedido }: { pedido: PedidoPendenteFiscal }) {
         <button
           onClick={gerar}
           disabled={pendente}
-          className="rounded-full bg-gradient-to-br from-rose to-rose-deep px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-60"
+          className="rounded-full bg-gradient-to-br from-gold-start to-gold-end px-3 py-1.5 text-xs font-semibold text-gold-ink disabled:opacity-60"
         >
           {pendente ? "Gerando…" : "Gerar XML"}
         </button>

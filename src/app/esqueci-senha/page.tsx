@@ -64,7 +64,7 @@ export default function EsqueciSenhaPage() {
             <button
               type="submit"
               disabled={enviando}
-              className="mt-2 rounded-full bg-gradient-to-br from-rose to-rose-deep py-2.5 text-sm font-semibold text-white transition disabled:opacity-60"
+              className="mt-2 rounded-full bg-gradient-to-br from-gold-start to-gold-end py-2.5 text-sm font-semibold text-gold-ink transition disabled:opacity-60"
             >
               {enviando ? "Enviando…" : "Enviar link de recuperação"}
             </button>

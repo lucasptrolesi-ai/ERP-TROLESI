@@ -187,7 +187,7 @@ export function PedidoDetalhe({
                 type="button"
                 onClick={marcarLancado}
                 disabled={lancando}
-                className="rounded-full bg-warn px-4 py-2 text-xs font-semibold text-white disabled:opacity-60"
+                className="rounded-full bg-warn px-4 py-2 text-xs font-semibold text-gold-ink disabled:opacity-60"
               >
                 {lancando ? "Marcando…" : "✓ Marcar como lançado no GMax"}
               </button>
@@ -214,7 +214,7 @@ export function PedidoDetalhe({
               type="button"
               onClick={salvarAjuste}
               disabled={salvando}
-              className="flex-1 rounded-full bg-gradient-to-br from-rose to-rose-deep py-2.5 text-sm font-semibold text-white disabled:opacity-60"
+              className="flex-1 rounded-full bg-gradient-to-br from-gold-start to-gold-end py-2.5 text-sm font-semibold text-gold-ink disabled:opacity-60"
             >
               {salvando ? "Salvando…" : "Salvar ajuste"}
             </button>

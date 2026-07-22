@@ -1,6 +1,6 @@
 const VARIANTES = {
-  gold: "bg-gradient-to-br from-gold-start to-gold-end text-[#3b2914]",
-  rose: "bg-gradient-to-br from-rose to-rose-deep text-white",
+  gold: "bg-gradient-to-br from-gold-start to-gold-end text-gold-ink",
+  rose: "bg-gradient-to-br from-gold-start to-gold-end text-gold-ink",
 };
 
 export function BrandBadge({

@@ -92,7 +92,7 @@ export function CadastrosView({
         {aba === "clientes" && podeEditarClientes && (
           <button
             onClick={() => setClienteEditando(null)}
-            className="shrink-0 rounded-full bg-gradient-to-br from-rose to-rose-deep px-4 py-2 text-sm font-semibold text-white"
+            className="shrink-0 rounded-full bg-gradient-to-br from-gold-start to-gold-end px-4 py-2 text-sm font-semibold text-gold-ink"
           >
             + Novo cliente
           </button>
@@ -100,7 +100,7 @@ export function CadastrosView({
         {aba === "fornecedores" && podeEditarFornecedores && (
           <button
             onClick={() => setFornecedorEditando(null)}
-            className="shrink-0 rounded-full bg-gradient-to-br from-rose to-rose-deep px-4 py-2 text-sm font-semibold text-white"
+            className="shrink-0 rounded-full bg-gradient-to-br from-gold-start to-gold-end px-4 py-2 text-sm font-semibold text-gold-ink"
           >
             + Novo fornecedor
           </button>
@@ -108,7 +108,7 @@ export function CadastrosView({
         {aba === "funcionarios" && papelAtual === "admin" && (
           <button
             onClick={() => setFuncionarioEditando(null)}
-            className="shrink-0 rounded-full bg-gradient-to-br from-rose to-rose-deep px-4 py-2 text-sm font-semibold text-white"
+            className="shrink-0 rounded-full bg-gradient-to-br from-gold-start to-gold-end px-4 py-2 text-sm font-semibold text-gold-ink"
           >
             + Novo funcionário
           </button>

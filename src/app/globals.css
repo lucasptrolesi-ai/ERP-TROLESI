@@ -1,45 +1,55 @@
 @import "tailwindcss";
 
-/* Paleta oficial — documento mestre, seção 26 (2026-07-20). Nomes de
- * variável mantidos idênticos aos de antes de propósito: qualquer componente
- * que já usa `bg-rose`, `text-ink` etc. muda de cor sem precisar tocar em
- * nenhum arquivo de componente — só os valores hex mudaram. */
+/* Paleta oficial — reskin off-white/café/dourado (2026-07-22), aprovado por
+ * preview (Artifact) antes de aplicar aqui, variante "Café" escolhida pelo
+ * usuário. Nomes de variável mantidos idênticos aos de antes de propósito:
+ * qualquer componente que já usa `bg-rose`, `text-ink` etc. muda de cor sem
+ * precisar tocar em nenhum arquivo de componente — só os valores hex
+ * mudaram, EXCETO os botões que usavam `text-white` sobre `from-rose
+ * to-rose-deep`: o dourado é claro demais pra texto branco (contraste
+ * ~2,3:1, abaixo do mínimo WCAG AA de 4,5:1) — esses viraram `text-gold-ink`
+ * (ver componentes). `--color-rose-deep` também mudou de papel: antes era
+ * escuro o bastante pra ser fundo de botão com texto branco; agora é usado
+ * só como cor de texto/link/borda (permanece escuro de propósito, pra
+ * manter contraste em cima do fundo claro) — o fundo dos botões primários
+ * passou a usar `gold-start`/`gold-end` (claro, com texto escuro). */
 :root {
-  --color-rose: #d94a78; /* rosa Trolesi */
-  --color-rose-deep: #b23a63; /* derivado — vinho da paleta é escuro demais pra hover de botão rosa; ver docs/architecture */
-  --color-rose-soft: #f4a5be; /* rosa suave */
-  --color-gold-start: #d6b16b; /* dourado champagne */
-  --color-gold-end: #c58b7d; /* rose gold */
-  --color-cream: #f8f2ec; /* off-white */
-  --color-ink: #2a1218; /* vinho profundo */
-  --color-text: #6b4a50; /* derivado — tom intermediário legível entre vinho e rosa */
-  --color-text-soft: #9c8288; /* derivado — versão mais clara do texto secundário */
-  --color-line: #ece0e2;
+  --color-rose: #c5a880; /* dourado champanhe — bordas/detalhes decorativos */
+  --color-rose-deep: #7a5c36; /* bronze escuro — só texto/link/borda ativa, nunca fundo de botão (ver nota acima) */
+  --color-rose-soft: #efe6d8; /* tint claro de dourado — fundos sutis/hover */
+  --color-gold-start: #d2b48c; /* início do degradê dos botões primários — claro, mantém contraste com texto escuro */
+  --color-gold-end: #c5a880; /* fim do degradê — dourado champanhe exato pedido */
+  --color-gold-ink: #2a211a; /* texto fixo (não muda no dark mode) sobre botões dourados — garante contraste em qualquer tema */
+  --color-cream: #f9f8f6; /* off-white das páginas */
+  --color-ink: #2c2520; /* café profundo — texto principal e base da sidebar */
+  --color-text: #4a3f37; /* derivado — corpo de texto, mais suave que ink */
+  --color-text-soft: #7a6b5e; /* derivado — texto secundário, ainda ≥4.5:1 em cima do off-white */
+  --color-line: #e7e3dc;
   --color-surface: #ffffff;
-  --color-sidebar: #2a1218; /* vinho profundo — topo do degradê da sidebar */
-  --color-sidebar-to: #3a2227; /* marrom vinho — base do degradê da sidebar */
-  --color-sidebar-text: #d9c3ba;
-  --color-ok: #5c8a5c;
-  --color-ok-bg: #e9f1e6;
-  --color-warn: #b9822f;
-  --color-warn-bg: #faf0dd;
-  --color-crit: #b8503f;
-  --color-crit-bg: #fbe9e4;
+  --color-sidebar: #2c2520; /* café profundo — topo do degradê da sidebar */
+  --color-sidebar-to: #1d1712; /* café mais escuro — base do degradê da sidebar */
+  --color-sidebar-text: #e7e4de;
+  --color-ok: #10b981;
+  --color-ok-bg: #e3f5ee;
+  --color-warn: #f59e0b;
+  --color-warn-bg: #fdf1dd;
+  --color-crit: #ef4444;
+  --color-crit-bg: #fce9e8;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --color-cream: #1c1013;
-    --color-ink: #f2e4de;
-    --color-text: #cdb2ac;
-    --color-text-soft: #8f7772;
-    --color-line: #3d2529;
-    --color-surface: #271519;
-    --color-sidebar: #170b0e;
-    --color-sidebar-to: #0e0709;
-    --color-sidebar-text: #cdb2a8;
-    --color-ok-bg: #22301f;
-    --color-warn-bg: #362a15;
+    --color-cream: #1a1714;
+    --color-ink: #f0eae2;
+    --color-text: #d8cdc2;
+    --color-text-soft: #9c8c7e;
+    --color-line: #3a322b;
+    --color-surface: #241f1a;
+    --color-sidebar: #14100d;
+    --color-sidebar-to: #0d0a08;
+    --color-sidebar-text: #e7e4de;
+    --color-ok-bg: #1c332a;
+    --color-warn-bg: #3a2c12;
     --color-crit-bg: #3a1e19;
   }
 }
@@ -50,6 +60,7 @@
   --color-rose-soft: var(--color-rose-soft);
   --color-gold-start: var(--color-gold-start);
   --color-gold-end: var(--color-gold-end);
+  --color-gold-ink: var(--color-gold-ink);
   --color-cream: var(--color-cream);
   --color-ink: var(--color-ink);
   --color-text: var(--color-text);

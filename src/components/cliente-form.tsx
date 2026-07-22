@@ -169,7 +169,7 @@ export function ClienteForm({
           <button
             type="submit"
             disabled={pending}
-            className="flex-1 rounded-full bg-gradient-to-br from-rose to-rose-deep py-2.5 text-sm font-semibold text-white transition disabled:opacity-60"
+            className="flex-1 rounded-full bg-gradient-to-br from-gold-start to-gold-end py-2.5 text-sm font-semibold text-gold-ink transition disabled:opacity-60"
           >
             {pending ? "Salvando…" : "Salvar"}
           </button>

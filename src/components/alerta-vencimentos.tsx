@@ -96,7 +96,7 @@ export function AlertaVencimentos({
               </button>
               <button
                 onClick={fechar}
-                className="flex-1 rounded-full bg-gradient-to-br from-rose to-rose-deep px-4 py-2.5 text-sm font-semibold text-white"
+                className="flex-1 rounded-full bg-gradient-to-br from-gold-start to-gold-end px-4 py-2.5 text-sm font-semibold text-gold-ink"
               >
                 Ok, entendi
               </button>

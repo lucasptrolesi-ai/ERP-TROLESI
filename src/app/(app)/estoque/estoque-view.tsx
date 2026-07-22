@@ -85,7 +85,7 @@ export function EstoqueView({
           {podeEditar && (
             <button
               onClick={() => setProdutoEditando(null)}
-              className="shrink-0 rounded-full bg-gradient-to-br from-rose to-rose-deep px-4 py-2 text-sm font-semibold text-white"
+              className="shrink-0 rounded-full bg-gradient-to-br from-gold-start to-gold-end px-4 py-2 text-sm font-semibold text-gold-ink"
             >
               + Novo produto
             </button>

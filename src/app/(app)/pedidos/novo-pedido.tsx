@@ -403,7 +403,7 @@ export function NovoPedido({
         <div className="mt-2 flex gap-3">
           <button
             onClick={() => setPedidoCriado(null)}
-            className="rounded-full bg-gradient-to-br from-rose to-rose-deep px-5 py-2.5 text-sm font-semibold text-white"
+            className="rounded-full bg-gradient-to-br from-gold-start to-gold-end px-5 py-2.5 text-sm font-semibold text-gold-ink"
           >
             Novo pedido
           </button>
@@ -935,7 +935,7 @@ export function NovoPedido({
           type="button"
           disabled={salvando}
           onClick={() => salvar("aguardando_lancamento_gmax")}
-          className="rounded-full bg-gradient-to-br from-gold-start to-gold-end px-5 py-2.5 text-sm font-semibold text-[#3b2914] disabled:opacity-60"
+          className="rounded-full bg-gradient-to-br from-gold-start to-gold-end px-5 py-2.5 text-sm font-semibold text-gold-ink disabled:opacity-60"
         >
           {salvando ? "Processando…" : "Registrar venda (lançar no GMax depois)"}
         </button>

@@ -215,7 +215,7 @@ export function FinanceiroView({
             {aba === "pagar" && (
               <button
                 onClick={() => setContaPagarEditando(null)}
-                className="shrink-0 rounded-full bg-gradient-to-br from-rose to-rose-deep px-4 py-2 text-sm font-semibold text-white"
+                className="shrink-0 rounded-full bg-gradient-to-br from-gold-start to-gold-end px-4 py-2 text-sm font-semibold text-gold-ink"
               >
                 + Nova conta a pagar
               </button>
@@ -268,7 +268,7 @@ export function FinanceiroView({
               </button>
               <button
                 onClick={() => setBaixaLoteAberta(true)}
-                className="rounded-full bg-gradient-to-br from-rose to-rose-deep px-3 py-1.5 text-xs font-semibold text-white"
+                className="rounded-full bg-gradient-to-br from-gold-start to-gold-end px-3 py-1.5 text-xs font-semibold text-gold-ink"
               >
                 Dar baixa em lote
               </button>

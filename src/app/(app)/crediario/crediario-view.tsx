@@ -122,7 +122,7 @@ export function CrediarioView({ clientes, lancamentos }: { clientes: Cliente[]; 
           type="button"
           disabled={convertendo}
           onClick={converter}
-          className="mt-3 rounded-full bg-gradient-to-br from-rose to-rose-deep px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-60"
+          className="mt-3 rounded-full bg-gradient-to-br from-gold-start to-gold-end px-5 py-2.5 text-sm font-semibold text-gold-ink disabled:opacity-60"
         >
           {convertendo ? "Convertendo…" : "Converter em crediário"}
         </button>

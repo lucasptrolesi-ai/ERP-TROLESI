@@ -63,7 +63,7 @@ export default function ContaPage() {
         <button
           type="submit"
           disabled={salvando}
-          className="mt-1 rounded-full bg-gradient-to-br from-rose to-rose-deep px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-60"
+          className="mt-1 rounded-full bg-gradient-to-br from-gold-start to-gold-end px-5 py-2.5 text-sm font-semibold text-gold-ink disabled:opacity-60"
         >
           {salvando ? "Salvando…" : "Salvar nova senha"}
         </button>

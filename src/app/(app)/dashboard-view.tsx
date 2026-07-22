@@ -108,7 +108,7 @@ export function DashboardView({
         </p>
         <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-line">
           <div
-            className={`h-full rounded-full ${metaBatida ? "bg-ok" : "bg-gradient-to-r from-rose to-rose-deep"}`}
+            className={`h-full rounded-full ${metaBatida ? "bg-ok" : "bg-gradient-to-r from-gold-start to-gold-end"}`}
             style={{ width: `${progressoMeta}%` }}
           />
         </div>

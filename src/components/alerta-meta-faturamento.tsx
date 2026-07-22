@@ -54,7 +54,7 @@ export function AlertaMetaFaturamento({ faturamentoMes, meta }: { faturamentoMes
       {!aberto && (
         <button
           onClick={() => setForcarAberto(true)}
-          className="fixed bottom-5 right-5 z-40 flex items-center gap-2 rounded-full bg-gradient-to-br from-gold-start to-gold-end px-4 py-2.5 text-sm font-semibold text-[#3b2914] shadow-lg print:hidden"
+          className="fixed bottom-5 right-5 z-40 flex items-center gap-2 rounded-full bg-gradient-to-br from-gold-start to-gold-end px-4 py-2.5 text-sm font-semibold text-gold-ink shadow-lg print:hidden"
         >
           🎉 Meta batida
         </button>
@@ -77,7 +77,7 @@ export function AlertaMetaFaturamento({ faturamentoMes, meta }: { faturamentoMes
               </button>
               <button
                 onClick={fechar}
-                className="flex-1 rounded-full bg-gradient-to-br from-rose to-rose-deep px-4 py-2.5 text-sm font-semibold text-white"
+                className="flex-1 rounded-full bg-gradient-to-br from-gold-start to-gold-end px-4 py-2.5 text-sm font-semibold text-gold-ink"
               >
                 🎉 Boa!
               </button>
