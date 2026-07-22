@@ -7,11 +7,17 @@ import { describe, it } from "vitest";
  * correspondente continuar como `todo` em vez de passar de verdade.
  *
  * Itens já cobertos com teste real: multiplicador 2,8 e preço por cotação
- * diária (ver precificacao.test.ts), desconto automático por forma de
- * pagamento (ver desconto.test.ts), limiares de parcelamento sem juros (ver
+ * diária (ver precificacao.test.ts), limiares de parcelamento sem juros (ver
  * parcelamento.test.ts), abatimento de peças (ver abatimento.test.ts),
  * garantias (ver garantia.test.ts), comissão (ver comissao.test.ts), bloqueio
  * de crediário por atraso (ver situacao-conta.test.ts).
+ *
+ * Desconto automático por forma de pagamento (seção 8) foi REMOVIDO em
+ * 2026-07-22 por instrução direta do usuário — é a segunda vez que essa
+ * regra é rejeitada nesta sessão (a primeira foi antes mesmo do documento
+ * mestre existir). `desconto.ts`/`desconto.test.ts` foram apagados (código
+ * morto, sem mais nenhum consumidor); desconto na venda é sempre manual,
+ * pra qualquer forma de pagamento. Ver DECISIONS.md.
  *
  * As 10 ambiguidades da seção 27 foram decididas em 2026-07-21 (ver
  * pending_decisions no banco e DECISIONS.md) — os itens abaixo que citavam
@@ -40,7 +46,6 @@ describe("Fase 3 — primeira compra e reativação (implementado em SQL, sem te
 
 describe("Fase 3 — pagamento (idempotência/estoque implementados em SQL, sem teste de integração)", () => {
   it.todo("pagamento misto: soma dos valores informados bate exatamente com o total da venda (implementado em criar_pedido v7)");
-  it.todo("pagamento misto nunca recebe desconto automático (decidido e implementado — falta teste de integração)");
   it.todo("clique duplo em finalizar venda não cria duas vendas (idempotência no backend)");
   it.todo("duas vendas concorrentes do mesmo produto não conseguem vender o mesmo estoque duas vezes");
 });

@@ -8,7 +8,6 @@ import { formatarMoeda } from "@/lib/formatar-moeda";
 import { parseMoeda } from "@/lib/parse-moeda";
 import { formatarDataIso, hojeIso } from "@/lib/datas";
 import { calcularPrecoPorCotacao, calcularPrecoUnitario } from "@/lib/precificacao";
-import { calcularDescontoAutomatico } from "@/lib/desconto";
 import { maxParcelasSemJuros } from "@/lib/parcelamento";
 import type {
   Cliente,
@@ -26,8 +25,6 @@ function somaMeses(dataIso: string, meses: number): string {
   data.setMonth(data.getMonth() + meses);
   return data.toISOString().slice(0, 10);
 }
-
-const FORMAS_COM_DESCONTO_AUTOMATICO: FormaPagamento[] = ["dinheiro", "pix", "debito"];
 
 export function NovoPedido({
   clientes,
@@ -135,20 +132,10 @@ export function NovoPedido({
     return cotacaoPorMaterial.get((produto.material ?? "").trim().toLowerCase()) == null;
   });
 
-  // Desconto automático por forma de pagamento (dinheiro 10%/Pix 7%/débito
-  // 7%) aplicado só sobre a base elegível — fornitura nunca entra. Pra
-  // essas 3 formas, o desconto manual fica desligado (o cálculo é sempre o
-  // automático); cartão de crédito/promissória continuam com desconto
-  // manual, já que não têm regra automática.
-  const temDescontoAutomatico = FORMAS_COM_DESCONTO_AUTOMATICO.includes(formaPagamento);
-  const descontoAutomatico = calcularDescontoAutomatico(
-    carrinho.map((i) => ({
-      valor: i.quantidade * i.preco_unitario,
-      elegivel: !produtosPorId.get(i.produto_id)?.eh_fornitura,
-    })),
-    formaPagamento,
-  );
-  const numDesconto = temDescontoAutomatico ? descontoAutomatico.valorDesconto : parseMoeda(valorDesconto);
+  // Desconto sempre manual (a pedido do usuário — o automático por forma de
+  // pagamento foi removido) — o vendedor ajusta quando necessário, pra
+  // qualquer forma de pagamento.
+  const numDesconto = parseMoeda(valorDesconto);
   const numAcrescimo = parseMoeda(valorAcrescimo);
   const total = Math.max(0, subtotal - numDesconto + numAcrescimo);
 
@@ -354,11 +341,7 @@ export function NovoPedido({
         status,
         {
           valorDesconto: numDesconto,
-          percentualDesconto: temDescontoAutomatico
-            ? descontoAutomatico.percentual * 100
-            : percentualDesconto
-              ? parseMoeda(percentualDesconto)
-              : null,
+          percentualDesconto: percentualDesconto ? parseMoeda(percentualDesconto) : null,
           // Quando o cartão tem juros da maquininha, dobra a diferença no
           // acréscimo enviado pro servidor — ver comentário de juroCartao.
           valorAcrescimo: numAcrescimo + juroCartao,
@@ -605,54 +588,26 @@ export function NovoPedido({
           Desconto / acréscimo
         </p>
 
-        {temDescontoAutomatico ? (
-          <div className="mb-3 flex flex-col gap-1 rounded-lg border border-line bg-surface p-3 text-sm">
-            <div className="flex justify-between text-text-soft">
-              <span>Subtotal bruto</span>
-              <span className="tabular-nums">{formatarMoeda(descontoAutomatico.subtotalBruto)}</span>
-            </div>
-            {descontoAutomatico.totalNaoElegivel > 0 && (
-              <div className="flex justify-between text-text-soft">
-                <span>Itens não elegíveis (fornitura)</span>
-                <span className="tabular-nums">{formatarMoeda(descontoAutomatico.totalNaoElegivel)}</span>
-              </div>
-            )}
-            <div className="flex justify-between text-text-soft">
-              <span>Base elegível</span>
-              <span className="tabular-nums">{formatarMoeda(descontoAutomatico.baseElegivel)}</span>
-            </div>
-            <div className="flex justify-between font-semibold text-ok">
-              <span>Desconto automático ({(descontoAutomatico.percentual * 100).toFixed(0)}%)</span>
-              <span className="tabular-nums">− {formatarMoeda(descontoAutomatico.valorDesconto)}</span>
-            </div>
-            <p className="mt-1 text-[0.7rem] text-text-soft">
-              Aplicado automaticamente sobre a base elegível (seção 8) — fornitura nunca entra no cálculo.
-            </p>
-          </div>
-        ) : null}
-
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <div className="flex flex-col gap-1">
             <label className="text-[0.7rem] text-text-soft">Desconto (%)</label>
             <input
-              value={temDescontoAutomatico ? (descontoAutomatico.percentual * 100).toFixed(0) : percentualDesconto}
-              disabled={temDescontoAutomatico}
+              value={percentualDesconto}
               onChange={(e) => {
                 setPercentualDesconto(e.target.value);
                 const p = Number(e.target.value.replace(",", "."));
                 if (Number.isFinite(p)) setValorDesconto(((subtotal * p) / 100).toFixed(2));
               }}
               placeholder="0"
-              className="rounded-lg border border-line bg-surface px-2 py-1.5 text-sm disabled:opacity-60"
+              className="rounded-lg border border-line bg-surface px-2 py-1.5 text-sm"
             />
           </div>
           <div className="flex flex-col gap-1">
             <label className="text-[0.7rem] text-text-soft">Desconto (R$)</label>
             <input
-              value={temDescontoAutomatico ? descontoAutomatico.valorDesconto.toFixed(2) : valorDesconto}
-              disabled={temDescontoAutomatico}
+              value={valorDesconto}
               onChange={(e) => setValorDesconto(e.target.value)}
-              className="rounded-lg border border-line bg-surface px-2 py-1.5 text-sm disabled:opacity-60"
+              className="rounded-lg border border-line bg-surface px-2 py-1.5 text-sm"
             />
           </div>
           <div className="flex flex-col gap-1">

@@ -2,6 +2,13 @@
 
 Histórico de decisões de escopo e arquitetura, na ordem em que foram tomadas. Decisões revistas ficam marcadas como tal, não apagadas.
 
+## 2026-07-22 — Desconto automático por forma de pagamento removido (2ª rejeição)
+
+- **Contexto:** o documento mestre (seção 8) especificava desconto automático de 10% dinheiro/7% Pix/7% débito, sobre a base elegível. Isso já tinha sido tentado uma vez **antes** do documento mestre existir, e rejeitado explicitamente pelo usuário na época — o documento mestre reintroduziu a regra, e foi implementado como parte da fusão (ver decisão de 2026-07-20/21 abaixo), com o conflito já sinalizado no diagnóstico da Fase 0.
+- **Decisão do usuário:** "retire a seção de desconto automático, e mantenha para ajuste manual quando necessário" — remove de vez o cálculo automático da tela de venda; desconto volta a ser sempre um campo manual, pra qualquer forma de pagamento (não só cartão/promissória, que já eram manuais).
+- **Impacto:** `novo-pedido.tsx` perde o bloco de cálculo automático e os campos de desconto voltam a ficar sempre editáveis. `src/lib/desconto.ts`/`desconto.test.ts` apagados (sem mais nenhum consumidor real — código morto). Nada no servidor (`criar_pedido`) precisou mudar: a function nunca calculou desconto automático, só validava o valor que o cliente mandasse — a regra sempre foi só uma conveniência de UI.
+- **Lição:** essa é a segunda vez que a mesma regra de negócio (desconto automático) é proposta e rejeitada nesta base de código — registrar aqui evita reintroduzi-la uma terceira vez achando que é óbvia/desejada.
+
 ## 2026-07-21 — As 10 ambiguidades do documento mestre (seção 27) decididas de uma vez, por instrução direta do usuário
 
 - **Contexto:** as 10 ambiguidades da seção 27 estavam registradas em `pending_decisions` com `ativo=false`, conforme a regra 0 do documento mestre ("nunca invente regra de negócio... trate como pendência... não decida sozinho"). Levei as 10 perguntas ao usuário pra decisão explícita.
