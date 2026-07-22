@@ -16,3 +16,6 @@ next-env.d.ts
 npm-debug.log*
 coverage/
 .DS_Store
+
+# print-agent (roda local, log é só dessa máquina)
+print-agent/agente.log

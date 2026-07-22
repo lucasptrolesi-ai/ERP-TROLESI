@@ -12,6 +12,10 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // print-agent/ é um serviço Node standalone à parte (CommonJS puro, sem
+    // build step, roda direto com `node agent.js` no PC da loja) — não faz
+    // parte do app Next.js/TypeScript, não segue as mesmas regras de lint.
+    "print-agent/**",
   ]),
 ]);
 
