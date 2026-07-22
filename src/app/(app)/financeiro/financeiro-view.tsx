@@ -13,6 +13,7 @@ import {
   darBaixaContaPagar,
   desfazerBaixaContaPagar,
 } from "@/lib/actions/financeiro";
+import { extornarPedido } from "@/lib/actions/pedidos";
 import { formatarMoeda } from "@/lib/formatar-moeda";
 import { FORMA_LABEL } from "@/lib/forma-pagamento";
 import { isoEmDias, formatarDataIso } from "@/lib/datas";
@@ -71,6 +72,19 @@ export function FinanceiroView({
     );
     return { aReceber30: resumir(aReceber30), emAtraso: resumir(emAtraso), aPagar30: resumir(aPagar30) };
   }, [contasReceber, contasPagar, limite30dias]);
+
+  // Pedidos com pelo menos uma parcela já paga — o RPC extornar_pedido
+  // bloqueia extorno nesse caso (apagaria histórico de pagamento), então o
+  // botão "Extornar pedido" nem aparece pra esses, em vez de aparecer e
+  // sempre falhar. Calculado sobre TODAS as contas (não as filtradas), pra
+  // não errar quando o filtro de situação estiver escondendo a parcela paga.
+  const pedidosComParcelaPaga = useMemo(() => {
+    const set = new Set<string>();
+    for (const c of contasReceber) {
+      if (c.situacao === "pago" && c.pedido_id) set.add(c.pedido_id);
+    }
+    return set;
+  }, [contasReceber]);
 
   const contasReceberFiltradas = useMemo(() => {
     const termo = busca.trim().toLowerCase();
@@ -284,6 +298,10 @@ export function FinanceiroView({
               const expandido = gruposAbertos.has(grupo.clienteId);
               const idsAbertosGrupo = abertos.map((i) => i.id);
               const grupoTodoSelecionado = idsAbertosGrupo.length > 0 && idsAbertosGrupo.every((id) => selecionados.has(id));
+              // Um pedido parcelado aparece em N linhas (uma por parcela) —
+              // mostra "Extornar pedido" só na 1ª linha dele nesse grupo, já
+              // que a ação cancela a venda inteira, não só aquela parcela.
+              const pedidosComBotaoExtorno = new Set<string>();
               return (
                 <div key={grupo.clienteId} className="rounded-lg border border-line">
                   <div className="flex w-full items-center justify-between px-4 py-3">
@@ -334,46 +352,60 @@ export function FinanceiroView({
                           </tr>
                         </thead>
                         <tbody>
-                          {grupo.itens.map((c) => (
-                            <tr key={c.id} className="border-t border-line align-top">
-                              <td className="px-4 py-2.5">
-                                {c.situacao !== "pago" && (
-                                  <input
-                                    type="checkbox"
-                                    checked={selecionados.has(c.id)}
-                                    onChange={() => alternarSelecao(c.id)}
-                                    className="h-4 w-4 accent-rose"
-                                  />
-                                )}
-                              </td>
-                              <td className="px-2 py-2.5">
-                                {c.pedidos ? `#${c.pedidos.numero}` : "—"}
-                                {c.total_parcelas && c.total_parcelas > 1 ? ` (${c.numero_parcela}/${c.total_parcelas})` : ""}
-                              </td>
-                              <td className="px-2 py-2.5">{formatarDataIso(c.vencimento)}</td>
-                              <td className="px-2 py-2.5 tabular-nums">{formatarMoeda(c.valor)}</td>
-                              <td className="px-2 py-2.5">{c.forma_pagamento ? FORMA_LABEL[c.forma_pagamento] : "—"}</td>
-                              <td className="px-2 py-2.5">
-                                <SituacaoPill situacao={situacaoEfetiva(c.situacao, c.vencimento)} />
-                                {c.situacao === "pago" && c.pago_em && (
-                                  <ResumoBaixa
-                                    pagoEm={c.pago_em}
-                                    formaPagamentoBaixa={c.forma_pagamento_baixa}
-                                    valorPago={c.valor_pago}
-                                    valorOriginal={c.valor}
-                                    observacao={c.observacao_baixa}
-                                  />
-                                )}
-                              </td>
-                              <td className="px-4 py-2.5 text-right">
-                                <AcaoBaixa
-                                  pago={c.situacao === "pago"}
-                                  onDarBaixa={() => setBaixaReceberAberta(c)}
-                                  onDesfazer={() => desfazerBaixaContaReceber(c.id)}
-                                />
-                              </td>
-                            </tr>
-                          ))}
+                          {grupo.itens.map((c) => {
+                            const podeExtornar =
+                              c.situacao !== "pago" &&
+                              !!c.pedido_id &&
+                              !!c.pedidos &&
+                              !pedidosComParcelaPaga.has(c.pedido_id) &&
+                              !pedidosComBotaoExtorno.has(c.pedido_id);
+                            if (podeExtornar) pedidosComBotaoExtorno.add(c.pedido_id!);
+                            return (
+                              <tr key={c.id} className="border-t border-line align-top">
+                                <td className="px-4 py-2.5">
+                                  {c.situacao !== "pago" && (
+                                    <input
+                                      type="checkbox"
+                                      checked={selecionados.has(c.id)}
+                                      onChange={() => alternarSelecao(c.id)}
+                                      className="h-4 w-4 accent-rose"
+                                    />
+                                  )}
+                                </td>
+                                <td className="px-2 py-2.5">
+                                  {c.pedidos ? `#${c.pedidos.numero}` : "—"}
+                                  {c.total_parcelas && c.total_parcelas > 1 ? ` (${c.numero_parcela}/${c.total_parcelas})` : ""}
+                                </td>
+                                <td className="px-2 py-2.5">{formatarDataIso(c.vencimento)}</td>
+                                <td className="px-2 py-2.5 tabular-nums">{formatarMoeda(c.valor)}</td>
+                                <td className="px-2 py-2.5">{c.forma_pagamento ? FORMA_LABEL[c.forma_pagamento] : "—"}</td>
+                                <td className="px-2 py-2.5">
+                                  <SituacaoPill situacao={situacaoEfetiva(c.situacao, c.vencimento)} />
+                                  {c.situacao === "pago" && c.pago_em && (
+                                    <ResumoBaixa
+                                      pagoEm={c.pago_em}
+                                      formaPagamentoBaixa={c.forma_pagamento_baixa}
+                                      valorPago={c.valor_pago}
+                                      valorOriginal={c.valor}
+                                      observacao={c.observacao_baixa}
+                                    />
+                                  )}
+                                </td>
+                                <td className="px-4 py-2.5 text-right">
+                                  <div className="flex flex-col items-end gap-1">
+                                    <AcaoBaixa
+                                      pago={c.situacao === "pago"}
+                                      onDarBaixa={() => setBaixaReceberAberta(c)}
+                                      onDesfazer={() => desfazerBaixaContaReceber(c.id)}
+                                    />
+                                    {podeExtornar && (
+                                      <BotaoExtornarPedido pedidoId={c.pedido_id!} numeroPedido={c.pedidos!.numero} />
+                                    )}
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
                         </tbody>
                       </table>
                     </div>
@@ -560,6 +592,39 @@ function BotaoDesfazer({ onDesfazer }: { onDesfazer: () => Promise<{ erro?: stri
         {pendente ? "Salvando…" : "Desfazer baixa"}
       </button>
       {erro && <span className="text-[0.65rem] text-crit">{erro}</span>}
+    </div>
+  );
+}
+
+function BotaoExtornarPedido({ pedidoId, numeroPedido }: { pedidoId: string; numeroPedido: number }) {
+  const [pendente, iniciar] = useTransition();
+  const [erro, setErro] = useState<string | null>(null);
+
+  function extornar() {
+    if (
+      !confirm(
+        `Extornar o pedido #${numeroPedido}? Isso cancela a venda inteira e devolve o estoque, se já tiver sido faturado. Não pode ser desfeito.`,
+      )
+    ) {
+      return;
+    }
+    setErro(null);
+    iniciar(async () => {
+      const resultado = await extornarPedido(pedidoId);
+      if (resultado.erro) setErro(resultado.erro);
+    });
+  }
+
+  return (
+    <div className="flex flex-col items-end gap-0.5">
+      <button
+        onClick={extornar}
+        disabled={pendente}
+        className="text-xs font-semibold text-crit hover:underline disabled:opacity-60"
+      >
+        {pendente ? "Extornando…" : `Extornar pedido #${numeroPedido}`}
+      </button>
+      {erro && <span className="max-w-[16rem] text-right text-[0.65rem] text-crit">{erro}</span>}
     </div>
   );
 }
