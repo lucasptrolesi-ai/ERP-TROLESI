@@ -1,12 +1,21 @@
 // Print-agent local do ERP Trolesi — roda só nesse PC (o mesmo onde a
-// impressora térmica está instalada e compartilhada no Windows). Recebe o
-// conteúdo do cupom por HTTP do navegador (localhost, mesma máquina) e manda
-// direto pra fila de impressão em modo RAW (ESC/POS), sem passar pelo
-// desenho/rasterização de página do navegador — é isso que dá a qualidade
-// nítida (igual a de um sistema nativo como o GMax) em vez do texto
-// borrado que sai ao imprimir uma página HTML numa impressora térmica.
+// impressora térmica está instalada e compartilhada no Windows). Fica
+// checando a tabela `solicitacoes_impressao` no Supabase (gravada pelo
+// navegador, de qualquer aparelho — Mac, Windows, celular) e manda cada
+// pedido pendente direto pra fila de impressão em modo RAW (ESC/POS), sem
+// passar pelo desenho/rasterização de página do navegador — é isso que dá
+// a qualidade nítida (igual a de um sistema nativo como o GMax) em vez do
+// texto borrado que sai ao imprimir uma página HTML numa impressora
+// térmica.
 //
-// Como funciona (testado na prática, ver DECISIONS.md):
+// Por que polling no banco em vez do navegador chamar esse PC direto: a
+// venda pode ser fechada de QUALQUER computador/celular da loja, não só
+// deste aqui — um fetch direto pro loopback (127.0.0.1) só funcionaria se
+// o navegador estivesse rodando nesta mesma máquina. Com o banco no meio,
+// não importa de onde a venda saiu, só importa que ESTE processo (rodando
+// onde a impressora está ligada) está de olho na fila.
+//
+// Como imprime de fato (testado na prática, ver DECISIONS.md):
 // 1. Monta os comandos ESC/POS (negrito, alinhamento, corte) num buffer.
 // 2. Grava o buffer num arquivo temporário.
 // 3. Copia o arquivo (modo binário) pra fila compartilhada da impressora
@@ -17,21 +26,47 @@
 // Node — pra não exigir "npm install" na hora de configurar numa loja.
 "use strict";
 
-const http = require("http");
+const https = require("https");
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
 const { execFile } = require("child_process");
+const { URL } = require("url");
 
-const PORTA = Number(process.env.PORTA_PRINT_AGENT) || 41022;
+carregarEnvLocal();
+
 const COMPARTILHAMENTO_IMPRESSORA = process.env.IMPRESSORA_COMPARTILHAMENTO || "ELGIN i8";
 const MAQUINA = os.hostname();
 const COLUNAS = 48; // confirmado na prática pra Elgin i8 58mm (48mm úteis)
+const INTERVALO_POLLING_MS = Number(process.env.INTERVALO_POLLING_MS) || 2000;
 
-const ORIGENS_PERMITIDAS = new Set([
-  "https://erp-trolesi.vercel.app",
-  "http://localhost:3000",
-]);
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+  console.error(
+    "Faltam NEXT_PUBLIC_SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY — crie um arquivo print-agent/.env (ver README.md).",
+  );
+  process.exit(1);
+}
+
+// Carrega print-agent/.env manualmente (sem depender do pacote `dotenv`,
+// pra manter o agente sem nenhuma dependência de npm). Só preenche
+// variáveis que ainda não existem no ambiente.
+function carregarEnvLocal() {
+  const caminhoEnv = path.join(__dirname, ".env");
+  if (!fs.existsSync(caminhoEnv)) return;
+  const conteudo = fs.readFileSync(caminhoEnv, "utf8");
+  for (const linha of conteudo.split("\n")) {
+    const linhaLimpa = linha.trim();
+    if (!linhaLimpa || linhaLimpa.startsWith("#")) continue;
+    const indiceIgual = linhaLimpa.indexOf("=");
+    if (indiceIgual === -1) continue;
+    const chave = linhaLimpa.slice(0, indiceIgual).trim();
+    const valor = linhaLimpa.slice(indiceIgual + 1).trim();
+    if (!(chave in process.env)) process.env[chave] = valor;
+  }
+}
 
 const ESC = 0x1b;
 const GS = 0x1d;
@@ -120,90 +155,114 @@ function enviarParaImpressora(buffer) {
   });
 }
 
-function aplicarCabecalhosCors(req, res) {
-  const origem = req.headers.origin;
-  if (origem && ORIGENS_PERMITIDAS.has(origem)) {
-    res.setHeader("Access-Control-Allow-Origin", origem);
-    // Chrome trata um site público chamando um endereço loopback como
-    // "Private Network Access" — sem esse cabeçalho no preflight, o
-    // navegador bloqueia a chamada mesmo com CORS liberado.
-    res.setHeader("Access-Control-Allow-Private-Network", "true");
-    res.setHeader("Access-Control-Allow-Methods", "POST, GET, OPTIONS");
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type");
-  }
-}
+// Chamada genérica pra API REST (PostgREST) do Supabase, autenticada com a
+// service_role key — essa key ignora RLS de propósito (é o mesmo padrão já
+// usado no resto do projeto pra ações administrativas server-side, nunca
+// exposta ao navegador).
+function requisicaoSupabase(caminho, metodo, corpoObjeto) {
+  return new Promise((resolve, reject) => {
+    const url = new URL(`${SUPABASE_URL}/rest/v1${caminho}`);
+    const corpo = corpoObjeto ? JSON.stringify(corpoObjeto) : undefined;
+    const cabecalhos = {
+      apikey: SUPABASE_SERVICE_ROLE_KEY,
+      Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+      "Content-Type": "application/json",
+    };
+    if (metodo === "PATCH") cabecalhos.Prefer = "return=minimal";
+    if (corpo) cabecalhos["Content-Length"] = Buffer.byteLength(corpo);
 
-// Só decide se anexa cabeçalho CORS — não bastava pra bloquear de verdade
-// (uma requisição "simples", sem preflight, chegava no handler de qualquer
-// jeito). Chamado no início de cada rota que aceita escrita, não só no
-// CORS: se veio um Origin e ele não está na lista, rejeita de propósito.
-function origemPermitida(req) {
-  const origem = req.headers.origin;
-  return !origem || ORIGENS_PERMITIDAS.has(origem);
-}
-
-const servidor = http.createServer((req, res) => {
-  aplicarCabecalhosCors(req, res);
-
-  // Uma requisição que aborta no meio (ex: o cliente cancelou a impressão
-  // ou a aba fechou) emite 'error' no stream — sem esse listener, isso
-  // derrubava o processo inteiro (sem try/catch, é um evento não tratado,
-  // não uma exceção síncrona), e o agente fica rodando sozinho, sem
-  // ninguém pra reiniciar até alguém notar.
-  req.on("error", () => {
-    res.destroy();
+    const req = https.request(url, { method: metodo, headers: cabecalhos }, (res) => {
+      let corpoResposta = "";
+      res.on("data", (pedaco) => {
+        corpoResposta += pedaco;
+      });
+      res.on("end", () => {
+        if (res.statusCode >= 200 && res.statusCode < 300) {
+          resolve(corpoResposta ? JSON.parse(corpoResposta) : null);
+        } else {
+          reject(new Error(`Supabase respondeu ${res.statusCode}: ${corpoResposta}`));
+        }
+      });
+    });
+    req.on("error", reject);
+    if (corpo) req.write(corpo);
+    req.end();
   });
+}
 
-  if (req.method === "OPTIONS") {
-    res.writeHead(204);
-    res.end();
+function buscarPendentes() {
+  return requisicaoSupabase(
+    "/solicitacoes_impressao?status=eq.pendente&order=criado_em.asc&limit=5&select=id,via,linhas",
+    "GET",
+  );
+}
+
+function marcarComoImpresso(id) {
+  return requisicaoSupabase(`/solicitacoes_impressao?id=eq.${id}`, "PATCH", {
+    status: "impresso",
+    impresso_em: new Date().toISOString(),
+  });
+}
+
+function marcarComoErro(id, mensagemErro) {
+  return requisicaoSupabase(`/solicitacoes_impressao?id=eq.${id}`, "PATCH", {
+    status: "erro",
+    erro: mensagemErro,
+  });
+}
+
+async function processarPendentes() {
+  let pendentes;
+  try {
+    pendentes = await buscarPendentes();
+  } catch (erro) {
+    console.error("Erro ao buscar solicitações pendentes:", erro.message);
     return;
   }
 
-  if (req.method === "GET" && req.url === "/status") {
-    res.writeHead(200, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ ok: true, impressora: COMPARTILHAMENTO_IMPRESSORA, maquina: MAQUINA }));
-    return;
-  }
-
-  if (req.method === "POST" && req.url === "/imprimir") {
-    if (!origemPermitida(req)) {
-      res.writeHead(403, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ ok: false, erro: "Origem não permitida" }));
-      return;
-    }
-    let corpo = "";
-    req.on("data", (pedaco) => {
-      corpo += pedaco;
-    });
-    req.on("end", async () => {
+  for (const solicitacao of pendentes) {
+    try {
+      const buffer = construirEscPos(Array.isArray(solicitacao.linhas) ? solicitacao.linhas : []);
+      await enviarParaImpressora(buffer);
+      await marcarComoImpresso(solicitacao.id);
+      console.log(`Impresso: solicitação ${solicitacao.id} (via ${solicitacao.via})`);
+    } catch (erro) {
+      const mensagem = String((erro && erro.message) || erro);
+      console.error(`Erro ao imprimir solicitação ${solicitacao.id}:`, mensagem);
       try {
-        const dados = JSON.parse(corpo);
-        const buffer = construirEscPos(Array.isArray(dados.linhas) ? dados.linhas : []);
-        await enviarParaImpressora(buffer);
-        res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ ok: true }));
-      } catch (erro) {
-        res.writeHead(500, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ ok: false, erro: String(erro && erro.message ? erro.message : erro) }));
+        await marcarComoErro(solicitacao.id, mensagem);
+      } catch (erroAoMarcar) {
+        // Se nem isso funcionar (ex: Supabase fora do ar), a solicitação
+        // fica "pendente" e é tentada de novo no próximo ciclo — não é
+        // ideal (pode imprimir duas vezes se o erro original for só de
+        // rede), mas é mais seguro que perder a venda silenciosamente.
+        console.error(`Erro ao marcar solicitação ${solicitacao.id} como erro:`, erroAoMarcar.message);
       }
-    });
-    return;
+    }
   }
-
-  res.writeHead(404);
-  res.end();
-});
+}
 
 // Última rede de segurança — um processo que precisa ficar de pé 24h/dia
 // numa loja não pode morrer silenciosamente por uma exceção que escapou de
-// algum handler; loga e segue vivo em vez de derrubar o processo inteiro.
+// algum ponto do loop; loga e segue vivo em vez de derrubar o processo.
+// Cobre os dois jeitos de um erro escapar: síncrono (uncaughtException) e
+// uma Promise rejeitada sem .catch (unhandledRejection) — a partir do
+// Node 15 esse segundo caso derruba o processo por padrão se não for
+// tratado, o que seria exatamente o "morrer silenciosamente" que isso aqui
+// existe pra evitar.
 process.on("uncaughtException", (erro) => {
   console.error("Erro não tratado (agente continua rodando):", erro);
 });
-
-servidor.listen(PORTA, "127.0.0.1", () => {
-  console.log(
-    `Print-agent Trolesi ERP rodando em http://127.0.0.1:${PORTA} (impressora: \\\\${MAQUINA}\\${COMPARTILHAMENTO_IMPRESSORA})`,
-  );
+process.on("unhandledRejection", (erro) => {
+  console.error("Promise rejeitada sem tratamento (agente continua rodando):", erro);
 });
+
+async function loopPrincipal() {
+  await processarPendentes();
+  setTimeout(loopPrincipal, INTERVALO_POLLING_MS);
+}
+
+console.log(
+  `Print-agent Trolesi ERP rodando — checando solicitações a cada ${INTERVALO_POLLING_MS}ms (impressora: \\\\${MAQUINA}\\${COMPARTILHAMENTO_IMPRESSORA})`,
+);
+loopPrincipal();

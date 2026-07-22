@@ -1,11 +1,9 @@
 # Print-agent local — ERP Trolesi
 
 Programinho que roda só neste PC (o mesmo onde a impressora térmica Elgin i8
-está instalada) e recebe pedidos de impressão do ERP Trolesi (a página no
-navegador) via HTTP, mandando os comandos direto pra impressora em modo
-ESC/POS nativo — sem passar pelo desenho/rasterização de página do
-navegador, que é o que deixava o cupom saindo borrado numa impressora
-térmica.
+está instalada) e imprime os cupons de venda direto em modo ESC/POS nativo
+— sem passar pelo desenho/rasterização de página do navegador, que é o que
+deixava o cupom saindo borrado numa impressora térmica.
 
 ## Por que existe
 
@@ -21,47 +19,46 @@ rasterização.
 
 ## Como funciona
 
-1. Fica escutando em `http://127.0.0.1:41022` (só nessa máquina — o
-   endereço `127.0.0.1` não é alcançável de outro computador).
-2. O ERP (rodando no navegador, em `https://erp-trolesi.vercel.app`) tenta
-   mandar o cupom pra esse endereço primeiro. Se o agente não estiver
-   rodando (ou não estiver instalado nessa máquina), a tentativa falha e o
-   ERP cai automaticamente pro `window.print()` de sempre — nada quebra.
-3. Quando o agente responde, monta os comandos ESC/POS e copia (`copy /b`)
-   pro compartilhamento de rede da impressora já configurado no Windows
-   (`\\SERVIDOR\ELGIN i8`).
+A venda pode ser fechada de **qualquer aparelho da loja** — Mac, Windows,
+celular — não só desta máquina. Por isso o agente não espera o navegador
+chamá-lo direto (um fetch pro `127.0.0.1` só alcançaria essa mesma máquina);
+em vez disso:
 
-## Permissão do navegador (só na 1ª vez)
+1. O ERP (rodando em qualquer navegador) grava o conteúdo do cupom numa
+   tabela do Supabase (`solicitacoes_impressao`, status `pendente`).
+2. Este agente fica checando essa tabela a cada ~2s (`INTERVALO_POLLING_MS`).
+3. Ao achar uma pendente, monta os comandos ESC/POS e copia (`copy /b`) pro
+   compartilhamento de rede da impressora já configurado no Windows
+   (`\\SERVIDOR\ELGIN i8`), depois marca a linha como `impresso` (ou `erro`,
+   com a mensagem, se algo falhar).
+4. O navegador que pediu a impressão fica de olho nessa mesma linha
+   (polling também, do lado do app) e segue o fluxo (pergunta via cliente,
+   etc.) assim que vê `impresso`. Se não confirmar em ~15s, mostra um aviso
+   com opção de tentar de novo ou imprimir pela própria página (último
+   recurso, não necessariamente na térmica).
 
-Como a página é servida via HTTPS (`erp-trolesi.vercel.app`) e o agente é
-`http://127.0.0.1` (endereço "local"), o Chrome/Edge pede permissão explícita
-("Acessar dispositivos na rede local") na primeira tentativa de impressão
-depois de instalar o agente. Basta permitir uma vez — o navegador lembra
-depois disso pra esse site. Se não aparecer nenhum aviso e o cupom continuar
-saindo pelo jeito antigo (borrado), verifique em
-`chrome://settings/content/all` (ou o equivalente no Edge) se esse site tem
-a permissão de rede local bloqueada.
+Só existe UM agente rodando (nesta máquina, onde a impressora está
+fisicamente ligada) — não precisa (nem deve) rodar em cada computador da
+loja.
 
-## Instalação (rodar sozinho ao ligar o PC)
+## Instalação
 
-Já configurado nesta máquina (SERVIDOR) via atalho na pasta Inicializar do
-Windows (`shell:startup`) apontando pro `iniciar_agente_oculto.vbs`, que roda
-o `iniciar_agente.bat` sem abrir janela de terminal. Pra reinstalar (ex: em
-outro PC de caixa):
-
-1. Copiar a pasta `print-agent/` inteira pro PC de destino.
-2. Confirmar que a impressora térmica está instalada e **compartilhada** no
+1. Copiar a pasta `print-agent/` (se ainda não estiver aqui).
+2. `cp .env.example .env` e preencher com os valores reais (mesmos do
+   `.env.local` do app principal — `NEXT_PUBLIC_SUPABASE_URL` e
+   `SUPABASE_SERVICE_ROLE_KEY`, achados em Project Settings → API no
+   painel do Supabase). **Nunca commitar o `.env`.**
+3. Confirmar que a impressora térmica está instalada e **compartilhada** no
    Windows (Painel de Controle → Dispositivos e Impressoras → botão direito
    na impressora → Propriedades da Impressora → aba Compartilhamento).
-   Anotar o nome do compartilhamento.
-3. Se o nome do compartilhamento ou o nome da máquina for diferente, ajustar
-   via variáveis de ambiente antes de rodar (ou editar direto o `agent.js`):
-   - `IMPRESSORA_COMPARTILHAMENTO` (padrão: `ELGIN i8`)
-   - `PORTA_PRINT_AGENT` (padrão: `41022`)
-4. Criar um atalho pro `iniciar_agente_oculto.vbs` na pasta Inicializar
-   (`shell:startup` na caixa Executar do Windows).
-5. Testar: `Invoke-RestMethod http://127.0.0.1:41022/status` no PowerShell
-   deve devolver `{ ok: true, impressora: "...", maquina: "..." }`.
+   Anotar o nome do compartilhamento e ajustar `IMPRESSORA_COMPARTILHAMENTO`
+   no `.env` se for diferente de `ELGIN i8`.
+4. Testar manualmente: `node agent.js` — deve logar
+   `Print-agent Trolesi ERP rodando — checando solicitações a cada...`.
+5. Configurar pra rodar sozinho no login (já feito nesta máquina, SERVIDOR):
+   atalho na pasta Inicializar do Windows (`shell:startup`) apontando pro
+   `iniciar_agente_oculto.vbs`, que roda o `iniciar_agente.bat` sem abrir
+   janela de terminal.
 
 ## Limitações conhecidas
 
@@ -71,8 +68,13 @@ outro PC de caixa):
   simplesmente sem acento. Se quiser tentar habilitar acentos depois, dá pra
   testar o code page (comando ESC/POS `ESC t n`) e ajustar `agent.js`.
 - **48 colunas por linha**: confirmado na prática pra Elgin i8 com papel de
-  58mm (área útil de 48mm). Se trocar de impressora/papel, meça de novo
-  (ver histórico da conversa/`DECISIONS.md` pra o método usado).
-- Só funciona nesse PC específico — se a loja tiver mais de um caixa com
-  impressora própria, cada PC precisa da sua própria cópia rodando (mesma
-  porta, endereços diferentes por ser cada um `127.0.0.1` local).
+  58mm (área útil de 48mm). Se trocar de impressora/papel, meça de novo.
+- **Um atraso de 2-15s antes de imprimir**: por causa do polling (o agente
+  só checa a cada ~2s, e o navegador espera até ~15s por uma confirmação).
+  Não é instantâneo como seria um fetch direto, mas funciona de qualquer
+  aparelho da loja.
+- Só um agente deve rodar por vez (senão duas máquinas tentariam imprimir a
+  mesma solicitação). Se a loja crescer pra ter impressora em mais de um
+  caixa, a fila precisaria de uma coluna extra (ex: `impressora_id`) pra
+  cada agente só pegar as solicitações da sua própria impressora — não
+  implementado ainda, não é o caso de uso atual.

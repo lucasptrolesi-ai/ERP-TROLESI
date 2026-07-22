@@ -6,82 +6,87 @@ import { FORMA_LABEL } from "@/lib/forma-pagamento";
 import { formatarDataHoraIso, formatarDataIso } from "@/lib/datas";
 import { EMPRESA } from "@/lib/empresa";
 import { construirLinhasCupom } from "@/lib/cupom-linhas";
+import { buscarStatusImpressao, solicitarImpressaoCupom } from "@/lib/actions/impressao";
 import type { ContaReceber, Pedido } from "@/lib/types";
 
 type Via = "loja" | "cliente";
+type ResultadoEspera = { resultado: "impresso" | "erro" | "tempo_esgotado"; mensagem?: string };
 
-// Endereço do print-agent local (print-agent/agent.js) — só existe/responde
-// nesse mesmo PC, na impressora térmica de verdade. Sem ele (outra máquina,
-// ou agente não rodando), cai pro window.print() de sempre.
-const URL_PRINT_AGENT = "http://127.0.0.1:41022/imprimir";
+const INTERVALO_POLLING_MS = 1000;
+const TENTATIVAS_POLLING = 15; // ~15s — dá tempo do agente pegar a fila e imprimir
+
+function aguardar(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 export function CupomView({ pedido, parcelas }: { pedido: Pedido; parcelas: ContaReceber[] }) {
   const [via, setVia] = useState<Via>("loja");
   const [perguntarViaCliente, setPerguntarViaCliente] = useState(false);
   const [concluido, setConcluido] = useState(false);
   const [imprimindo, setImprimindo] = useState(false);
+  const [erroImpressao, setErroImpressao] = useState<string | null>(null);
   const jaImprimiuLoja = useRef(false);
-  // `imprimindo` já bloqueia o clique dos botões, mas a tentativa do agente
-  // local pode levar até 6s (prompt de permissão do Chrome) — sem essa ref,
-  // um segundo clique bem no meio desse intervalo (antes do re-render do
-  // `disabled` chegar) ainda entraria em `imprimir()` de novo e imprimiria
-  // a mesma via duas vezes.
+  // `imprimindo` já bloqueia o clique dos botões, mas o ciclo de gravar +
+  // esperar confirmação leva vários segundos — sem essa ref, um segundo
+  // clique bem no meio desse intervalo (antes do re-render do `disabled`
+  // chegar) ainda entraria em `imprimir()` de novo e duplicaria o pedido.
   const imprimindoRef = useRef(false);
 
-  // Tenta o print-agent local primeiro — ESC/POS nativo, nítido (ver
-  // DECISIONS.md: impressão via HTML/window.print() sai borrada numa
-  // térmica). Se o agente não existir nessa máquina, a conexão falha na
-  // hora (ECONNREFUSED, sem essa demora) — o timeout generoso aqui é só
-  // pra dar tempo do usuário responder ao prompt de permissão do Chrome
-  // ("acessar dispositivos na rede local"), que aparece na 1ª vez por
-  // origem e mantém a promise pendente até alguém clicar. Se não
-  // responder em 6s, devolve false e quem chamou cai pro window.print().
-  const tentarAgenteLocal = useCallback(
-    async (viaAlvo: Via): Promise<boolean> => {
-      try {
-        const controlador = new AbortController();
-        const tempoLimite = setTimeout(() => controlador.abort(), 6000);
-        const resposta = await fetch(URL_PRINT_AGENT, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ via: viaAlvo, linhas: construirLinhasCupom(pedido, parcelas, viaAlvo) }),
-          signal: controlador.signal,
-        });
-        clearTimeout(tempoLimite);
-        return resposta.ok;
-      } catch {
-        return false;
-      }
-    },
-    [pedido, parcelas],
-  );
+  // A venda pode ter sido fechada em qualquer aparelho (Mac, Windows,
+  // celular) — só existe UM print-agent, rodando na máquina que tem a
+  // impressora térmica ligada (ver print-agent/), então um fetch direto
+  // pro loopback (127.0.0.1) só funcionaria se a venda também tivesse sido
+  // feita nela. Em vez disso, grava o pedido de impressão no banco
+  // (solicitacoes_impressao) e espera o agente confirmar, com polling.
+  const aguardarConfirmacao = useCallback(async (id: string): Promise<ResultadoEspera> => {
+    for (let tentativa = 0; tentativa < TENTATIVAS_POLLING; tentativa++) {
+      await aguardar(INTERVALO_POLLING_MS);
+      const status = await buscarStatusImpressao(id);
+      if (status.status === "impresso") return { resultado: "impresso" };
+      if (status.status === "erro") return { resultado: "erro", mensagem: status.mensagem ?? undefined };
+    }
+    return { resultado: "tempo_esgotado" };
+  }, []);
 
-  // Ponto único de impressão: tenta o agente local; se ele não estiver
-  // disponível, cai pro fluxo antigo (window.print(), tratado pelo
-  // `afterprint` abaixo). Ao usar o agente, não existe evento `afterprint`
-  // (não é impressão de página) — segue o fluxo na hora, manualmente.
-  // Bloqueado por `imprimindoRef` pra um clique duplo durante os até 6s de
-  // espera do agente não disparar duas impressões da mesma via.
+  // Ponto único de impressão: grava a solicitação, espera o agente
+  // confirmar. Bloqueado por `imprimindoRef` pra um clique duplo durante a
+  // espera não disparar duas impressões da mesma via.
   const imprimir = useCallback(
     async (viaAlvo: Via) => {
       if (imprimindoRef.current) return;
       imprimindoRef.current = true;
       setImprimindo(true);
+      setErroImpressao(null);
       setVia(viaAlvo);
-      const impresso = await tentarAgenteLocal(viaAlvo);
-      if (impresso) {
-        if (viaAlvo === "loja") setPerguntarViaCliente(true);
-        else setConcluido(true);
+
+      const solicitacao = await solicitarImpressaoCupom(
+        pedido.id,
+        viaAlvo,
+        construirLinhasCupom(pedido, parcelas, viaAlvo),
+      );
+      if ("erro" in solicitacao) {
         imprimindoRef.current = false;
         setImprimindo(false);
+        setErroImpressao(`Não foi possível registrar a impressão: ${solicitacao.erro}`);
+        return;
+      }
+
+      const espera = await aguardarConfirmacao(solicitacao.id);
+      imprimindoRef.current = false;
+      setImprimindo(false);
+
+      if (espera.resultado === "impresso") {
+        if (viaAlvo === "loja") setPerguntarViaCliente(true);
+        else setConcluido(true);
+      } else if (espera.resultado === "erro") {
+        setErroImpressao(espera.mensagem ?? "A impressora relatou um erro ao imprimir.");
       } else {
-        // window.print() abre a caixa de diálogo do navegador — só libera
-        // o botão de novo quando o `afterprint` (abaixo) confirmar que ela
-        // fechou; senão dá pra clicar de novo com a caixa ainda aberta.
-        setTimeout(() => window.print(), 150);
+        setErroImpressao(
+          "Não foi possível confirmar a impressão em 15s — verifique se o computador da impressora está ligado.",
+        );
       }
     },
-    [tentarAgenteLocal],
+    [pedido, parcelas, aguardarConfirmacao],
   );
 
   // Dispara a impressão da via loja sozinho ao entrar na tela — só uma vez.
@@ -100,18 +105,19 @@ export function CupomView({ pedido, parcelas }: { pedido: Pedido; parcelas: Cont
     return () => clearTimeout(t);
   }, [imprimir]);
 
-  // `afterprint` só dispara quando a via cai no fallback window.print() —
-  // dispara tanto ao imprimir quanto ao cancelar a caixa de diálogo, e nos
-  // dois casos segue o fluxo (pergunta via cliente / conclui).
+  // Só dispara quando `imprimirManualmenteViaNavegador` chama window.print()
+  // — o caminho principal (agente local) nunca abre a caixa de diálogo do
+  // navegador. Dispara tanto ao imprimir quanto ao cancelar, e nos dois
+  // casos segue o fluxo (pergunta via cliente / conclui).
   useEffect(() => {
-    function aoTerminarImpressao() {
+    function aoTerminarImpressaoManual() {
       if (via === "loja") setPerguntarViaCliente(true);
       else setConcluido(true);
       imprimindoRef.current = false;
       setImprimindo(false);
     }
-    window.addEventListener("afterprint", aoTerminarImpressao);
-    return () => window.removeEventListener("afterprint", aoTerminarImpressao);
+    window.addEventListener("afterprint", aoTerminarImpressaoManual);
+    return () => window.removeEventListener("afterprint", aoTerminarImpressaoManual);
   }, [via]);
 
   function imprimirViaCliente() {
@@ -127,6 +133,21 @@ export function CupomView({ pedido, parcelas }: { pedido: Pedido; parcelas: Cont
   function reimprimir(viaEscolhida: Via) {
     setConcluido(false);
     imprimir(viaEscolhida);
+  }
+
+  // Última saída manual, só usada se o agente não confirmar — imprime a
+  // página HTML normal deste navegador (não necessariamente a impressora
+  // térmica da loja, mas pelo menos alguma coisa sai se o agente estiver
+  // fora do ar). Mesmo guard de `imprimindoRef` do fluxo principal: sem
+  // isso, o botão "Imprimir novamente" reaparecia com a caixa de diálogo
+  // do navegador ainda aberta, e um clique nele disparava a fila por cima
+  // da impressão manual em andamento.
+  function imprimirManualmenteViaNavegador() {
+    if (imprimindoRef.current) return;
+    imprimindoRef.current = true;
+    setImprimindo(true);
+    setErroImpressao(null);
+    setTimeout(() => window.print(), 150);
   }
 
   return (
@@ -265,9 +286,30 @@ export function CupomView({ pedido, parcelas }: { pedido: Pedido; parcelas: Cont
         )}
 
         {!perguntarViaCliente && !concluido && imprimindo && (
-          <p className="text-sm text-text-soft">Imprimindo…</p>
+          <p className="text-sm text-text-soft">Aguardando confirmação da impressora…</p>
         )}
-        {!perguntarViaCliente && !concluido && !imprimindo && (
+
+        {!perguntarViaCliente && !concluido && !imprimindo && erroImpressao && (
+          <div className="flex flex-col items-center gap-2 rounded-xl border-2 border-crit bg-crit-bg p-4 text-center">
+            <p className="text-sm font-semibold text-crit">{erroImpressao}</p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => imprimir(via)}
+                className="rounded-full bg-gradient-to-br from-gold-start to-gold-end px-4 py-2 text-xs font-semibold text-gold-ink"
+              >
+                Tentar novamente
+              </button>
+              <button
+                onClick={imprimirManualmenteViaNavegador}
+                className="rounded-full border border-line px-4 py-2 text-xs font-semibold text-ink"
+              >
+                Imprimir por aqui mesmo
+              </button>
+            </div>
+          </div>
+        )}
+
+        {!perguntarViaCliente && !concluido && !imprimindo && !erroImpressao && (
           <button
             onClick={() => imprimir(via)}
             className="rounded-full bg-gradient-to-br from-gold-start to-gold-end px-5 py-2.5 text-sm font-semibold text-gold-ink"
