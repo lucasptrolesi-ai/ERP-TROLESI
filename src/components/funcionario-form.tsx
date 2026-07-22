@@ -32,6 +32,8 @@ export function FuncionarioForm({
   const [pending, iniciar] = useTransition();
   const [erro, setErro] = useState<string | null>(null);
   const [senhaGerada, setSenhaGerada] = useState<string | null>(null);
+  const [novaSenha, setNovaSenha] = useState("");
+  const [senhaDefinida, setSenhaDefinida] = useState(false);
 
   function salvar() {
     if (!nome.trim() || (!ehEdicao && !email.trim())) {
@@ -54,11 +56,24 @@ export function FuncionarioForm({
 
   function resetarSenha() {
     if (!funcionario) return;
+    if (novaSenha && novaSenha.length < 8) {
+      setErro("A nova senha precisa ter pelo menos 8 caracteres.");
+      return;
+    }
     setErro(null);
+    setSenhaDefinida(false);
     iniciar(async () => {
-      const resultado = await resetarSenhaFuncionario(funcionario.id);
-      if (resultado.erro) setErro(resultado.erro);
-      if (resultado.senhaTemporaria) setSenhaGerada(resultado.senhaTemporaria);
+      const resultado = await resetarSenhaFuncionario(funcionario.id, novaSenha || undefined);
+      if (resultado.erro) {
+        setErro(resultado.erro);
+        return;
+      }
+      if (resultado.senhaTemporaria) {
+        setSenhaGerada(resultado.senhaTemporaria);
+      } else {
+        setSenhaDefinida(true);
+      }
+      setNovaSenha("");
     });
   }
 
@@ -109,28 +124,38 @@ export function FuncionarioForm({
           )}
         </div>
 
-        {erro && <p className="text-sm font-medium text-crit">{erro}</p>}
-
-        <div className="flex flex-wrap items-center gap-3">
-          <button
-            type="button"
-            disabled={pending}
-            onClick={salvar}
-            className="rounded-full bg-gradient-to-br from-rose to-rose-deep px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-60"
-          >
-            {pending ? "Salvando…" : ehEdicao ? "Salvar" : "Cadastrar"}
-          </button>
-          {ehEdicao && (
+        {ehEdicao && (
+          <div className="flex flex-col gap-1.5 rounded-lg border border-line p-3">
+            <label className="text-xs font-semibold uppercase tracking-wide text-text-soft">Trocar senha</label>
+            <input
+              type="text"
+              value={novaSenha}
+              onChange={(e) => setNovaSenha(e.target.value)}
+              placeholder="Digite a nova senha (deixe em branco pra gerar uma aleatória)"
+              className="rounded-lg border border-line bg-cream px-3 py-2 text-sm text-ink outline-none focus:border-rose focus:ring-2 focus:ring-rose-soft"
+            />
+            {senhaDefinida && <p className="text-xs font-medium text-ok">Senha alterada com sucesso.</p>}
             <button
               type="button"
               disabled={pending}
               onClick={resetarSenha}
-              className="rounded-full border border-line px-4 py-2 text-sm font-semibold text-ink disabled:opacity-60"
+              className="w-fit rounded-full border border-line px-4 py-2 text-sm font-semibold text-ink disabled:opacity-60"
             >
-              Resetar senha
+              {novaSenha ? "Definir esta senha" : "Gerar senha aleatória"}
             </button>
-          )}
-        </div>
+          </div>
+        )}
+
+        {erro && <p className="text-sm font-medium text-crit">{erro}</p>}
+
+        <button
+          type="button"
+          disabled={pending}
+          onClick={salvar}
+          className="w-fit rounded-full bg-gradient-to-br from-rose to-rose-deep px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-60"
+        >
+          {pending ? "Salvando…" : ehEdicao ? "Salvar" : "Cadastrar"}
+        </button>
       </div>
     </Modal>
   );

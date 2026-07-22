@@ -93,15 +93,24 @@ export async function atualizarFuncionario(
   return {};
 }
 
-export async function resetarSenhaFuncionario(id: string): Promise<{ erro?: string; senhaTemporaria?: string }> {
+export async function resetarSenhaFuncionario(
+  id: string,
+  senhaEscolhida?: string,
+): Promise<{ erro?: string; senhaTemporaria?: string }> {
   const perfil = await getPerfilAtual();
   if (perfil.papel !== "admin") {
     return { erro: "Só administradores podem resetar senha." };
   }
+  if (senhaEscolhida && senhaEscolhida.length < 8) {
+    return { erro: "A senha precisa ter pelo menos 8 caracteres." };
+  }
 
-  const senhaTemporaria = gerarSenhaTemporaria();
+  // Se o admin digitou uma senha específica, usa ela (ex: pra definir a
+  // própria senha de escolha, em vez de receber uma gerada aleatória).
+  // Sem isso, gera uma temporária pra repassar pra outro funcionário.
+  const senhaFinal = senhaEscolhida || gerarSenhaTemporaria();
   const admin = createAdminClient();
-  const { error } = await admin.auth.admin.updateUserById(id, { password: senhaTemporaria });
+  const { error } = await admin.auth.admin.updateUserById(id, { password: senhaFinal });
   if (error) return { erro: error.message };
 
   const supabase = await createClient();
@@ -110,7 +119,9 @@ export async function resetarSenhaFuncionario(id: string): Promise<{ erro?: stri
     p_acao: "resetar_senha_funcionario",
   });
 
-  return { senhaTemporaria };
+  // Só devolve a senha pra exibir na tela quando foi gerada aleatoriamente —
+  // a que o próprio admin digitou ele já sabe, não precisa reexibir.
+  return senhaEscolhida ? {} : { senhaTemporaria: senhaFinal };
 }
 
 export async function alternarAtivoFuncionario(id: string, ativo: boolean): Promise<{ erro?: string }> {
