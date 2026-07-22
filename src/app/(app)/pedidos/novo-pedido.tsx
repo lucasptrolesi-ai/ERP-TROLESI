@@ -66,7 +66,21 @@ export function NovoPedido({
   const [erro, setErro] = useState<string | null>(null);
   const [salvando, iniciarSalvamento] = useTransition();
   const [pedidoCriado, setPedidoCriado] = useState<{ id: string; promissoria: boolean } | null>(null);
+  const [avisoPopupBloqueado, setAvisoPopupBloqueado] = useState(false);
   const router = useRouter();
+
+  // Ao fechar a venda, abre o cupom sozinho numa aba nova — lá, o próprio
+  // cupom já dispara a impressão da via loja automaticamente (ver
+  // cupom-view.tsx). Se o navegador bloquear a aba (bloqueador de pop-up),
+  // avisa e deixa o link manual abaixo como saída.
+  useEffect(() => {
+    if (!pedidoCriado) return;
+    const t = setTimeout(() => {
+      const aba = window.open(`/pedidos/${pedidoCriado.id}/cupom`, "_blank", "noopener,noreferrer");
+      setAvisoPopupBloqueado(!aba);
+    }, 0);
+    return () => clearTimeout(t);
+  }, [pedidoCriado]);
 
   const produtosPorId = useMemo(() => new Map(produtos.map((p) => [p.id, p])), [produtos]);
 
@@ -380,6 +394,12 @@ export function NovoPedido({
           ✓
         </div>
         <h2 className="font-display text-xl font-semibold text-ink">Pedido criado com sucesso!</h2>
+        {avisoPopupBloqueado && (
+          <p className="max-w-xs text-xs text-warn">
+            O navegador bloqueou a abertura automática do cupom. Clique no botão abaixo pra imprimir — e permita
+            pop-ups deste site pra abrir sozinho da próxima vez.
+          </p>
+        )}
         <div className="flex flex-wrap justify-center gap-3">
           <a
             href={`/pedidos/${pedidoCriado.id}/cupom`}
@@ -387,7 +407,7 @@ export function NovoPedido({
             rel="noopener noreferrer"
             className="rounded-full border border-line px-4 py-2 text-sm font-semibold text-ink"
           >
-            🧾 Imprimir cupom (80mm)
+            🧾 Imprimir cupom (58mm)
           </a>
           {pedidoCriado.promissoria && (
             <a
@@ -402,7 +422,10 @@ export function NovoPedido({
         </div>
         <div className="mt-2 flex gap-3">
           <button
-            onClick={() => setPedidoCriado(null)}
+            onClick={() => {
+              setPedidoCriado(null);
+              setAvisoPopupBloqueado(false);
+            }}
             className="rounded-full bg-gradient-to-br from-gold-start to-gold-end px-5 py-2.5 text-sm font-semibold text-gold-ink"
           >
             Novo pedido
