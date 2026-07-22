@@ -5,6 +5,7 @@ import Link from "next/link";
 import { SidebarNav } from "@/components/sidebar-nav";
 import { BrandBadge } from "@/components/brand-badge";
 import { AlertaVencimentos } from "@/components/alerta-vencimentos";
+import { RealtimeRefresh } from "@/components/realtime-refresh";
 import { logout } from "@/lib/actions/auth";
 import type { ContaPagarVencendo, ParcelaVencendo } from "@/lib/types";
 
@@ -27,6 +28,7 @@ export function AppShell({
 
   return (
     <div className="min-h-screen print:block md:grid md:grid-cols-[246px_1fr] print:md:grid-cols-1">
+      <RealtimeRefresh />
       {menuAberto && (
         <button
           aria-label="Fechar menu"

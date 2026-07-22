@@ -15,6 +15,15 @@ function gerarSenhaTemporaria(): string {
   return randomBytes(12).toString("base64url");
 }
 
+// Além de Cadastros/Permissões, /comissoes também lê `profiles` (vendedores
+// ativos) — sem isso, mudar papel/nome ou desativar um funcionário aqui
+// deixava a lista de vendedores da tela de comissões desatualizada.
+function revalidarFuncionarios() {
+  revalidatePath("/cadastros");
+  revalidatePath("/permissoes");
+  revalidatePath("/comissoes");
+}
+
 export async function criarFuncionario(
   nome: string,
   email: string,
@@ -57,8 +66,7 @@ export async function criarFuncionario(
     return { erro: `Funcionário criado, mas houve um erro ao definir o papel: ${erroRegistro.message}`, senhaTemporaria };
   }
 
-  revalidatePath("/permissoes");
-  revalidatePath("/cadastros");
+  revalidarFuncionarios();
   return { senhaTemporaria };
 }
 
@@ -89,7 +97,7 @@ export async function atualizarFuncionario(
     p_valor_novo: { nome: nome.trim(), papel },
   });
 
-  revalidatePath("/cadastros");
+  revalidarFuncionarios();
   return {};
 }
 
@@ -151,7 +159,7 @@ export async function alternarAtivoFuncionario(id: string, ativo: boolean): Prom
     p_acao: ativo ? "reativar_funcionario" : "desativar_funcionario",
   });
 
-  revalidatePath("/cadastros");
+  revalidarFuncionarios();
   return {};
 }
 
@@ -186,6 +194,6 @@ export async function excluirFuncionario(id: string): Promise<{ erro?: string }>
     };
   }
 
-  revalidatePath("/cadastros");
+  revalidarFuncionarios();
   return {};
 }

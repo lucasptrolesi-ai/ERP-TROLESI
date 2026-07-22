@@ -50,6 +50,11 @@ describe("Fase 3 — pagamento (idempotência/estoque implementados em SQL, sem 
   it.todo("duas vendas concorrentes do mesmo produto não conseguem vender o mesmo estoque duas vezes");
 });
 
+describe("Verificação final 2026-07-22 — ajuste de pedido não desalinha o financeiro (corrigido em ajustar_valor_pedido, sem teste de integração)", () => {
+  it.todo("ajustar_valor_pedido é bloqueado quando existe QUALQUER contas_receber vinculada (1x cartão/promissória inclusos, não só 2+ parcelas)");
+  it.todo("venda em dinheiro/Pix (sem contas_receber gerada) continua ajustável normalmente após faturada");
+});
+
 describe("Fase 4 — abatimento de peças (regra de negócio testada; falta teste de integração)", () => {
   it.todo("abatimento nunca é lançado como desconto manual — é um lançamento contábil separado");
   it.todo("peça aprovada é destinada ao local 'Abatimentos recebidos' (decidido e implementado em aprovar_abatimento)");

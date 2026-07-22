@@ -6,6 +6,14 @@ import { mensagemErroSalvar, mensagemErroExcluir, normalizarCampo } from "./erro
 
 type ResultadoForm = { erro?: string } | undefined;
 
+// /financeiro também lê `fornecedores` (lista pra contas a pagar e o join
+// em contas_pagar.fornecedores) — sem isso, editar um fornecedor em
+// Cadastros deixava o Financeiro com o nome/status antigo até um reload.
+function revalidarFornecedores() {
+  revalidatePath("/cadastros");
+  revalidatePath("/financeiro");
+}
+
 export async function salvarFornecedor(_prev: ResultadoForm, formData: FormData): Promise<ResultadoForm> {
   const nome = normalizarCampo(formData.get("nome"));
   if (!nome) return { erro: "Nome é obrigatório." };
@@ -26,14 +34,14 @@ export async function salvarFornecedor(_prev: ResultadoForm, formData: FormData)
 
   if (error) return { erro: mensagemErroSalvar(error) };
 
-  revalidatePath("/cadastros");
+  revalidarFornecedores();
   return undefined;
 }
 
 export async function alternarAtivoFornecedor(id: string, ativo: boolean) {
   const supabase = await createClient();
   await supabase.from("fornecedores").update({ ativo }).eq("id", id);
-  revalidatePath("/cadastros");
+  revalidarFornecedores();
 }
 
 export async function excluirFornecedor(id: string): Promise<{ erro?: string }> {
@@ -41,6 +49,6 @@ export async function excluirFornecedor(id: string): Promise<{ erro?: string }> 
   const { error } = await supabase.from("fornecedores").delete().eq("id", id);
   if (error) return { erro: mensagemErroExcluir(error) };
 
-  revalidatePath("/cadastros");
+  revalidarFornecedores();
   return {};
 }

@@ -6,6 +6,19 @@ import { mensagemErroSalvar, mensagemErroExcluir, normalizarCampo } from "./erro
 
 type ResultadoForm = { erro?: string } | undefined;
 
+// Além de Cadastros/Pedidos, /abatimentos, /crediario, /garantias e
+// /relatorios também leem `clientes` (filtrado por ativo=true) — sem
+// revalidar essas rotas, editar/desativar/excluir um cliente em Cadastros e
+// navegar (client-side) pra qualquer uma delas mostrava o dado antigo.
+function revalidarClientes() {
+  revalidatePath("/cadastros");
+  revalidatePath("/pedidos");
+  revalidatePath("/abatimentos");
+  revalidatePath("/crediario");
+  revalidatePath("/garantias");
+  revalidatePath("/relatorios");
+}
+
 export async function salvarCliente(_prev: ResultadoForm, formData: FormData): Promise<ResultadoForm> {
   const nome = normalizarCampo(formData.get("nome"));
   if (!nome) return { erro: "Nome é obrigatório." };
@@ -38,16 +51,14 @@ export async function salvarCliente(_prev: ResultadoForm, formData: FormData): P
 
   if (error) return { erro: mensagemErroSalvar(error) };
 
-  revalidatePath("/cadastros");
-  revalidatePath("/pedidos");
+  revalidarClientes();
   return undefined;
 }
 
 export async function alternarAtivoCliente(id: string, ativo: boolean) {
   const supabase = await createClient();
   await supabase.from("clientes").update({ ativo }).eq("id", id);
-  revalidatePath("/cadastros");
-  revalidatePath("/pedidos");
+  revalidarClientes();
 }
 
 export async function excluirCliente(id: string): Promise<{ erro?: string }> {
@@ -55,7 +66,6 @@ export async function excluirCliente(id: string): Promise<{ erro?: string }> {
   const { error } = await supabase.from("clientes").delete().eq("id", id);
   if (error) return { erro: mensagemErroExcluir(error) };
 
-  revalidatePath("/cadastros");
-  revalidatePath("/pedidos");
+  revalidarClientes();
   return {};
 }
