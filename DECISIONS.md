@@ -2,6 +2,14 @@
 
 Histórico de decisões de escopo e arquitetura, na ordem em que foram tomadas. Decisões revistas ficam marcadas como tal, não apagadas.
 
+## 2026-07-22 — Print-agent: de fetch direto pro loopback pra fila via Supabase
+
+- **Contexto:** o cupom térmico saía borrado via `window.print()` numa impressora térmica real (Elgin i8) — investigação concluiu que é uma limitação estrutural do navegador rasterizar HTML pra imprimir, não algo corrigível só com CSS. Construí um print-agent local (Node puro, sem dependências) que gera ESC/POS nativo e manda pro spooler da impressora em modo RAW — testado fisicamente e confirmado nítido.
+- **1ª versão (errada):** o navegador chamava `fetch("http://127.0.0.1:41022/imprimir")` direto — só funcionaria se a venda fosse fechada na MESMA máquina do agente. Cheguei a validar essa versão de ponta a ponta (inclusive descobrindo e contornando o "Private Network Access" do Chrome, que exige permissão explícita do usuário pra uma página HTTPS acessar `127.0.0.1`) antes de perceber o problema real.
+- **Descoberto tarde, mas antes de virar produção real:** perguntei ao usuário onde o PDV é usado no dia a dia — resposta: "os dois e ainda por cima, outros computadores da loja, fora telefone celular na versão mobile". A loja não tem um único caixa fixo; a venda é fechada de qualquer aparelho disponível, mas só existe UMA impressora física, presa a UMA máquina específica (SERVIDOR, que também hospeda o Firebird do GMax).
+- **Decisão:** reescrevi o transporte pra uma fila via Supabase (`solicitacoes_impressao`) — o navegador grava o pedido de impressão (de qualquer aparelho), o agente (só na máquina com a impressora) faz polling e imprime. Troca impressão instantânea por um atraso de 2-15s, mas funciona independente de onde a venda foi fechada. A lógica ESC/POS (já testada fisicamente) não mudou, só o transporte.
+- **Lição pra próxima vez:** antes de desenhar uma solução "local" (loopback, agente na mesma máquina), perguntar explicitamente onde/como o usuário realmente usa o sistema no dia a dia — a suposição implícita de "o navegador que imprime está na mesma máquina que a impressora" parecia óbvia o suficiente pra não perguntar, e estava errada.
+
 ## 2026-07-22 — Desconto automático por forma de pagamento removido (2ª rejeição)
 
 - **Contexto:** o documento mestre (seção 8) especificava desconto automático de 10% dinheiro/7% Pix/7% débito, sobre a base elegível. Isso já tinha sido tentado uma vez **antes** do documento mestre existir, e rejeitado explicitamente pelo usuário na época — o documento mestre reintroduziu a regra, e foi implementado como parte da fusão (ver decisão de 2026-07-20/21 abaixo), com o conflito já sinalizado no diagnóstico da Fase 0.
