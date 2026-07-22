@@ -50,6 +50,7 @@ export type Fornecedor = {
 export type Funcionario = {
   id: string;
   nome: string;
+  email: string | null;
   papel: string;
   ativo: boolean;
 };

@@ -1,10 +1,12 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { ClienteForm } from "@/components/cliente-form";
 import { FornecedorForm } from "@/components/fornecedor-form";
+import { FuncionarioForm } from "@/components/funcionario-form";
 import { alternarAtivoCliente } from "@/lib/actions/clientes";
 import { alternarAtivoFornecedor } from "@/lib/actions/fornecedores";
+import { alternarAtivoFuncionario, excluirFuncionario } from "@/lib/actions/funcionarios";
 import { filtra } from "@/lib/filtra";
 import * as permissoes from "@/lib/permissoes";
 import type { Cliente, Fornecedor, Funcionario } from "@/lib/types";
@@ -26,11 +28,13 @@ const ABAS: readonly [Aba, string][] = [
 
 export function CadastrosView({
   papelAtual,
+  meuId,
   clientes,
   fornecedores,
   funcionarios,
 }: {
   papelAtual: string;
+  meuId: string;
   clientes: Cliente[];
   fornecedores: Fornecedor[];
   funcionarios: Funcionario[];
@@ -39,6 +43,7 @@ export function CadastrosView({
   const [busca, setBusca] = useState("");
   const [clienteEditando, setClienteEditando] = useState<Cliente | null | undefined>(undefined);
   const [fornecedorEditando, setFornecedorEditando] = useState<Fornecedor | null | undefined>(undefined);
+  const [funcionarioEditando, setFuncionarioEditando] = useState<Funcionario | null | undefined>(undefined);
 
   const podeEditarClientes = permissoes.podeEditarClientes(papelAtual);
   const podeEditarFornecedores = permissoes.podeEditarFornecedores(papelAtual);
@@ -98,6 +103,14 @@ export function CadastrosView({
             className="shrink-0 rounded-full bg-gradient-to-br from-rose to-rose-deep px-4 py-2 text-sm font-semibold text-white"
           >
             + Novo fornecedor
+          </button>
+        )}
+        {aba === "funcionarios" && papelAtual === "admin" && (
+          <button
+            onClick={() => setFuncionarioEditando(null)}
+            className="shrink-0 rounded-full bg-gradient-to-br from-rose to-rose-deep px-4 py-2 text-sm font-semibold text-white"
+          >
+            + Novo funcionário
           </button>
         )}
       </div>
@@ -190,25 +203,27 @@ export function CadastrosView({
             <thead>
               <tr className="text-left text-xs font-bold uppercase tracking-wide text-text-soft">
                 <th className="px-5 py-2">Nome</th>
+                <th className="px-5 py-2">E-mail</th>
                 <th className="px-5 py-2">Papel</th>
                 <th className="px-5 py-2">Status</th>
+                {papelAtual === "admin" && <th className="px-5 py-2" />}
               </tr>
             </thead>
             <tbody>
               {funcionariosFiltrados.map((f) => (
-                <tr key={f.id} className="border-t border-line">
-                  <td className="px-5 py-2.5">{f.nome}</td>
-                  <td className="px-5 py-2.5">{PAPEL_LABEL[f.papel] ?? f.papel}</td>
-                  <td className="px-5 py-2.5">
-                    <StatusPill ativo={f.ativo} />
-                  </td>
-                </tr>
+                <LinhaFuncionario
+                  key={f.id}
+                  funcionario={f}
+                  podeGerenciar={papelAtual === "admin"}
+                  ehVoceMesmo={f.id === meuId}
+                  onEditar={() => setFuncionarioEditando(f)}
+                />
               ))}
-              {funcionariosFiltrados.length === 0 && <LinhaVazia colSpan={3} texto="Nenhum funcionário." />}
+              {funcionariosFiltrados.length === 0 && <LinhaVazia colSpan={5} texto="Nenhum funcionário." />}
             </tbody>
           </table>
           <p className="px-5 py-3 text-xs text-text-soft">
-            Criação e papéis de funcionários são gerenciados pelo admin direto no Supabase Dashboard.
+            Criar outro administrador ainda exige o Supabase Dashboard, por segurança.
           </p>
         </div>
       )}
@@ -229,7 +244,78 @@ export function CadastrosView({
           fornecedor={fornecedorEditando}
         />
       )}
+      {funcionarioEditando !== undefined && (
+        <FuncionarioForm
+          key={funcionarioEditando?.id ?? "novo-funcionario"}
+          aberto
+          onFechar={() => setFuncionarioEditando(undefined)}
+          funcionario={funcionarioEditando}
+        />
+      )}
     </div>
+  );
+}
+
+function LinhaFuncionario({
+  funcionario: f,
+  podeGerenciar,
+  ehVoceMesmo,
+  onEditar,
+}: {
+  funcionario: Funcionario;
+  podeGerenciar: boolean;
+  ehVoceMesmo: boolean;
+  onEditar: () => void;
+}) {
+  const [pending, iniciar] = useTransition();
+  const [erro, setErro] = useState<string | null>(null);
+
+  function alternarAtivo() {
+    setErro(null);
+    iniciar(async () => {
+      const resultado = await alternarAtivoFuncionario(f.id, !f.ativo);
+      if (resultado.erro) setErro(resultado.erro);
+    });
+  }
+
+  function excluir() {
+    if (!confirm(`Excluir ${f.nome}? Essa ação não pode ser desfeita.`)) return;
+    setErro(null);
+    iniciar(async () => {
+      const resultado = await excluirFuncionario(f.id);
+      if (resultado.erro) setErro(resultado.erro);
+    });
+  }
+
+  return (
+    <tr className="border-t border-line">
+      <td className="px-5 py-2.5">{f.nome}</td>
+      <td className="px-5 py-2.5">{f.email ?? "—"}</td>
+      <td className="px-5 py-2.5">{PAPEL_LABEL[f.papel] ?? f.papel}</td>
+      <td className="px-5 py-2.5">
+        <StatusPill ativo={f.ativo} />
+        {erro && <p className="mt-1 text-xs font-medium text-crit">{erro}</p>}
+      </td>
+      {podeGerenciar && (
+        <td className="px-5 py-2.5 text-right">
+          <div className="flex justify-end gap-3 text-xs font-semibold">
+            <button onClick={onEditar} className="text-rose-deep hover:underline">
+              Editar
+            </button>
+            {!ehVoceMesmo && (
+              <>
+                <button disabled={pending} onClick={alternarAtivo} className="text-text-soft hover:underline disabled:opacity-60">
+                  {f.ativo ? "Desativar" : "Ativar"}
+                </button>
+                <button disabled={pending} onClick={excluir} className="text-crit hover:underline disabled:opacity-60">
+                  Excluir
+                </button>
+              </>
+            )}
+          </div>
+        </td>
+      )}
+    </tr>
   );
 }
 
