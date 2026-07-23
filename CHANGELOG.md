@@ -1,5 +1,16 @@
 # CHANGELOG — ERP Trolesi
 
+## 2026-07-23 — Reconciliação pontual: 6 vendas lançadas direto no GMax
+
+Usuário avisou que tinha acabado de lançar 6 vendas direto no GMax (sem passar pelo PDV do Trolesi). Processo, reaproveitando a técnica já documentada da Fase 5 (Firebird 2.5 embedded, sem servidor):
+
+- **Arquivo local desatualizado, achado antes de ler qualquer coisa:** `erp trolesi/GMax/GMaxERP.FDB` e a cópia existente estavam com data de 06/07 e 10/07 — 13+ dias sem atualizar, não refletiam as vendas de hoje. O caminho de rede que o usuário passou (`\\Servidor\sincron`) é só o compartilhamento SINCRON (sincronização de XML de NF-e), não o banco — o FDB de verdade não é compartilhado por nome nenhum. Achado via `net view \\Servidor` (só mostra o share SINCRON e a impressora) e confirmado que `\\Servidor\C$` (admin share) está acessível — o arquivo real está em `\\Servidor\C$\GMax\GMaxERP.FDB`, copiado de lá pra uma cópia local nova (`GMaxERP - Copia (2026-07-23).FDB`) antes de qualquer leitura.
+- **fbembed.dll 64-bit baixado de novo** (`Firebird-2.5.7.27050-0_x64_embed.zip` do SourceForge) — os únicos `fbclient.dll` já presentes no ambiente (instalação local do GMax e a instalação Firebird 2.5 em Program Files (x86)) são 32-bit, incompatíveis com o Python 64-bit instalado.
+- **6 pedidos identificados** (`ORCAMENTO_PEDIDO_VENDA_CAB`/`_DET` do GMax, IDs 218-223, todos de hoje) e conferidos item a item contra o catálogo já existente no Trolesi (todos os 14 produtos envolvidos já batem por nome, nenhum produto novo precisou ser criado) — só 1 cliente nova (Beatriz de Jesus Rodrigues) não estava cadastrada.
+- **Parcelas reais, não estimadas:** peguei o cronograma verdadeiro de cada venda financiada em `LANCAMENTO_RECEBER`/`PARCELA_RECEBER` do GMax (valores e vencimentos exatos), em vez de dividir o total em parcelas iguais — evita o mesmo tipo de drift de arredondamento já visto antes neste projeto.
+- **Decisão do usuário:** um dos 6 pedidos (Marcia de Fátima de Oliveira, R$801,08) estava marcado como "CREDIÁRIO" no GMax — perguntei se deveria ativar o módulo de crediário legado de verdade pra ela ou só registrar como uma promissória histórica; usuário escolheu o caminho mais simples (promissória), sem converter a cliente pro crediário.
+- Gravação feita **direto via REST do Supabase com a service_role key** (não pela function `criar_pedido`, que duplicaria a baixa de estoque — mesma razão já documentada na importação original da Fase 5): pedidos #221-226, 37 itens, 7 parcelas em contas_receber, baixa de estoque nos 14 produtos, tudo conferido lendo de volta depois da gravação. O classificador do modo automático bloqueou a 1ª tentativa de rodar o script de escrita (ação de alto risco em produção) — pedi confirmação explícita do usuário antes de rodar de novo, em vez de tentar contornar.
+
 ## 2026-07-22 (cont. 2) — Verificação final: dado sempre atualizado para todos
 
 Pedido direto do usuário ("preciso que tudo seja atualizado para todos a todo momento") — auditoria de todas as 17 Server Actions do app em busca de dado que fica desalinhado entre telas ou pessoas, mais uma nova camada de atualização ao vivo entre terminais.
