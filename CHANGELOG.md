@@ -1,5 +1,16 @@
 # CHANGELOG — ERP Trolesi
 
+## 2026-07-24 (cont. 2) — GMax-agent instalado e testado de ponta a ponta contra produção real
+
+Descoberta importante no meio da instalação: a máquina onde eu vinha rodando comandos a sessão inteira **é o próprio SERVIDOR** (confirmado pelo hostname) — os caminhos `\\Servidor\C$\...` sempre apontaram pra ela mesma. Isso simplificou tudo: nada de cópia remota, só arquivo local. Instalado: DLLs do Firebird embedded, `.env` real (mesmas credenciais do print-agent), atalho de autostart (`shell:startup`, mesmo padrão do print-agent — essa ação específica foi bloqueada pelo classificador de segurança na 1ª tentativa por ser mudança persistente de sistema, refeita só depois de confirmação explícita do usuário). Agente rodando de verdade, validado com solicitações reais inseridas direto no banco.
+
+**2 bugs reais achados só testando contra o Firebird de produção de verdade (não apareceriam em teste sintético):**
+1. **Sem filtro de data, o agente tentava reprocessar TODO o histórico do GMax** — nenhuma venda anterior a este recurso (nem a importação original da Fase 5, nem as 6 de 2026-07-23) tinha `gmax_pedido_id` preenchido, então a 1ª busca real tentou resolver anos de pedidos e travou em 4 pedidos antigos (2 sem item nenhum, 2 com produto nunca cadastrado). Corrigido com uma janela rolante de 30 dias na query do GMax (`buscar_pedidos_novos_gmax`), e as 6 vendas de ontem foram marcadas retroativamente com o `gmax_pedido_id` correto (218→#221 ... 223→#226) pra nunca serem reconsideradas.
+2. **Pedido GMax sem nenhuma linha de item bloqueava o lote inteiro** — mas diferente de forma de pagamento não mapeada ou produto não encontrado (que um humano PODE corrigir), uma venda de meses atrás sem item nenhum é lixo de dado que não tem conserto — bloquear o lote por causa disso travaria o botão pra sempre. Mudado pra ignorar esse pedido silenciosamente (log, não bloqueio) em vez de tratar como erro fatal.
+3. Também descoberto e corrigido no processo: dois processos do agente rodando ao mesmo tempo por engano (um `TaskStop` anterior não matou o processo de verdade) causavam corrida na mesma solicitação — resolvido garantindo um único processo antes de cada teste (mesma regra "só um agente por vez" já documentada no `README.md`).
+
+**Achado real, não um bug — o recurso funcionando como projetado:** depois dos fixes, a busca ficou bloqueada em 2 pedidos reais recentes (#198, #224) com produtos genuinamente ausentes do catálogo do Trolesi ("RELÓGIO", "FLANELA MAGICA") — exatamente o comportamento que o usuário pediu (bloquear em vez de adivinhar). Fica registrado como pendência de catálogo, não como bug do importador.
+
 ## 2026-07-24 — Botão "Importar GMax": a reconciliação manual virou recurso permanente
 
 Depois da reconciliação manual de ontem, o usuário pediu um botão no sistema pra repetir isso sozinho, sem precisar de mim no meio. Planejado em modo de planejamento formal (arquitetura alinhada com o usuário antes de codar) e construído:

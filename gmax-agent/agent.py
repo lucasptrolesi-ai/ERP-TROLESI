@@ -26,7 +26,13 @@ import traceback
 import urllib.error
 import urllib.parse
 import urllib.request
-from datetime import datetime
+from datetime import date, datetime, timedelta
+
+# Janela rolante de dias considerada "recente" pra efeito de importação — ver
+# comentário em buscar_pedidos_novos_gmax. 30 dias cobre com folga o caso de
+# uso real ("esqueci de lançar no Trolesi por um tempo"), sem reabrir meses
+# de atividade antiga do GMax a cada busca.
+JANELA_DIAS = 30
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from mapeamento_pagamento import MAPA_FORMA_PAGAMENTO, STATUS_IMPORTAVEIS  # noqa: E402
@@ -126,13 +132,25 @@ def buscar_pedidos_novos_gmax(con, ids_ja_importados):
     # (achado testando contra dados reais: um join por id causava erro de
     # conversão, já que a coluna é sempre texto).
     cur = con.cursor()
+    # Só considera vendas recentes (janela rolante) — achado real testando
+    # em produção: sem esse corte, o agente tenta reprocessar TODO o
+    # histórico do GMax (anos de pedidos) toda vez que o botão é clicado,
+    # porque vendas já importadas antes de este recurso existir (a
+    # importação original da Fase 5, via CSV, e a reconciliação manual de
+    # 2026-07-23) nunca tiveram `gmax_pedido_id` preenchido. Isso travava o
+    # lote inteiro em pedidos antigos com dado incompleto (sem item) ou
+    # produto nunca cadastrado (ex: "RELÓGIO", vendido só uma vez em 2020) —
+    # o botão ficaria bloqueado pra sempre. Uma janela de 90 dias cobre com
+    # folga qualquer "esqueci de lançar" sem reabrir histórico irrelevante.
     cur.execute(
         """
         select c.id, c.nome, c.cpf_cnpj, c.id_condicoes_pagamento, c.id_vendedor
         from ORCAMENTO_PEDIDO_VENDA_CAB c
         where c.status_pedido in ({})
+          and c.data_cadastro >= ?
         order by c.id
-        """.format(",".join(f"'{s}'" for s in STATUS_IMPORTAVEIS))
+        """.format(",".join(f"'{s}'" for s in STATUS_IMPORTAVEIS)),
+        (date.today() - timedelta(days=JANELA_DIAS),),
     )
     pedidos = []
     for row in cur.fetchall():
@@ -259,17 +277,17 @@ def processar_solicitacao(solicitacao_id):
 
                 itens_gmax = buscar_itens_gmax(con, gmax_id)
                 if not itens_gmax:
-                    # Achado da revisão: sem essa checagem, um pedido GMax
-                    # sem nenhuma linha de detalhe (dado incompleto/erro de
-                    # digitação no GMax) entraria como um pedido "válido"
-                    # de R$0 e sem item nenhum — bloqueia em vez de
-                    # importar uma venda vazia.
-                    bloqueios.append(
-                        {
-                            "gmax_pedido_id": gmax_id,
-                            "motivo": "Pedido sem nenhum item — dado incompleto no GMax.",
-                        }
-                    )
+                    # Achado testando contra dados reais (2026-07-24): dois
+                    # pedidos antigos de meses atrás (#6, #79) são lixo de
+                    # dado do GMax (nunca tiveram item nenhum) — não é algo
+                    # que um humano "resolve" (não dá pra adicionar item
+                    # numa venda de maio retroativamente). Bloquear o lote
+                    # inteiro por causa disso travaria o botão pra sempre.
+                    # Diferente de forma de pagamento não mapeada ou produto
+                    # não encontrado (que SÃO fixáveis — cadastrar o produto,
+                    # decidir o mapeamento), isso aqui é só ignorado: não
+                    # tem venda real nenhuma pra importar dali.
+                    print(f"Pedido GMax #{gmax_id} sem nenhum item — ignorado (não é uma venda real).")
                     continue
 
                 itens_resolvidos = []

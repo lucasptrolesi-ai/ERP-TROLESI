@@ -29,9 +29,11 @@ espalhar lógica de negócio pro script que roda sem supervisão numa loja.
    (`INTERVALO_POLLING_MS`).
 3. Ao achar uma pendente: copia `GMaxERP.FDB` pra um arquivo temporário
    (**nunca lê o arquivo ao vivo** — mesma regra do resto do projeto),
-   lê os pedidos com status "recebido"/"faturado" que ainda não foram
-   importados, resolve cliente/produto/forma de pagamento/parcelas contra o
-   Trolesi, e apaga a cópia temporária.
+   lê os pedidos com status "recebido"/"faturado" dos últimos `JANELA_DIAS`
+   (30 por padrão) que ainda não foram importados, resolve cliente/produto/
+   forma de pagamento/parcelas contra o Trolesi, e apaga a cópia temporária.
+   Pedido sem nenhum item (dado incompleto no GMax) é ignorado silenciosamente
+   — não é um caso que um humano corrija, então não bloqueia o lote.
 4. Se tudo resolver: marca a solicitação como `pronto_para_revisao` com o
    relatório — a tela mostra uma prévia (cliente, forma de pagamento,
    total, itens) e um botão "Confirmar e importar".
@@ -74,9 +76,10 @@ espalhar lógica de negócio pro script que roda sem supervisão numa loja.
   em branco se não bater com nenhum perfil do Trolesi — não bloqueia a
   importação (afeta só atribuição de comissão, não o valor da venda).
 - **Só considera pedidos GMax com status "recebido"/"faturado"**
-  (`STATUS_PEDIDO.SIGLA` em R/RE/RF/PRP) — orçamentos e pedidos ainda em
-  andamento no GMax ficam de fora até virarem venda de verdade, e são
-  reconsiderados sozinhos numa busca futura.
+  (`STATUS_PEDIDO.SIGLA` em R/RE/RF/PRP) **dos últimos 30 dias**
+  (`JANELA_DIAS` em `agent.py`) — orçamentos/pedidos em andamento ficam de
+  fora até virarem venda de verdade, e vendas de mais de 30 dias atrás não
+  são reconsideradas (evita reabrir histórico antigo do GMax a cada busca).
 - **Um pedido só entra uma vez** (`pedidos.gmax_pedido_id` é único) — rodar
   a busca de novo nunca duplica uma venda já importada.
 - Só um agente deve rodar por vez, mesma regra do print-agent.

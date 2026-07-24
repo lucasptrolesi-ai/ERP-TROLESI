@@ -2,15 +2,11 @@
 
 _Atualizado em 2026-07-24._
 
-## 2026-07-24 — Botão "Importar GMax" (novo módulo, pendente de instalação física)
+## 2026-07-24 — Botão "Importar GMax" — construído, instalado e testado ponta a ponta ✅
 
-Nova tela `/gmax` (admin) + agente local `gmax-agent/` (Python, roda em SERVIDOR) + migration `20260724000001_importacao_gmax.sql`. Repete sob demanda a reconciliação manual feita em 2026-07-23. Detalhes completos em `CHANGELOG.md`/`DECISIONS.md` de hoje.
+Nova tela `/gmax` (admin) + agente local `gmax-agent/` (Python) + migration `20260724000001_importacao_gmax.sql`. Repete sob demanda a reconciliação manual feita em 2026-07-23. **Migration aplicada, agente instalado e rodando em produção (SERVIDOR — descoberta: é a mesma máquina onde os comandos desta sessão sempre rodaram), autostart configurado, testado com solicitações reais.** Detalhes completos e os 2 bugs reais achados testando contra produção em `CHANGELOG.md`/`DECISIONS.md` de hoje.
 
-**Pendente de você (dois passos, nenhum dos dois eu consigo terminar sozinho):**
-1. Aplicar a migration `20260724000001_importacao_gmax.sql` no banco real (SQL Editor do Supabase, mesmo processo de sempre).
-2. Instalar o `gmax-agent/` em SERVIDOR (Python 3 + `gmax-agent/setup.ps1` + preencher `.env` + configurar autostart) — passo a passo completo em `gmax-agent/README.md`.
-
-Sem os dois passos acima, o botão na tela `/gmax` fica sem efeito (a solicitação fica presa em "pendente" esperando um agente que não está rodando).
+**Única pendência real:** dois produtos vendidos recentemente no GMax nunca foram cadastrados no Trolesi ("RELÓGIO", pedido GMax #198; "FLANELA MAGICA", pedido GMax #224) — bloqueiam a importação desses 2 pedidos específicos até serem cadastrados em `/estoque`. Não é bug, é o comportamento correto (bloquear em vez de adivinhar).
 
 ## ⚠️ Pivô de escopo — leia isto primeiro
 
@@ -288,6 +284,6 @@ O site está publicado (`https://erp-trolesi.vercel.app`) e o usuário está tes
 
 **Imediato:**
 1. Aplicar a migration `20260722000006` (Realtime) no banco real, se ainda não foi feito — `20260722000005` já foi aplicada e verificada (confirmado via introspecção do schema PostgREST em 2026-07-23).
-2. Aplicar a migration `20260724000001` (botão Importar GMax) e instalar `gmax-agent/` em SERVIDOR — ver seção de hoje acima.
+2. Cadastrar "RELÓGIO" e "FLANELA MAGICA" em `/estoque` pra destravar a importação dos pedidos GMax #198 e #224 (ver seção de hoje acima) — só isso falta pro botão Importar GMax importar tudo sem bloqueio.
 
 Fase 5 está com o núcleo funcional completo (relatórios, comissão automática, permissões granulares com UI, frete grátis automático, pagamento misto, cotação diária). O que resta é decisão do usuário, não construção: prints do toqMax, reset de senha do banco, fotos dos produtos, e escolha de provedor de NF-e — nenhum bloqueia o uso real do PDV hoje.
