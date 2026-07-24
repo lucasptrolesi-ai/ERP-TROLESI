@@ -2,11 +2,13 @@
 
 _Atualizado em 2026-07-24._
 
-## 2026-07-24 — Botão "Importar GMax" — construído, instalado e testado ponta a ponta ✅
+## 2026-07-24 — Botão "Importar GMax" — em produção, já usado pra uma importação real ✅
 
-Nova tela `/gmax` (admin) + agente local `gmax-agent/` (Python) + migration `20260724000001_importacao_gmax.sql`. Repete sob demanda a reconciliação manual feita em 2026-07-23. **Migration aplicada, agente instalado e rodando em produção (SERVIDOR — descoberta: é a mesma máquina onde os comandos desta sessão sempre rodaram), autostart configurado, testado com solicitações reais.** Detalhes completos e os 2 bugs reais achados testando contra produção em `CHANGELOG.md`/`DECISIONS.md` de hoje.
+Nova tela `/gmax` (admin) + agente local `gmax-agent/` (Python, rodando em SERVIDOR, autostart configurado) + migration `20260724000001_importacao_gmax.sql` (aplicada). Repete sob demanda a reconciliação manual feita em 2026-07-23. Escopo final (revisto no meio do dia, ver `DECISIONS.md`): **nada bloqueia** — cliente novo, produto novo (categoria inferida por palavra-chave) e forma de pagamento não mapeada (fallback "dinheiro") são todos resolvidos automaticamente; só a prévia antes de confirmar continua manual.
 
-**Única pendência real:** dois produtos vendidos recentemente no GMax nunca foram cadastrados no Trolesi ("RELÓGIO", pedido GMax #198; "FLANELA MAGICA", pedido GMax #224) — bloqueiam a importação desses 2 pedidos específicos até serem cadastrados em `/estoque`. Não é bug, é o comportamento correto (bloquear em vez de adivinhar).
+**Backfill em massa feito:** ~213 pedidos históricos (Fase 5 + reconciliação de 2026-07-22) foram vinculados ao seu `gmax_pedido_id` real (199 casados automaticamente com segurança, 14 ficaram sem tocar — ver `CHANGELOG.md`) — sem isso, a 1ª busca real teria tentado reimportar dezenas de pedidos já existentes.
+
+**Primeira importação real de produção já feita:** 9 pedidos genuinamente novos (GMax #199, #224-231) revisados e confirmados pelo usuário através da própria tela `/gmax`, com 2 produtos novos criados (DEO CREME, DESOXIDANTE — confirmados como itens reais pelo usuário). Recurso considerado completo e em uso.
 
 ## ⚠️ Pivô de escopo — leia isto primeiro
 
@@ -284,6 +286,6 @@ O site está publicado (`https://erp-trolesi.vercel.app`) e o usuário está tes
 
 **Imediato:**
 1. Aplicar a migration `20260722000006` (Realtime) no banco real, se ainda não foi feito — `20260722000005` já foi aplicada e verificada (confirmado via introspecção do schema PostgREST em 2026-07-23).
-2. Cadastrar "RELÓGIO" e "FLANELA MAGICA" em `/estoque` pra destravar a importação dos pedidos GMax #198 e #224 (ver seção de hoje acima) — só isso falta pro botão Importar GMax importar tudo sem bloqueio.
+2. Revisar os produtos criados automaticamente pelo botão Importar GMax (ex: DEO CREME, DESOXIDANTE AURHORA) em `/estoque` — categoria/preço padrão podem precisar de ajuste manual, já confirmados como itens reais pelo usuário.
 
 Fase 5 está com o núcleo funcional completo (relatórios, comissão automática, permissões granulares com UI, frete grátis automático, pagamento misto, cotação diária). O que resta é decisão do usuário, não construção: prints do toqMax, reset de senha do banco, fotos dos produtos, e escolha de provedor de NF-e — nenhum bloqueia o uso real do PDV hoje.

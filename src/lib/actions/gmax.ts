@@ -13,17 +13,17 @@ export type PedidoResolvidoGmax = {
   parcelas: { valor: number; vencimento: string }[];
 };
 
-// O agente grava um dos dois formatos aqui, conforme o status: lista de
-// pedidos resolvidos (pronto_para_revisao) ou lista de bloqueios
-// (bloqueado) — nunca os dois ao mesmo tempo.
+// Cliente novo, produto novo e forma de pagamento não mapeada são todos
+// resolvidos automaticamente pelo agente (decisão do usuário, 2026-07-24) —
+// nada bloqueia o lote mais, então o relatório sempre tem só a lista de
+// pedidos resolvidos.
 export type RelatorioImportacaoGmax = {
-  pedidos?: PedidoResolvidoGmax[];
-  bloqueios?: { gmax_pedido_id: number; motivo: string }[];
+  pedidos: PedidoResolvidoGmax[];
 };
 
 export type SolicitacaoImportacaoGmax = {
   id: string;
-  status: "pendente" | "pronto_para_revisao" | "bloqueado" | "concluido" | "erro";
+  status: "pendente" | "pronto_para_revisao" | "concluido" | "erro";
   relatorio: RelatorioImportacaoGmax | null;
   erro: string | null;
 };

@@ -14,12 +14,20 @@ vez de imprimir, este agente lê o Firebird do GMax e escreve um relatório
 resolvido de volta pro Supabase.
 
 **Este agente nunca grava pedido, cliente ou baixa de estoque direto** — só
-lê o GMax e o Trolesi, resolve o que der (cliente por CPF/CNPJ, produto por
-nome, forma de pagamento por uma tabela fixa), e relata. Quem grava de
-verdade é o próprio Next.js (função SQL `importar_pedidos_gmax`), só depois
-que um admin revisa a prévia na tela e confirma. Mantém toda escrita
-financeira dentro do app principal (auditável, versionado), em vez de
-espalhar lógica de negócio pro script que roda sem supervisão numa loja.
+lê o GMax e o Trolesi, resolve o que der (cliente por CPF/CNPJ — cria novo se
+não achar; produto por nome sem acento — cria novo com categoria inferida
+por palavra-chave se não achar; forma de pagamento por uma tabela fixa, com
+"dinheiro" como fallback se a condição do GMax nunca foi vista), e relata.
+Quem grava de verdade é o próprio Next.js (função SQL
+`importar_pedidos_gmax`), só depois que um admin revisa a prévia na tela e
+confirma. Mantém toda escrita financeira dentro do app principal (auditável,
+versionado), em vez de espalhar lógica de negócio pro script que roda sem
+supervisão numa loja.
+
+**Nada bloqueia o lote** (decisão do usuário, 2026-07-24, revendo a escolha
+original) — cliente novo, produto novo e forma de pagamento não mapeada são
+todos resolvidos automaticamente. Só um erro genuinamente inesperado (rede,
+banco fora do ar) usa o status `erro` em vez de `pronto_para_revisao`.
 
 ## Como funciona
 
@@ -34,14 +42,11 @@ espalhar lógica de negócio pro script que roda sem supervisão numa loja.
    forma de pagamento/parcelas contra o Trolesi, e apaga a cópia temporária.
    Pedido sem nenhum item (dado incompleto no GMax) é ignorado silenciosamente
    — não é um caso que um humano corrija, então não bloqueia o lote.
-4. Se tudo resolver: marca a solicitação como `pronto_para_revisao` com o
-   relatório — a tela mostra uma prévia (cliente, forma de pagamento,
-   total, itens) e um botão "Confirmar e importar".
-5. Se alguma venda tiver algo que o agente não sabe resolver (forma de
-   pagamento não mapeada, produto que não bate por nome no catálogo): marca
-   como `bloqueado` com a lista exata do que falta resolver — **nenhuma
-   venda do lote é importada** até isso ser corrigido (cadastrar o produto
-   faltante, por exemplo) e a busca ser refeita.
+4. Marca a solicitação como `pronto_para_revisao` com o relatório — a tela
+   mostra uma prévia (cliente, forma de pagamento, total, itens) e um botão
+   "Confirmar e importar". Cliente/produto novo e forma de pagamento não
+   mapeada são resolvidos automaticamente durante essa etapa (ver acima) —
+   a prévia é só pra conferir, não pra desbloquear nada.
 
 ## Instalação
 
@@ -68,10 +73,15 @@ espalhar lógica de negócio pro script que roda sem supervisão numa loja.
 - **Depende de Python 3 instalado na máquina** — único requisito externo
   além do que o print-agent já precisa (a leitura Firebird embedded só tem
   driver maduro em Python neste projeto, ver `migracao-dados/`).
-- **Forma de pagamento e produto resolvidos por uma regra fixa/nome exato**
-  — uma condição de pagamento nova no GMax, ou um produto cadastrado com
-  nome ligeiramente diferente, bloqueia o lote inteiro até um humano
-  ajustar (ver `mapeamento_pagamento.py` pra estender o mapeamento).
+- **Produto novo é criado com preço padrão** (`codigo_peca=0`,
+  `multiplicador=2.8`, categoria inferida por palavra-chave em
+  `CATEGORIA_PALAVRAS`) — revisar depois em `/estoque` se o produto precisar
+  de uma categoria/preço diferente do padrão de peça de joia (ex: um
+  cosmético ou item de limpeza, cujo preço real é sempre digitado na hora da
+  venda, não vem do catálogo).
+- **Forma de pagamento nunca mapeada cai em "dinheiro"** (ver
+  `mapeamento_pagamento.py` pra estender o mapeamento se uma condição nova
+  aparecer com frequência).
 - **Vendedor é resolvido por aproximação de nome** (`ilike`) e pode ficar
   em branco se não bater com nenhum perfil do Trolesi — não bloqueia a
   importação (afeta só atribuição de comissão, não o valor da venda).

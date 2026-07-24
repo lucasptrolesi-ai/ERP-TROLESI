@@ -23,6 +23,7 @@ import shutil
 import sys
 import time
 import traceback
+import unicodedata
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -87,6 +88,10 @@ def requisicao_supabase(caminho, metodo="GET", corpo_objeto=None):
     }
     if metodo == "PATCH":
         cabecalhos["Prefer"] = "return=minimal"
+    elif metodo == "POST":
+        # PostgREST não devolve a linha criada por padrão — precisamos do
+        # id de volta (ex: produto novo criado por criar_produto).
+        cabecalhos["Prefer"] = "return=representation"
     req = urllib.request.Request(url, data=corpo, headers=cabecalhos, method=metodo)
     try:
         with urllib.request.urlopen(req) as resp:
@@ -222,18 +227,77 @@ def resolver_cliente(cpf_cnpj):
     return resultado[0]["id"] if resultado else None
 
 
-def resolver_produto(nome):
-    # Só produtos ativos contam como "encontrado" de propósito — uma venda
-    # histórica de um produto já desativado/descontinuado no Trolesi
-    # bloqueia o lote igual a um produto genuinamente não cadastrado, em
-    # vez de reativar silenciosamente algo que foi descontinuado por um
-    # motivo. Se isso for comum na prática, decidir caso a caso (reativar
-    # manualmente antes de importar) em vez de mudar esse comportamento
-    # padrão.
+def normalizar(texto):
+    """Maiúsculo, sem acento — pra comparar nome de produto sem falso
+    negativo por causa de acentuação. Achado real (2026-07-24): "RELÓGIO"
+    do GMax não batia com "RELOGIO" já cadastrado no Trolesi por causa só
+    do acento, e quase virou um produto duplicado criado à toa."""
+    sem_acento = unicodedata.normalize("NFKD", texto).encode("ascii", "ignore").decode("ascii")
+    return sem_acento.strip().upper()
+
+
+# Categoria inferida por palavra-chave no nome — mesmo padrão "best-effort,
+# revisável depois pela tela de Estoque" já usado na importação histórica
+# da Fase 5 (migracao-dados/importar_dados_reais.py), reaproveitado aqui
+# pra produto novo criado automaticamente. Ordem importa: primeira palavra
+# que bater vence.
+CATEGORIA_PALAVRAS = [
+    ("ALIANCA", "Alianças"),
+    ("ANEL", "Anéis"),
+    ("BRINCO", "Brincos"),
+    ("CORRENTE", "Correntes"),
+    ("PULSEIRA", "Pulseiras"),
+    ("PINGENTE", "Pingentes"),
+    ("TORNOZELEIRA", "Tornozeleiras"),
+    ("RELOGIO", "Relógios"),
+]
+
+
+def inferir_categoria(nome):
+    nome_normalizado = normalizar(nome)
+    for palavra, categoria in CATEGORIA_PALAVRAS:
+        if palavra in nome_normalizado:
+            return categoria
+    return "Diversos"
+
+
+def buscar_produtos_ativos():
+    """Busca o catálogo ativo inteiro uma vez por solicitação (não por
+    item) — o catálogo real tem ~50 produtos, uma única chamada é mais
+    barata e mais correta que uma busca exata por nome por item (que não
+    pega variação de acento)."""
+    resultado = requisicao_supabase("/produtos?ativo=eq.true&select=id,nome") or []
+    return {normalizar(p["nome"]): p["id"] for p in resultado}
+
+
+def criar_produto(nome):
+    categoria = inferir_categoria(nome)
     resultado = requisicao_supabase(
-        f"/produtos?nome=eq.{urllib.parse.quote(nome)}&ativo=eq.true&select=id"
+        "/produtos",
+        "POST",
+        {
+            "nome": nome,
+            "categoria": categoria,
+            "codigo_peca": 0,
+            "multiplicador": 2.8,
+            "ativo": True,
+        },
     )
-    return resultado[0]["id"] if resultado else None
+    print(f'Produto novo criado: "{nome}" (categoria "{categoria}").')
+    return resultado[0]["id"]
+
+
+def resolver_ou_criar_produto(nome, cache_produtos):
+    """cache_produtos é o dict {nome_normalizado: id} de buscar_produtos_ativos(),
+    atualizado in-place — garante que dois itens com o mesmo nome novo no
+    mesmo lote (ex: duas vendas do mesmo produto novo) não criam duas linhas
+    duplicadas em produtos."""
+    chave = normalizar(nome)
+    if chave in cache_produtos:
+        return cache_produtos[chave]
+    produto_id = criar_produto(nome)
+    cache_produtos[chave] = produto_id
+    return produto_id
 
 
 def resolver_vendedor(nome_gmax):
@@ -256,53 +320,43 @@ def processar_solicitacao(solicitacao_id):
             ids_ja_importados = {r["gmax_pedido_id"] for r in (ja_importados_raw or [])}
 
             pedidos_gmax = buscar_pedidos_novos_gmax(con, ids_ja_importados)
+            cache_produtos = buscar_produtos_ativos()
 
-            bloqueios = []
+            # Nada aqui bloqueia o lote mais (decisão do usuário, 2026-07-24,
+            # revendo a escolha original de bloquear produto/forma de
+            # pagamento não resolvidos): cliente novo, produto novo e forma
+            # de pagamento nunca mapeada são todos resolvidos automaticamente
+            # — só um erro genuinamente inesperado (falha de rede, banco
+            # fora do ar) usa o status "erro" em vez de "pronto_para_revisao".
             pedidos_resolvidos = []
 
             for pedido in pedidos_gmax:
                 gmax_id = pedido["gmax_id"]
                 forma_pagamento = MAPA_FORMA_PAGAMENTO.get(pedido["id_condicoes_pagamento"])
                 if forma_pagamento is None:
-                    bloqueios.append(
-                        {
-                            "gmax_pedido_id": gmax_id,
-                            "motivo": (
-                                f"Forma de pagamento (condição #{pedido['id_condicoes_pagamento']}) "
-                                "não mapeada."
-                            ),
-                        }
+                    # Só 3 condições do GMax nunca usadas na prática caem
+                    # aqui (LIVRE/DEVOLUCAO/CREDITO DA CASA, 0 ocorrências no
+                    # histórico real) — "dinheiro" como fallback neutro em
+                    # vez de travar a importação por causa de uma condição
+                    # que talvez nunca apareça de verdade numa venda.
+                    print(
+                        f"Pedido GMax #{gmax_id}: condição de pagamento "
+                        f"#{pedido['id_condicoes_pagamento']} não mapeada — usando \"dinheiro\"."
                     )
-                    continue
+                    forma_pagamento = "dinheiro"
 
                 itens_gmax = buscar_itens_gmax(con, gmax_id)
                 if not itens_gmax:
-                    # Achado testando contra dados reais (2026-07-24): dois
-                    # pedidos antigos de meses atrás (#6, #79) são lixo de
-                    # dado do GMax (nunca tiveram item nenhum) — não é algo
-                    # que um humano "resolve" (não dá pra adicionar item
-                    # numa venda de maio retroativamente). Bloquear o lote
-                    # inteiro por causa disso travaria o botão pra sempre.
-                    # Diferente de forma de pagamento não mapeada ou produto
-                    # não encontrado (que SÃO fixáveis — cadastrar o produto,
-                    # decidir o mapeamento), isso aqui é só ignorado: não
-                    # tem venda real nenhuma pra importar dali.
+                    # Pedido sem nenhuma linha de detalhe é dado corrompido
+                    # do GMax (não uma venda real) — não tem "correção"
+                    # possível, então só ignora em vez de tratar como algo
+                    # pra resolver.
                     print(f"Pedido GMax #{gmax_id} sem nenhum item — ignorado (não é uma venda real).")
                     continue
 
                 itens_resolvidos = []
-                produto_nao_encontrado = False
                 for item in itens_gmax:
-                    produto_id = resolver_produto(item["nome"])
-                    if produto_id is None:
-                        bloqueios.append(
-                            {
-                                "gmax_pedido_id": gmax_id,
-                                "motivo": f"Produto \"{item['nome']}\" não encontrado no catálogo.",
-                            }
-                        )
-                        produto_nao_encontrado = True
-                        continue
+                    produto_id = resolver_ou_criar_produto(item["nome"], cache_produtos)
                     # quantidade sempre 1 na prática (cada peça é única, o
                     # preço é que varia por linha) — mesmo padrão observado
                     # na reconciliação manual de 2026-07-23.
@@ -315,8 +369,6 @@ def processar_solicitacao(solicitacao_id):
                             "preco_unitario": round(preco_unitario, 2),
                         }
                     )
-                if produto_nao_encontrado:
-                    continue
 
                 cliente_id = resolver_cliente(pedido["cpf_cnpj"])
                 nome_vendedor_gmax = buscar_nome_vendedor_gmax(con, pedido["id_vendedor"])
@@ -344,12 +396,9 @@ def processar_solicitacao(solicitacao_id):
                     }
                 )
 
-            if bloqueios:
-                marcar_status(solicitacao_id, "bloqueado", relatorio={"bloqueios": bloqueios})
-            else:
-                marcar_status(
-                    solicitacao_id, "pronto_para_revisao", relatorio={"pedidos": pedidos_resolvidos}
-                )
+            marcar_status(
+                solicitacao_id, "pronto_para_revisao", relatorio={"pedidos": pedidos_resolvidos}
+            )
         finally:
             con.close()
     finally:

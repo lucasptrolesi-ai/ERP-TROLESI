@@ -13,7 +13,6 @@ import { FORMA_LABEL } from "@/lib/forma-pagamento";
 type Fase =
   | { tipo: "inicial" }
   | { tipo: "buscando" }
-  | { tipo: "bloqueado"; motivos: { gmax_pedido_id: number; motivo: string }[] }
   | { tipo: "revisao"; solicitacaoId: string; pedidos: PedidoResolvidoGmax[] }
   | { tipo: "concluido"; importados: number; jaExistentes: number }
   | { tipo: "erro"; mensagem: string };
@@ -60,10 +59,6 @@ export function GmaxView() {
         const status = await buscarStatusImportacaoGmax(solicitacao.id);
         if (!status) continue;
 
-        if (status.status === "bloqueado") {
-          setFase({ tipo: "bloqueado", motivos: status.relatorio?.bloqueios ?? [] });
-          return;
-        }
         if (status.status === "erro") {
           setFase({ tipo: "erro", mensagem: status.erro ?? "O agente relatou um erro ao buscar as vendas." });
           return;
@@ -137,32 +132,6 @@ export function GmaxView() {
           Buscando no GMax… o agente local precisa copiar e ler o arquivo, pode levar alguns
           segundos.
         </p>
-      )}
-
-      {fase.tipo === "bloqueado" && (
-        <div className="flex flex-col gap-3">
-          <p className="text-sm font-semibold text-crit">
-            Encontrei venda(s) com algo que não sei resolver sozinho — nada foi importado ainda.
-          </p>
-          <ul className="flex flex-col gap-1.5 rounded-lg border border-crit bg-crit-bg p-3 text-sm text-crit">
-            {fase.motivos.map((b, i) => (
-              <li key={i}>
-                Pedido GMax #{b.gmax_pedido_id}: {b.motivo}
-              </li>
-            ))}
-          </ul>
-          <p className="text-sm text-text-soft">
-            Resolva o que estiver listado (ex: cadastre o produto faltante, ou ajuste manualmente
-            no GMax) e busque de novo.
-          </p>
-          <button
-            type="button"
-            onClick={buscar}
-            className="self-start rounded-full border border-line px-4 py-2 text-xs font-semibold text-ink"
-          >
-            Buscar de novo
-          </button>
-        </div>
       )}
 
       {fase.tipo === "revisao" && (

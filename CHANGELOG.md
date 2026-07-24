@@ -1,5 +1,25 @@
 # CHANGELOG — ERP Trolesi
 
+## 2026-07-24 (cont. 3) — Importar GMax: escopo revisto (nada bloqueia), backfill em massa, 1ª importação real
+
+Usuário corrigiu o escopo depois de ver o recurso funcionando: "o que eu pedi era pra que importasse tudo, inclusive novos produtos, novos clientes". Revertida a decisão de bloquear o lote em produto/forma de pagamento não resolvidos (ver decisão original em 2026-07-24 cont. 1):
+
+- **Produto não encontrado agora é criado automaticamente** — nome exato do GMax, categoria inferida por palavra-chave (mesmo padrão "best-effort, revisável depois" já usado na importação histórica da Fase 5), `codigo_peca=0`/`multiplicador=2.8` (mesmo default dos outros ~50 produtos do catálogo).
+- **Forma de pagamento nunca mapeada cai em "dinheiro"** em vez de bloquear (só 3 condições do GMax nunca usadas na prática caem aqui).
+- **Bug real achado no processo:** "RELÓGIO" (do GMax) não batia com "RELOGIO" (já cadastrado no Trolesi) só por causa do acento — quase virou produto duplicado. Corrigido comparando nome normalizado (maiúsculo, sem acento, `unicodedata`) contra o catálogo ativo inteiro (buscado uma vez por solicitação, não por item).
+- Removido o estado `bloqueado` (agora código morto) de `solicitacoes_importacao_gmax`'s uso na UI/tipos — `gmax-view.tsx`/`gmax.ts` simplificados, a tela sempre chega em `pronto_para_revisao` ou `erro`.
+
+**Achado sério ao testar a busca de novo, antes de qualquer gravação:** a 1ª busca real (sem filtro nenhum de já-importado confiável) voltou com **83 pedidos** — quase todos já existentes no Trolesi via a importação histórica original da Fase 5 (~172 pedidos) e a reconciliação de 38 pedidos de 2026-07-22, nenhuma das quais preenche `gmax_pedido_id` (mesmo problema de ontem, em escala bem maior — confirmar esse lote teria criado dezenas de pedidos duplicados, baixa de estoque em dobro, contas a receber duplicadas).
+
+**Backfill em massa feito com segurança antes de liberar o recurso pra uso real** (`migracao-dados/patch_backfill_gmax_pedido_id.py`, script de uso único mantido no repositório pra referência):
+- **Escopo dos candidatos restrito a pedidos sem `idempotency_key`** — achado real: só a function `criar_pedido` (usada pelo PDV ao vivo) preenche esse campo; qualquer pedido sem ele é garantidamente de importação antiga, nunca de uma venda real feita no app. Isso eliminou por completo o risco de casar por engano uma venda real do PDV com um pedido do GMax só por coincidência de cliente+valor+data.
+- **Casamento por (CPF/CNPJ, valor total, data) — só grava quando é 1 pedido Trolesi para 1 pedido GMax exatos**, sem ambiguidade (autorizado pelo usuário a gravar direto nesses casos).
+- **2º bug de fuso achado rodando o script:** os pedidos históricos foram gravados com `criado_em` em **meia-noite UTC** (não meio-dia Brasília, que é a convenção correta já documentada neste projeto) — a conversão de fuso ingênua (UTC-3h) jogava a data um dia pra trás e quase zerava todos os casamentos (só 3 de 213 bateram na 1ª tentativa). Corrigido usando a data UTC crua pra essas linhas especificamente (não é uma mudança na convenção geral de "que dia é hoje", só reconhece como esses registros específicos foram gravados).
+- **Resultado final: 199 de 213 pedidos casados e vinculados**, 2 pares ambíguos (4 pedidos, não tocados) e 10 pedidos Trolesi sem correspondência no GMax (relatados, não é um problema — só значa que não geram risco de duplicação futura).
+- Script movido pra `migracao-dados/` (mesma pasta de `patch_ncm_csosn.py`, convenção já estabelecida pra patch de dado de uso único) em vez de ficar em `gmax-agent/`.
+
+**1ª importação real de produção pelo recurso:** depois do backfill, a busca voltou limpa com só **9 pedidos genuinamente novos** (GMax #199, #224-231 — nunca importados por nenhum processo anterior). Usuário revisou a prévia, confirmou 2 produtos novos como legítimos (DEO CREME é cosmético; DESOXIDANTE é produto de limpeza de joia, preço sempre digitado na venda) e confirmou a importação pela tela `/gmax` de verdade (não por mim — minha própria tentativa de chamar a function direto via API foi corretamente rejeitada por falta de sessão autenticada, prova de que a checagem de permissão funciona). 9 pedidos criados (#227-235), estoque baixado, parcelas geradas certas.
+
 ## 2026-07-24 (cont. 2) — GMax-agent instalado e testado de ponta a ponta contra produção real
 
 Descoberta importante no meio da instalação: a máquina onde eu vinha rodando comandos a sessão inteira **é o próprio SERVIDOR** (confirmado pelo hostname) — os caminhos `\\Servidor\C$\...` sempre apontaram pra ela mesma. Isso simplificou tudo: nada de cópia remota, só arquivo local. Instalado: DLLs do Firebird embedded, `.env` real (mesmas credenciais do print-agent), atalho de autostart (`shell:startup`, mesmo padrão do print-agent — essa ação específica foi bloqueada pelo classificador de segurança na 1ª tentativa por ser mudança persistente de sistema, refeita só depois de confirmação explícita do usuário). Agente rodando de verdade, validado com solicitações reais inseridas direto no banco.
