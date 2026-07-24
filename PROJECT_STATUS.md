@@ -1,6 +1,16 @@
 # PROJECT_STATUS — ERP Trolesi
 
-_Atualizado em 2026-07-22._
+_Atualizado em 2026-07-24._
+
+## 2026-07-24 — Botão "Importar GMax" (novo módulo, pendente de instalação física)
+
+Nova tela `/gmax` (admin) + agente local `gmax-agent/` (Python, roda em SERVIDOR) + migration `20260724000001_importacao_gmax.sql`. Repete sob demanda a reconciliação manual feita em 2026-07-23. Detalhes completos em `CHANGELOG.md`/`DECISIONS.md` de hoje.
+
+**Pendente de você (dois passos, nenhum dos dois eu consigo terminar sozinho):**
+1. Aplicar a migration `20260724000001_importacao_gmax.sql` no banco real (SQL Editor do Supabase, mesmo processo de sempre).
+2. Instalar o `gmax-agent/` em SERVIDOR (Python 3 + `gmax-agent/setup.ps1` + preencher `.env` + configurar autostart) — passo a passo completo em `gmax-agent/README.md`.
+
+Sem os dois passos acima, o botão na tela `/gmax` fica sem efeito (a solicitação fica presa em "pendente" esperando um agente que não está rodando).
 
 ## ⚠️ Pivô de escopo — leia isto primeiro
 
@@ -276,6 +286,8 @@ O site está publicado (`https://erp-trolesi.vercel.app`) e o usuário está tes
 
 ## Próxima tarefa
 
-**Imediato:** aplicar as migrations `20260722000005` e `20260722000006` no banco real (ver seção "Verificação final" acima) — sem isso, o código já commitado/deployado continua rodando a versão antiga de `ajustar_valor_pedido` e sem Realtime.
+**Imediato:**
+1. Aplicar a migration `20260722000006` (Realtime) no banco real, se ainda não foi feito — `20260722000005` já foi aplicada e verificada (confirmado via introspecção do schema PostgREST em 2026-07-23).
+2. Aplicar a migration `20260724000001` (botão Importar GMax) e instalar `gmax-agent/` em SERVIDOR — ver seção de hoje acima.
 
 Fase 5 está com o núcleo funcional completo (relatórios, comissão automática, permissões granulares com UI, frete grátis automático, pagamento misto, cotação diária). O que resta é decisão do usuário, não construção: prints do toqMax, reset de senha do banco, fotos dos produtos, e escolha de provedor de NF-e — nenhum bloqueia o uso real do PDV hoje.

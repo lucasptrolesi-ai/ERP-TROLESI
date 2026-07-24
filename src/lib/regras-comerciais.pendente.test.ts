@@ -82,6 +82,12 @@ describe("Fundação — permissões e auditoria", () => {
   it.todo("toda exceção (desconto, primeira compra, abatimento, crediário) grava usuário, justificativa, valor anterior e novo no audit_log");
 });
 
+describe("2026-07-24 — Importação GMax (implementado em SQL, sem teste de integração)", () => {
+  it.todo("importar_pedidos_gmax nunca importa o mesmo gmax_pedido_id duas vezes (idempotente)");
+  it.todo("duas confirmações concorrentes da mesma solicitação nunca rodam a importação em paralelo (for update trava a linha)");
+  it.todo("duas vendas com CPF em branco no mesmo lote criam dois clientes diferentes, nunca um só");
+});
+
 describe("Código Ventilador (investigado em 2026-07-21: sem evidência de uso real nos 44 produtos migrados do GMax — feature permanece não implementada)", () => {
   it.todo(
     "se uma evidência real de uso aparecer no futuro: código Ventilador nunca aparece em comprovante ou tela visível ao cliente, mesmo quando ativado por permissão",

@@ -21,6 +21,7 @@ const ITENS = [
   { href: "/frete", label: "Frete", icone: "📦" },
   { href: "/relatorios", label: "Relatórios", icone: "📊" },
   { href: "/permissoes", label: "Permissões", icone: "🔑" },
+  { href: "/gmax", label: "Importar GMax", icone: "🔄" },
 ];
 
 export function SidebarNav({ onNavegar }: { onNavegar?: () => void }) {

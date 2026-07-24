@@ -19,3 +19,12 @@ coverage/
 
 # print-agent (roda local, log é só dessa máquina)
 print-agent/agente.log
+
+# gmax-agent (roda local; DLLs do Firebird embedded baixadas por setup.ps1,
+# não commitadas; cópias temporárias do FDB nunca devem sobrar, mas por
+# segurança)
+gmax-agent/agente.log
+gmax-agent/fbembed/
+gmax-agent/fbembed.zip
+gmax-agent/*.fdb
+gmax-agent/__pycache__/

@@ -46,3 +46,5 @@ Não há programadores reais sendo contratados — um único agente assume os pa
 | Mockup das telas | `design/mockup.html` |
 | Schema do banco | `supabase/migrations/` |
 | Dados reais exportados do GMax (gitignored) | `migracao-dados/export_csv/` |
+| Print-agent (impressão térmica local) | `print-agent/README.md` |
+| Agente de importação GMax (botão `/gmax`) | `gmax-agent/README.md` |
