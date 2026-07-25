@@ -26,14 +26,18 @@ export function Modal({
     <dialog
       ref={ref}
       onClose={onFechar}
-      className="fixed inset-0 m-auto max-h-[85vh] w-[calc(100%-2rem)] max-w-md overflow-y-auto rounded-2xl border border-line bg-surface p-0 text-ink backdrop:bg-black/40"
+      // `dvh` (dynamic viewport height) encolhe quando o teclado do celular
+      // abre; `vh` não — com `vh`, o rodapé de um formulário longo (ex:
+      // produto, ~20 campos) podia ficar embaixo do teclado, mais difícil
+      // de alcançar rolando dentro do modal.
+      className="fixed inset-0 m-auto max-h-[85dvh] w-[calc(100%-2rem)] max-w-md overflow-y-auto rounded-2xl border border-line bg-surface p-0 text-ink backdrop:bg-black/40"
     >
       <div className="sticky top-0 flex items-center justify-between border-b border-line bg-surface px-5 py-4">
         <h2 className="font-display text-lg font-semibold">{titulo}</h2>
         <button
           type="button"
           onClick={onFechar}
-          className="text-text-soft hover:text-ink"
+          className="-m-2 rounded-full p-2 text-text-soft hover:bg-black/5 hover:text-ink"
           aria-label="Fechar"
         >
           ✕

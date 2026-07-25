@@ -85,3 +85,17 @@ body {
   color: var(--color-ink);
   font-family: var(--font-body);
 }
+
+/* iOS Safari dá zoom automático ao focar qualquer campo com fonte abaixo de
+ * 16px — quase todo input do sistema usa `text-sm` (14px) pro visual
+ * combinar com o resto da UI. Em vez de aumentar a fonte visível em toda
+ * tela (mudaria o design em telas grandes também), força 16px só dentro do
+ * próprio campo e só em telas estreitas — o zoom para de acontecer sem
+ * mexer em nenhuma classe Tailwind espalhada pelo app. */
+@media (max-width: 639px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+}

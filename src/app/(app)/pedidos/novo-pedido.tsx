@@ -500,7 +500,7 @@ export function NovoPedido({
               </button>
             </div>
             {clientesFiltrados.length > 0 && (
-              <ul className="absolute z-10 mt-1 w-full rounded-lg border-2 border-rose-soft bg-cream shadow-lg">
+              <ul className="absolute z-10 mt-1 max-h-60 w-full overflow-y-auto rounded-lg border-2 border-rose-soft bg-cream shadow-lg">
                 {clientesFiltrados.map((c) => (
                   <li key={c.id}>
                     <button
@@ -534,7 +534,7 @@ export function NovoPedido({
             className="w-full rounded-lg border border-line bg-cream px-3 py-2 text-sm text-ink outline-none focus:border-rose focus:ring-2 focus:ring-rose-soft"
           />
           {produtosFiltrados.length > 0 && (
-            <ul className="absolute z-10 mt-1 w-full rounded-lg border-2 border-rose-soft bg-cream shadow-lg">
+            <ul className="absolute z-10 mt-1 max-h-60 w-full overflow-y-auto rounded-lg border-2 border-rose-soft bg-cream shadow-lg">
               {produtosFiltrados.map((p) => (
                 <li key={p.id}>
                   <button
@@ -619,11 +619,11 @@ export function NovoPedido({
                 <td className="px-3 py-2 tabular-nums">
                   {formatarMoeda(i.quantidade * i.preco_unitario)}
                 </td>
-                <td className="px-3 py-2 text-right">
+                <td className="px-1 py-2 text-right">
                   <button
                     type="button"
                     onClick={() => removerItem(i.produto_id)}
-                    className="text-text-soft hover:text-crit"
+                    className="-m-2 rounded-full p-2 text-text-soft hover:bg-crit-bg hover:text-crit"
                     aria-label={`Remover ${i.nome}`}
                   >
                     ✕
@@ -873,7 +873,7 @@ export function NovoPedido({
                   <button
                     type="button"
                     onClick={() => setPagamentosMistos((atual) => atual.filter((_, i) => i !== indice))}
-                    className="text-text-soft hover:text-crit"
+                    className="-m-2 rounded-full p-2 text-text-soft hover:bg-crit-bg hover:text-crit"
                     aria-label="Remover forma de pagamento"
                   >
                     ✕
@@ -972,7 +972,15 @@ export function NovoPedido({
         </p>
       )}
 
-      <div className="flex flex-col gap-3 sm:flex-row sm:justify-end sm:items-center">
+      {/* Fixo no rodapé só no mobile (sm:static desfaz tudo em telas maiores)
+          — numa venda real, os botões de fechar a venda ficavam depois de
+          busca de cliente/produto, carrinho, desconto e forma de pagamento;
+          pra tocar em "Finalizar" era preciso rolar a página inteira até o
+          fim toda vez. `-mx-4`/`px-4` cancela e reaplica exatamente o
+          `p-4` do container raiz (não mexe no padding do app-shell por
+          fora), então os botões continuam alinhados com o resto da página,
+          só a barra em si passa a acompanhar o fim da tela. */}
+      <div className="sticky bottom-0 z-10 -mx-4 flex flex-col gap-3 border-t border-line bg-surface px-4 py-3 sm:static sm:z-auto sm:mx-0 sm:flex-row sm:items-center sm:justify-end sm:border-0 sm:bg-transparent sm:p-0">
         <button
           type="button"
           disabled={salvando}

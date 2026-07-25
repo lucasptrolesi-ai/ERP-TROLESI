@@ -71,7 +71,7 @@ export function AppShell({
           <button
             onClick={() => setMenuAberto(true)}
             aria-label="Abrir menu"
-            className="text-xl text-ink md:hidden"
+            className="-m-2 rounded-full p-2 text-xl text-ink md:hidden"
           >
             ☰
           </button>

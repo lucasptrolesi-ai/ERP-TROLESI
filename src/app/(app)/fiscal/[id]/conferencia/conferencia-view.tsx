@@ -80,7 +80,7 @@ export function ConferenciaView({ nota, itens }: { nota: NotaFiscal; itens: Item
               </div>
             </div>
 
-            <div className="rounded-lg border border-line">
+            <div className="overflow-x-auto rounded-lg border border-line">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-left text-xs font-bold uppercase text-text-soft">

@@ -76,10 +76,16 @@ export default async function DanfePage({ params }: { params: Promise<{ id: stri
   const validado = nota.status !== "gerada";
 
   return (
-    <div className="flex flex-col items-center gap-4 py-6 print:gap-0 print:py-0">
+    <div className="flex flex-col items-center gap-4 overflow-x-auto py-6 print:gap-0 print:py-0">
       <style>{`@media print { @page { size: A4 portrait; margin: 8mm; } }`}</style>
 
-      <div className="w-full max-w-3xl text-[9px] leading-tight text-ink print:max-w-none">
+      {/* min-w preserva a fidelidade das colunas de largura fixa do layout
+          (só teria efeito visual quebrado se encolhesse pra caber na tela
+          do celular) — no mobile, agora dá pra rolar horizontalmente e ver
+          o documento na proporção real, em vez de tudo espremido; sem
+          efeito na impressão (print:min-w-0, `@page`/`print:max-w-none` já
+          cuidam do papel real). */}
+      <div className="w-full min-w-[700px] max-w-3xl text-[9px] leading-tight text-ink print:min-w-0 print:max-w-none">
         {/* Canhoto — recibo de entrega, destacável no papel real */}
         <div className="grid grid-cols-[1fr_130px] border border-ink">
           <div className="flex flex-col justify-between border-r border-ink p-1.5">
