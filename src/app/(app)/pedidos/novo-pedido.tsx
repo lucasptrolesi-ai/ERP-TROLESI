@@ -44,6 +44,16 @@ export function NovoPedido({
   const [novoClienteAberto, setNovoClienteAberto] = useState(false);
   const [carrinho, setCarrinho] = useState<ItemCarrinho[]>([]);
   const [buscaProduto, setBuscaProduto] = useState("");
+  // Buffer de texto por linha do carrinho (qtd./código) — sem isso, o campo
+  // é controlado direto por um número já clampado (`value={i.quantidade}`):
+  // apagar o dígito pra digitar um valor novo passa por "" no meio do
+  // caminho, o clamp (`|| 1`) transforma isso de volta em 1 antes do
+  // próximo toque, e o campo nunca fica vazio de verdade — só dava pra
+  // mudar o valor pelas setinhas do input number. Aqui o campo mostra
+  // exatamente o que foi digitado (mesmo inválido/vazio) até perder o foco;
+  // o carrinho só é atualizado quando o texto já é um número válido.
+  const [edicaoQuantidade, setEdicaoQuantidade] = useState<Record<string, string>>({});
+  const [edicaoCodigo, setEdicaoCodigo] = useState<Record<string, string>>({});
 
   const [percentualDesconto, setPercentualDesconto] = useState<string>("");
   const [valorDesconto, setValorDesconto] = useState<string>("0");
@@ -260,10 +270,11 @@ export function NovoPedido({
   }
 
   function alterarCodigoPeca(produtoId: string, codigoPeca: number) {
+    const codigoValido = Math.max(0, codigoPeca);
     setCarrinho((atual) =>
       atual.map((i) =>
         i.produto_id === produtoId
-          ? { ...i, codigo_peca: codigoPeca, preco_unitario: calcularPrecoUnitario(codigoPeca, i.multiplicador) }
+          ? { ...i, codigo_peca: codigoValido, preco_unitario: calcularPrecoUnitario(codigoValido, i.multiplicador) }
           : i,
       ),
     );
@@ -561,20 +572,45 @@ export function NovoPedido({
                 <td className="px-3 py-2">{i.nome}</td>
                 <td className="px-3 py-2">
                   <input
-                    type="number"
-                    min={1}
-                    value={i.quantidade}
-                    onChange={(e) => alterarQuantidade(i.produto_id, Number(e.target.value) || 1)}
+                    type="text"
+                    inputMode="numeric"
+                    value={edicaoQuantidade[i.produto_id] ?? String(i.quantidade)}
+                    onChange={(e) => {
+                      const texto = e.target.value;
+                      setEdicaoQuantidade((atual) => ({ ...atual, [i.produto_id]: texto }));
+                      const numero = Number(texto);
+                      if (texto.trim() !== "" && Number.isFinite(numero)) alterarQuantidade(i.produto_id, numero);
+                    }}
+                    onBlur={() =>
+                      setEdicaoQuantidade((atual) => {
+                        const copia = { ...atual };
+                        delete copia[i.produto_id];
+                        return copia;
+                      })
+                    }
                     className="w-16 rounded border border-line bg-cream px-2 py-1 text-sm"
                   />
                 </td>
                 <td className="px-3 py-2">
                   <input
-                    type="number"
-                    step="0.01"
-                    min={0}
-                    value={i.codigo_peca ?? 0}
-                    onChange={(e) => alterarCodigoPeca(i.produto_id, Number(e.target.value) || 0)}
+                    type="text"
+                    inputMode="decimal"
+                    value={edicaoCodigo[i.produto_id] ?? String(i.codigo_peca ?? 0)}
+                    onChange={(e) => {
+                      const texto = e.target.value;
+                      setEdicaoCodigo((atual) => ({ ...atual, [i.produto_id]: texto }));
+                      // Código da peça aceita vírgula decimal (convenção
+                      // brasileira, mesmo tratamento de `parseMoeda`).
+                      const numero = Number(texto.replace(",", "."));
+                      if (texto.trim() !== "" && Number.isFinite(numero)) alterarCodigoPeca(i.produto_id, numero);
+                    }}
+                    onBlur={() =>
+                      setEdicaoCodigo((atual) => {
+                        const copia = { ...atual };
+                        delete copia[i.produto_id];
+                        return copia;
+                      })
+                    }
                     title={`Código × ${i.multiplicador} = preço unitário`}
                     className="w-20 rounded border border-line bg-cream px-2 py-1 text-sm"
                   />
