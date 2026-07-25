@@ -1,5 +1,15 @@
 # CHANGELOG — ERP Trolesi
 
+## 2026-07-25 — Comprovante em PDF pra encaminhar ao cliente via WhatsApp
+
+Usuário pediu que o sistema mandasse o cupom pro cliente por WhatsApp. Investigadas as duas formas reais de enviar automaticamente (API oficial do Meta, que exige aprovação/verificação de negócio e custo por mensagem; biblioteca não-oficial tipo Baileys, que arrisca banir o número de WhatsApp que a loja usa pra atender cliente) — usuário optou por uma terceira via, mais simples e sem risco: o sistema só **salva um PDF automaticamente**, organizado numa pasta, pra encaminhar manualmente.
+
+- **`print-agent/` estendido** (mesmo processo que já roda no computador da loja e já recebe o conteúdo do cupom) — a cada venda, além de imprimir, salva o mesmo conteúdo em PDF em `Comprovante/<ano>/<mes>/Nome do Cliente - DD-MM.pdf` na área de trabalho. Só na via "loja" (dispara exatamente 1x por venda, ao contrário da via "cliente" que é opcional/pode repetir).
+- **PDF gerado sem nenhuma dependência de npm** (mesmo espírito do resto do print-agent) — formato PDF montado byte a byte na mão (objetos, stream de conteúdo, tabela xref), fonte padrão Courier (uma das 14 "standard fonts" que todo leitor de PDF já tem embutida, não precisa embarcar arquivo de fonte). Reaproveita o mesmo cálculo de alinhamento de coluna (`formatarColunas`, extraído do código que já existia) do cupom térmico — mesmo visual, só que numa folha A4 normal em vez da largura estreita de 58mm, e com acento correto (o PDF usa `WinAnsiEncoding`, que cobre português; a térmica ainda tira acento por limitação de code page não confirmado).
+- **Validado de ponta a ponta contra produção real**: gerado e verificado com uma biblioteca de terceiros (`pypdf`, só pra validação, não é dependência do agente) que o texto extrai corretamente, incluindo acentos; testado com uma venda real (pedido #227) — pasta e nome de arquivo saíram certos, e a proteção contra nome duplicado (dois clientes "CONSUMIDOR" no mesmo dia, por exemplo) funcionou, acrescentando " (2)" sem sobrescrever o primeiro.
+- **Independente da impressão física de propósito**: se a impressora estiver offline, o comprovante ainda é salvo (e vice-versa) — são dois try/catch separados, não um dependendo do outro.
+- `print-agent/agent.js` reiniciado em produção com o código novo (a mesma instância que já processa vendas reais da loja).
+
 ## 2026-07-24 (cont. 3) — Importar GMax: escopo revisto (nada bloqueia), backfill em massa, 1ª importação real
 
 Usuário corrigiu o escopo depois de ver o recurso funcionando: "o que eu pedi era pra que importasse tudo, inclusive novos produtos, novos clientes". Revertida a decisão de bloquear o lote em produto/forma de pagamento não resolvidos (ver decisão original em 2026-07-24 cont. 1):

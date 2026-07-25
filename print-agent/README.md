@@ -37,6 +37,29 @@ em vez disso:
    com opção de tentar de novo ou imprimir pela própria página (último
    recurso, não necessariamente na térmica).
 
+## Comprovante em PDF (2026-07-25)
+
+Além de imprimir, o agente salva o mesmo conteúdo do cupom em PDF numa
+pasta organizada — pra você encaminhar manualmente pro cliente via
+WhatsApp (decisão do usuário: nada de integração automática com WhatsApp,
+risco demais de banir o número da loja — ver `DECISIONS.md`).
+
+- Só na via "loja" (sempre exatamente 1x por venda — a via "cliente" é
+  opcional/pode repetir, geraria comprovante duplicado à toa).
+- Salvo em `PASTA_COMPROVANTES/<ano>/<mes>/Nome do Cliente - DD-MM.pdf`
+  (data = `pedidos.criado_em` convertido pra horário de Brasília, não a
+  data UTC). Dois clientes com o mesmo nome no mesmo dia (ex: vários
+  "CONSUMIDOR") ganham " (2)", " (3)"... no nome — nunca sobrescreve.
+- Gerado sem nenhuma dependência de npm (mesmo espírito do resto do
+  agente) — o PDF é montado byte a byte, reaproveitando o mesmo cálculo de
+  alinhamento de coluna do cupom térmico (`formatarColunas`). Fonte
+  Courier (uma das 14 "standard fonts" que todo leitor de PDF já tem
+  embutida), com acento correto (diferente do cupom térmico, que ainda
+  tira acento por segurança — ver limitação abaixo).
+- Independente da impressão física: se a impressora estiver offline, o
+  comprovante ainda é salvo (e vice-versa) — são duas preocupações
+  separadas no código.
+
 Só existe UM agente rodando (nesta máquina, onde a impressora está
 fisicamente ligada) — não precisa (nem deve) rodar em cada computador da
 loja.
@@ -78,3 +101,8 @@ loja.
   caixa, a fila precisaria de uma coluna extra (ex: `impressora_id`) pra
   cada agente só pegar as solicitações da sua própria impressora — não
   implementado ainda, não é o caso de uso atual.
+- **Comprovante em PDF não sai automaticamente pro WhatsApp** — fica só
+  salvo na pasta (`PASTA_COMPROVANTES`, default `Comprovante` na área de
+  trabalho), pra você encaminhar manualmente. Decisão deliberada, ver
+  `DECISIONS.md` (API oficial do WhatsApp precisa de aprovação/custo por
+  mensagem; biblioteca não-oficial arrisca banir o número da loja).

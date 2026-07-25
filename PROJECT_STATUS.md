@@ -1,6 +1,10 @@
 # PROJECT_STATUS — ERP Trolesi
 
-_Atualizado em 2026-07-24._
+_Atualizado em 2026-07-25._
+
+## 2026-07-25 — Comprovante em PDF (print-agent estendido) — em produção ✅
+
+A cada venda (via "loja", automático), o `print-agent/` agora também salva o cupom em PDF em `Comprovante/<ano>/<mes>/Cliente - DD-MM.pdf` na área de trabalho de SERVIDOR, além de imprimir — pra encaminhar manualmente pro cliente via WhatsApp. Sem integração automática com WhatsApp de propósito (ver `DECISIONS.md`: risco de banir o número da loja). Testado de ponta a ponta com uma venda real, geração de PDF validada com biblioteca de terceiros, proteção contra nome de arquivo duplicado confirmada. `print-agent/agent.js` já reiniciado em produção com o código novo — nenhuma ação pendente.
 
 ## 2026-07-24 — Botão "Importar GMax" — em produção, já usado pra uma importação real ✅
 

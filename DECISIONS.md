@@ -2,6 +2,17 @@
 
 Histórico de decisões de escopo e arquitetura, na ordem em que foram tomadas. Decisões revistas ficam marcadas como tal, não apagadas.
 
+## 2026-07-25 — Envio de cupom ao cliente: PDF salvo em pasta, não integração automática com WhatsApp
+
+- **Contexto:** usuário pediu que o sistema mandasse o cupom pro cliente via WhatsApp automaticamente, ao finalizar o pedido.
+- **Opções reais investigadas e apresentadas ao usuário:**
+  1. API oficial do WhatsApp (Meta Cloud API / BSP como Twilio) — caminho correto/seguro, mas exige verificação de Business, número dedicado, aprovação de template de mensagem (dias a semanas na 1ª vez) e custo por mensagem.
+  2. Biblioteca não-oficial (Baileys/whatsapp-web.js) — grátis, sem aprovação, mas automatiza o WhatsApp de um jeito não autorizado pelo WhatsApp — risco real de banir o número que a loja usa pra atender cliente, um canal que a loja já depende.
+  3. Gerar um PDF automaticamente e deixar o encaminhamento manual — zero integração, zero risco, zero custo.
+- **Decisão do usuário:** opção 3. Zero risco pro canal de atendimento da loja pesou mais que a automação completa.
+- **Implementação:** `print-agent/` (já rodando na loja) passou a também salvar o PDF, organizado em pasta por ano/mês, com nome "Cliente - DD-MM" — mesma automação "por trás de tudo, sem autorizar nada" que o usuário pediu, só que o último passo (encaminhar) continua manual.
+- **Reabrir essa decisão no futuro:** se o volume de vendas justificar automação completa, a opção 1 (API oficial) é o caminho a reconsiderar — não a opção 2 (risco de ban não compensa em nenhuma escala).
+
 ## 2026-07-24 (cont. 3) — Decisão revista: Importar GMax nunca bloqueia o lote
 
 - **Decisão original (2026-07-24, mais cedo):** perguntei explicitamente se produto não encontrado/forma de pagamento não mapeada deveriam bloquear o lote inteiro ou ser pulados — usuário escolheu bloquear.

@@ -39,6 +39,10 @@ const COMPARTILHAMENTO_IMPRESSORA = process.env.IMPRESSORA_COMPARTILHAMENTO || "
 const MAQUINA = os.hostname();
 const COLUNAS = 48; // confirmado na prática pra Elgin i8 58mm (48mm úteis)
 const INTERVALO_POLLING_MS = Number(process.env.INTERVALO_POLLING_MS) || 2000;
+// Pasta onde o comprovante em PDF é salvo (pra encaminhar manualmente pro
+// cliente via WhatsApp, ver README.md) — organizada em <ano>/<mes>/
+// "Cliente - DD-MM.pdf", igual pedido explícito do usuário 2026-07-25.
+const PASTA_COMPROVANTES = process.env.PASTA_COMPROVANTES || path.join(os.homedir(), "Desktop", "Comprovante");
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -98,6 +102,17 @@ function semAcento(texto) {
 
 const ALINHAMENTO_CODIGO = { esquerda: 0, centro: 1, direita: 2 };
 
+// Padding de coluna esquerda/direita (item + preço, etc.) — extraído aqui
+// pra ser reaproveitado tal e qual pelo construirPdf() abaixo. Não mexe em
+// acento (quem chama decide: ESC/POS aplica semAcento antes, PDF mantém
+// acentuado — WinAnsiEncoding do PDF suporta português direito).
+function formatarColunas(esquerda, direita) {
+  const cabe = esquerda.length + direita.length + 1 <= COLUNAS;
+  return cabe
+    ? esquerda + " ".repeat(COLUNAS - esquerda.length - direita.length) + direita
+    : `${esquerda.slice(0, Math.max(0, COLUNAS - direita.length - 1))} ${direita}`;
+}
+
 function construirEscPos(linhas) {
   const partes = [Buffer.from([ESC, 0x40])]; // inicializa
 
@@ -114,12 +129,7 @@ function construirEscPos(linhas) {
     }
 
     if (linha.tipo === "colunas") {
-      const esquerda = semAcento(linha.esquerda);
-      const direita = semAcento(linha.direita);
-      const cabe = esquerda.length + direita.length + 1 <= COLUNAS;
-      const texto = cabe
-        ? esquerda + " ".repeat(COLUNAS - esquerda.length - direita.length) + direita
-        : `${esquerda.slice(0, Math.max(0, COLUNAS - direita.length - 1))} ${direita}`;
+      const texto = formatarColunas(semAcento(linha.esquerda), semAcento(linha.direita));
       partes.push(Buffer.from([ESC, 0x61, 0]));
       partes.push(Buffer.from([ESC, 0x45, linha.negrito ? 1 : 0]));
       partes.push(Buffer.from(`${texto}\n`, "ascii"));
@@ -138,6 +148,192 @@ function construirEscPos(linhas) {
   partes.push(Buffer.from([GS, 0x56, 0])); // corte total
 
   return Buffer.concat(partes);
+}
+
+// Mesma normalização de linhas (espaço/linha/colunas/texto) que a impressora
+// térmica usa, só que mantendo acento (o PDF usa WinAnsiEncoding, que cobre
+// português direito — diferente da térmica, que ainda não teve o code page
+// de acentos confirmado, ver limitação conhecida no README).
+function linhasParaTextoSimples(linhas) {
+  const saida = [];
+  for (const linha of linhas) {
+    if (linha.tipo === "espaco") {
+      for (let i = 0; i < (linha.linhas ?? 1); i++) {
+        saida.push({ texto: "", negrito: false, alinhamento: "esquerda" });
+      }
+      continue;
+    }
+    if (linha.tipo === "linha") {
+      saida.push({ texto: "-".repeat(COLUNAS), negrito: false, alinhamento: "esquerda" });
+      continue;
+    }
+    if (linha.tipo === "colunas") {
+      saida.push({
+        texto: formatarColunas(linha.esquerda, linha.direita),
+        negrito: Boolean(linha.negrito),
+        alinhamento: "esquerda",
+      });
+      continue;
+    }
+    saida.push({
+      texto: linha.texto,
+      negrito: Boolean(linha.negrito),
+      alinhamento: linha.alinhamento ?? "esquerda",
+    });
+  }
+  return saida;
+}
+
+// --- Geração de PDF (comprovante pra encaminhar ao cliente por WhatsApp) ---
+// Sem nenhuma dependência de npm de propósito (mesmo espírito do resto do
+// agente) — um PDF de texto simples (sem imagem, sem fonte embarcada) é
+// simples o bastante pra montar o formato PDF na mão: um objeto de página
+// por página de conteúdo, fonte monoespaçada padrão (Courier, um dos 14
+// "standard fonts" que todo leitor de PDF já tem embutido, não precisa
+// embarcar) — o mesmo cálculo de padding de coluna (formatarColunas) que já
+// existe pro ESC/POS é reaproveitado aqui, então o alinhamento das
+// colunas fica idêntico ao do cupom térmico.
+const PDF_PAGINA_LARGURA = 595.28; // A4, pt (1pt = 1/72 polegada)
+const PDF_PAGINA_ALTURA = 841.89;
+const PDF_MARGEM = 50;
+const PDF_FONTE_TAMANHO = 12;
+const PDF_ALTURA_LINHA = PDF_FONTE_TAMANHO * 1.35;
+const PDF_LARGURA_CHAR = PDF_FONTE_TAMANHO * 0.6; // Courier: 0.6em por caractere, sempre
+
+function paraWinAnsiBytes(texto) {
+  // WinAnsiEncoding (usado pelo /Encoding da fonte abaixo) coincide com
+  // Latin-1 pros acentos do português (á-ÿ) — Buffer.from(..., "latin1")
+  // mapeia cada code unit 0-255 pro byte de mesmo valor, exatamente o que
+  // precisamos.
+  return Buffer.from(texto, "latin1");
+}
+
+function escaparPdfBytes(buffer) {
+  // Dentro de uma string literal PDF "(...)", ( ) \ precisam vir escapados
+  // com \ na frente.
+  const partes = [];
+  for (const byte of buffer) {
+    if (byte === 0x28 || byte === 0x29 || byte === 0x5c) partes.push(0x5c);
+    partes.push(byte);
+  }
+  return Buffer.from(partes);
+}
+
+function construirConteudoPaginaPdf(linhasPagina, blocoX, larguraBloco) {
+  const partes = [Buffer.from("BT\n", "ascii")];
+  let fonteAtual = null;
+  let y = PDF_PAGINA_ALTURA - PDF_MARGEM;
+  for (const linha of linhasPagina) {
+    const fonte = linha.negrito ? "/F2" : "/F1";
+    if (fonte !== fonteAtual) {
+      partes.push(Buffer.from(`${fonte} ${PDF_FONTE_TAMANHO} Tf\n`, "ascii"));
+      fonteAtual = fonte;
+    }
+    let x = blocoX;
+    if (linha.alinhamento === "centro") {
+      x = blocoX + (larguraBloco - linha.texto.length * PDF_LARGURA_CHAR) / 2;
+    }
+    partes.push(Buffer.from(`1 0 0 1 ${x.toFixed(2)} ${y.toFixed(2)} Tm\n(`, "ascii"));
+    partes.push(escaparPdfBytes(paraWinAnsiBytes(linha.texto)));
+    partes.push(Buffer.from(") Tj\n", "ascii"));
+    y -= PDF_ALTURA_LINHA;
+  }
+  partes.push(Buffer.from("ET", "ascii"));
+  return Buffer.concat(partes);
+}
+
+function construirPdf(linhasEstruturadas) {
+  const linhasTexto = linhasParaTextoSimples(linhasEstruturadas);
+  const larguraBloco = COLUNAS * PDF_LARGURA_CHAR;
+  const blocoX = (PDF_PAGINA_LARGURA - larguraBloco) / 2;
+  const linhasPorPagina = Math.max(
+    1,
+    Math.floor((PDF_PAGINA_ALTURA - PDF_MARGEM * 2) / PDF_ALTURA_LINHA),
+  );
+
+  const paginasLinhas = [];
+  for (let i = 0; i < linhasTexto.length; i += linhasPorPagina) {
+    paginasLinhas.push(linhasTexto.slice(i, i + linhasPorPagina));
+  }
+  if (paginasLinhas.length === 0) paginasLinhas.push([]);
+
+  const idCatalog = 1;
+  const idPages = 2;
+  const idFonteRegular = 3;
+  const idFonteNegrito = 4;
+  const idsPaginas = paginasLinhas.map((_, i) => 5 + i * 2);
+  const idsConteudos = paginasLinhas.map((_, i) => 6 + i * 2);
+
+  const objetos = [
+    { id: idCatalog, buffer: Buffer.from(`<< /Type /Catalog /Pages ${idPages} 0 R >>`, "ascii") },
+    {
+      id: idPages,
+      buffer: Buffer.from(
+        `<< /Type /Pages /Kids [${idsPaginas.map((id) => `${id} 0 R`).join(" ")}] /Count ${paginasLinhas.length} >>`,
+        "ascii",
+      ),
+    },
+    {
+      id: idFonteRegular,
+      buffer: Buffer.from("<< /Type /Font /Subtype /Type1 /BaseFont /Courier /Encoding /WinAnsiEncoding >>", "ascii"),
+    },
+    {
+      id: idFonteNegrito,
+      buffer: Buffer.from(
+        "<< /Type /Font /Subtype /Type1 /BaseFont /Courier-Bold /Encoding /WinAnsiEncoding >>",
+        "ascii",
+      ),
+    },
+  ];
+
+  paginasLinhas.forEach((linhasPagina, i) => {
+    const conteudo = construirConteudoPaginaPdf(linhasPagina, blocoX, larguraBloco);
+    objetos.push({
+      id: idsPaginas[i],
+      buffer: Buffer.from(
+        `<< /Type /Page /Parent ${idPages} 0 R /MediaBox [0 0 ${PDF_PAGINA_LARGURA} ${PDF_PAGINA_ALTURA}] ` +
+          `/Resources << /Font << /F1 ${idFonteRegular} 0 R /F2 ${idFonteNegrito} 0 R >> >> ` +
+          `/Contents ${idsConteudos[i]} 0 R >>`,
+        "ascii",
+      ),
+    });
+    objetos.push({
+      id: idsConteudos[i],
+      buffer: Buffer.concat([
+        Buffer.from(`<< /Length ${conteudo.length} >>\nstream\n`, "ascii"),
+        conteudo,
+        Buffer.from("\nendstream", "ascii"),
+      ]),
+    });
+  });
+
+  objetos.sort((a, b) => a.id - b.id);
+
+  const partesArquivo = [Buffer.from("%PDF-1.4\n%\xE2\xE3\xCF\xD3\n", "latin1")];
+  const offsets = [0];
+  let posicaoAtual = partesArquivo[0].length;
+
+  for (const objeto of objetos) {
+    offsets[objeto.id] = posicaoAtual;
+    const bufferObjeto = Buffer.concat([
+      Buffer.from(`${objeto.id} 0 obj\n`, "ascii"),
+      objeto.buffer,
+      Buffer.from("\nendobj\n", "ascii"),
+    ]);
+    partesArquivo.push(bufferObjeto);
+    posicaoAtual += bufferObjeto.length;
+  }
+
+  const posicaoXref = posicaoAtual;
+  const totalObjetos = objetos.length + 1; // +1 pro objeto 0 (livre, sempre presente)
+  let xref = `xref\n0 ${totalObjetos}\n0000000000 65535 f \n`;
+  for (let id = 1; id < totalObjetos; id++) {
+    xref += `${String(offsets[id]).padStart(10, "0")} 00000 n \n`;
+  }
+  xref += `trailer\n<< /Size ${totalObjetos} /Root ${idCatalog} 0 R >>\nstartxref\n${posicaoXref}\n%%EOF`;
+  partesArquivo.push(Buffer.from(xref, "ascii"));
+
+  return Buffer.concat(partesArquivo);
 }
 
 function enviarParaImpressora(buffer) {
@@ -192,9 +388,73 @@ function requisicaoSupabase(caminho, metodo, corpoObjeto) {
 
 function buscarPendentes() {
   return requisicaoSupabase(
-    "/solicitacoes_impressao?status=eq.pendente&order=criado_em.asc&limit=5&select=id,via,linhas",
+    "/solicitacoes_impressao?status=eq.pendente&order=criado_em.asc&limit=5&select=id,via,linhas,pedido_id",
     "GET",
   );
+}
+
+function sanitizarNomeArquivo(nome) {
+  // Caracteres inválidos em nome de arquivo no Windows: \ / : * ? " < > |
+  return String(nome ?? "Cliente").replace(/[\\/:*?"<>|]/g, "_").trim() || "Cliente";
+}
+
+// Meio-dia Brasília (UTC-3 fixo, sem horário de verão desde 2019) em vez de
+// meio-dia UTC — mesma lição de fuso já aplicada em vários lugares do
+// projeto (ver src/lib/datas.ts): converter ingenuamente (só olhar a data
+// UTC) rola pro dia errado perto da meia-noite.
+function dataBrasiliaDDMM(isoString) {
+  const data = new Date(isoString);
+  const dataBrasilia = new Date(data.getTime() - 3 * 60 * 60 * 1000);
+  const dd = String(dataBrasilia.getUTCDate()).padStart(2, "0");
+  const mm = String(dataBrasilia.getUTCMonth() + 1).padStart(2, "0");
+  const aaaa = String(dataBrasilia.getUTCFullYear());
+  return { dd, mm, aaaa };
+}
+
+// Acha um caminho de arquivo livre pro comprovante — acrescenta " (2)",
+// " (3)"... se já existir um arquivo com esse nome (ex: dois clientes
+// "CONSUMIDOR" vendendo no mesmo dia) pra nunca sobrescrever o comprovante
+// de uma venda diferente.
+function caminhoComprovanteDisponivel(pasta, nomeBase) {
+  let candidato = path.join(pasta, `${nomeBase}.pdf`);
+  let contador = 2;
+  while (fs.existsSync(candidato)) {
+    candidato = path.join(pasta, `${nomeBase} (${contador}).pdf`);
+    contador += 1;
+  }
+  return candidato;
+}
+
+async function buscarInfoPedido(pedidoId) {
+  const resultado = await requisicaoSupabase(
+    `/pedidos?id=eq.${pedidoId}&select=numero,criado_em,clientes(nome)`,
+    "GET",
+  );
+  return resultado && resultado[0] ? resultado[0] : null;
+}
+
+// Salva o mesmo conteúdo do cupom em PDF numa pasta organizada por
+// ano/mês na área de trabalho — pra encaminhar manualmente pro cliente via
+// WhatsApp (pedido direto do usuário, 2026-07-25). Só chamado pra via
+// "loja" (ver processarPendentes) — via "loja" sempre imprime exatamente
+// uma vez por venda finalizada (auto-print), enquanto via "cliente" é
+// opcional e pode repetir (reimpressão), o que geraria comprovantes
+// duplicados/renomeados à toa se gerássemos em toda impressão.
+async function salvarComprovantePdf(solicitacao) {
+  if (!solicitacao.pedido_id) return; // solicitação antiga, sem pedido_id vinculado
+  const pedido = await buscarInfoPedido(solicitacao.pedido_id);
+  if (!pedido) return;
+
+  const { dd, mm, aaaa } = dataBrasiliaDDMM(pedido.criado_em);
+  const pasta = path.join(PASTA_COMPROVANTES, aaaa, mm);
+  fs.mkdirSync(pasta, { recursive: true });
+
+  const nomeCliente = sanitizarNomeArquivo(pedido.clientes?.nome);
+  const caminho = caminhoComprovanteDisponivel(pasta, `${nomeCliente} - ${dd}-${mm}`);
+
+  const pdf = construirPdf(Array.isArray(solicitacao.linhas) ? solicitacao.linhas : []);
+  fs.writeFileSync(caminho, pdf);
+  console.log(`Comprovante salvo: ${caminho}`);
 }
 
 function marcarComoImpresso(id) {
@@ -221,6 +481,19 @@ async function processarPendentes() {
   }
 
   for (const solicitacao of pendentes) {
+    // Comprovante em PDF é uma preocupação independente da impressão física
+    // — só na via "loja" (sempre exatamente 1x por venda, ver comentário de
+    // salvarComprovantePdf), e tentado ANTES/fora do try da impressora, pra
+    // uma impressora offline não impedir o comprovante de ser salvo (e
+    // vice-versa: um erro ao salvar o PDF não deve impedir a impressão).
+    if (solicitacao.via === "loja") {
+      try {
+        await salvarComprovantePdf(solicitacao);
+      } catch (erroPdf) {
+        console.error(`Erro ao salvar comprovante em PDF (solicitação ${solicitacao.id}):`, erroPdf.message);
+      }
+    }
+
     try {
       const buffer = construirEscPos(Array.isArray(solicitacao.linhas) ? solicitacao.linhas : []);
       await enviarParaImpressora(buffer);
