@@ -16,7 +16,7 @@ import {
   type PedidoRelatorio,
   type TipoPeriodo,
 } from "@/lib/relatorios";
-import { dataLocalDoTimestamptz, hojeIso } from "@/lib/datas";
+import { dataLocalDoTimestamptz, formatarDataIso, hojeIso } from "@/lib/datas";
 import { situacaoEfetiva } from "@/lib/situacao-conta";
 import type { Abatimento, Cliente, CrediarioLancamento, Expedicao, Garantia, Produto, SituacaoConta } from "@/lib/types";
 
@@ -121,10 +121,22 @@ export function RelatoriosView({
     const data = new Date(ano, mes - 1 - 6, dia, 12);
     return `${data.getFullYear()}-${String(data.getMonth() + 1).padStart(2, "0")}-${String(data.getDate()).padStart(2, "0")}`;
   })();
-  const clientesInativos = clientes.filter((c) => {
-    const ultima = ultimaCompraPorCliente.get(c.id);
-    return !ultima || dataLocalDoTimestamptz(ultima) < seiseMesesAtrasIso;
-  }).length;
+  const clientesInativos = useMemo(() => {
+    return clientes
+      .filter((c) => {
+        const ultima = ultimaCompraPorCliente.get(c.id);
+        return !ultima || dataLocalDoTimestamptz(ultima) < seiseMesesAtrasIso;
+      })
+      .map((c) => ({ cliente: c, ultimaCompra: ultimaCompraPorCliente.get(c.id) ?? null }))
+      // Quem nunca comprou primeiro, depois do mais tempo sem comprar pro
+      // mais recente — é quem mais precisa de um contato de reativação.
+      .sort((a, b) => {
+        if (!a.ultimaCompra && !b.ultimaCompra) return 0;
+        if (!a.ultimaCompra) return -1;
+        if (!b.ultimaCompra) return 1;
+        return a.ultimaCompra < b.ultimaCompra ? -1 : 1;
+      });
+  }, [clientes, ultimaCompraPorCliente, seiseMesesAtrasIso]);
 
   const crediarioComSituacao = crediarioLancamentos.map((l) => ({
     ...l,
@@ -190,9 +202,9 @@ export function RelatoriosView({
         <KpiCard label="Primeira compra" valor={String(primeiraCompraNoPeriodo)} nota="clientes novos no período" />
         <KpiCard
           label="Clientes inativos"
-          valor={String(clientesInativos)}
+          valor={String(clientesInativos.length)}
           nota="sem compra há 6+ meses"
-          tom={clientesInativos > 0 ? "warn" : "ok"}
+          tom={clientesInativos.length > 0 ? "warn" : "ok"}
         />
         <KpiCard
           label="Crediário em atraso"
@@ -263,6 +275,29 @@ export function RelatoriosView({
             </p>
           ))}
           {fretesGratisPeriodo.length === 0 && <p>Nenhum frete grátis concedido no período.</p>}
+        </div>
+      </div>
+
+      <div className="rounded-[14px] border border-line bg-surface p-4 shadow-sm sm:p-5">
+        <h2 className="mb-3 font-display text-base font-semibold text-ink">
+          Clientes inativos ({clientesInativos.length})
+        </h2>
+        <div className="flex flex-col gap-1.5 text-sm">
+          {clientesInativos.slice(0, 30).map(({ cliente, ultimaCompra }) => (
+            <div key={cliente.id} className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
+              <span className="text-ink">
+                {cliente.nome}
+                {cliente.telefone && <span className="text-text-soft"> — {cliente.telefone}</span>}
+              </span>
+              <span className="text-xs text-text-soft">
+                {ultimaCompra ? `última compra ${formatarDataIso(ultimaCompra)}` : "nunca comprou"}
+              </span>
+            </div>
+          ))}
+          {clientesInativos.length === 0 && <p className="text-text-soft">Nenhum cliente inativo.</p>}
+          {clientesInativos.length > 30 && (
+            <p className="text-xs text-text-soft">e mais {clientesInativos.length - 30}...</p>
+          )}
         </div>
       </div>
 

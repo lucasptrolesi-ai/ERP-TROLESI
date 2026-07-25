@@ -1,5 +1,9 @@
 # CHANGELOG — ERP Trolesi
 
+## 2026-07-25 (cont. 2) — Relatórios: lista quem são os clientes inativos, não só quantos
+
+Usuário notou que o card "Clientes inativos" em `/relatorios` só mostrava o número (7), sem dizer quem são. O dado já era calculado (`clientes.filter(...)`) mas descartado com `.length` antes de chegar na tela. Adicionada uma lista (mesmo padrão visual já usado em "Fretes grátis"/"Estoque abaixo do mínimo" na mesma página) com nome, telefone (pra contato de reativação) e há quanto tempo sem comprar — ordenada por quem nunca comprou/está há mais tempo sumido primeiro, já que são os que mais precisam de um contato.
+
 ## 2026-07-25 — Comprovante em PDF pra encaminhar ao cliente via WhatsApp
 
 Usuário pediu que o sistema mandasse o cupom pro cliente por WhatsApp. Investigadas as duas formas reais de enviar automaticamente (API oficial do Meta, que exige aprovação/verificação de negócio e custo por mensagem; biblioteca não-oficial tipo Baileys, que arrisca banir o número de WhatsApp que a loja usa pra atender cliente) — usuário optou por uma terceira via, mais simples e sem risco: o sistema só **salva um PDF automaticamente**, organizado numa pasta, pra encaminhar manualmente.
