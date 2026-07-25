@@ -44,7 +44,7 @@ export async function criarFuncionario(
     email: email.trim(),
     password: senhaTemporaria,
     email_confirm: true,
-    user_metadata: { nome: nome.trim() },
+    user_metadata: { nome: nome.trim().toUpperCase() },
   });
 
   if (error || !data.user) {
@@ -86,15 +86,16 @@ export async function atualizarFuncionario(
     return { erro: "Você não pode remover o próprio papel de admin." };
   }
 
+  const nomeFinal = nome.trim().toUpperCase();
   const supabase = await createClient();
-  const { error } = await supabase.from("profiles").update({ nome: nome.trim(), papel }).eq("id", id);
+  const { error } = await supabase.from("profiles").update({ nome: nomeFinal, papel }).eq("id", id);
   if (error) return { erro: "Não foi possível salvar as alterações." };
 
   await supabase.rpc("registrar_acao_funcionario", {
     p_profile_id: id,
     p_acao: "editar_funcionario",
     p_valor_anterior: null,
-    p_valor_novo: { nome: nome.trim(), papel },
+    p_valor_novo: { nome: nomeFinal, papel },
   });
 
   revalidarFuncionarios();

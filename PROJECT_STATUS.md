@@ -2,6 +2,19 @@
 
 _Atualizado em 2026-07-25._
 
+## 2026-07-25 — Caixa alta em tudo + "já entrei em contato" pra cliente inativo — ⚠️ 2 migrations pendentes de aplicar
+
+Todo texto livre digitado (nome, endereço, descrição, parecer...) agora é salvo em maiúsculo — camada de UI (`FormField`) + camada de servidor (`normalizarCampo`/Server Actions) revisadas em todos os cadastros e módulos. Enum/código fiscal/e-mail/URL/CPF-CNPJ/telefone/CEP/id ficaram de fora de propósito (ver `DECISIONS.md`).
+
+Dado já existente também convertido — **já aplicado em produção** via `migracao-dados/patch_caixa_alta_dados_existentes.py` (API REST, service_role key), verificado idempotente depois (0 linhas pendentes).
+
+Cliente inativo (lista em `/relatorios`) ganhou botão "já entrei em contato" — anotação manual simples, sem automação (ver `DECISIONS.md`).
+
+**Pendente (não fiz eu — falta a senha do Postgres neste ambiente):**
+- `supabase/migrations/20260725000001_normaliza_texto_caixa_alta.sql` — redundante com o patch REST já aplicado (mesmo efeito), mas ainda não colada no schema versionado do banco real.
+- `supabase/migrations/20260725000002_contato_reativacao_cliente.sql` — **esta sim é obrigatória** pro botão "já entrei em contato" funcionar (adiciona as colunas `clientes.contatado_reativacao_em`/`contatado_reativacao_por`). Até ser aplicada, clicar o botão mostra um erro de "não foi possível atualizar" (tratado com mensagem, não quebra a tela).
+- Usuário vai colar as duas no SQL Editor do Supabase Dashboard.
+
 ## 2026-07-25 — Comprovante em PDF (print-agent estendido) — em produção ✅
 
 A cada venda (via "loja", automático), o `print-agent/` agora também salva o cupom em PDF em `Comprovante/<ano>/<mes>/Cliente - DD-MM.pdf` na área de trabalho de SERVIDOR, além de imprimir — pra encaminhar manualmente pro cliente via WhatsApp. Sem integração automática com WhatsApp de propósito (ver `DECISIONS.md`: risco de banir o número da loja). Testado de ponta a ponta com uma venda real, geração de PDF validada com biblioteca de terceiros, proteção contra nome de arquivo duplicado confirmada. `print-agent/agent.js` já reiniciado em produção com o código novo — nenhuma ação pendente.

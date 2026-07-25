@@ -55,7 +55,7 @@ export async function criarPedido(
     p_idempotency_key: opcoes?.idempotencyKey ?? null,
     p_parcelas_planejadas:
       opcoes?.parcelasPlanejadas && opcoes.parcelasPlanejadas.length > 0 ? opcoes.parcelasPlanejadas : null,
-    p_excecao_justificativa: opcoes?.excecaoJustificativa ?? null,
+    p_excecao_justificativa: opcoes?.excecaoJustificativa?.toUpperCase() ?? null,
     p_pagamentos_mistos:
       opcoes?.pagamentosMistos && opcoes.pagamentosMistos.length > 0 ? opcoes.pagamentosMistos : null,
   });

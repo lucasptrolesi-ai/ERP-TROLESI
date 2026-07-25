@@ -19,7 +19,7 @@ function revalidarFinanceiro() {
 }
 
 export async function salvarContaPagar(_prev: ResultadoForm, formData: FormData): Promise<ResultadoForm> {
-  const descricao = normalizarCampo(formData.get("descricao"));
+  const descricao = normalizarCampo(formData.get("descricao"), { caixaAlta: true });
   if (!descricao) return { erro: "Descrição é obrigatória." };
 
   const valor = Number(String(formData.get("valor") ?? "").replace(",", "."));
@@ -75,7 +75,7 @@ async function darBaixa(tabela: Tabela, id: string, dados: DadosBaixa): Promise<
       pago_em: comoTimestamptzBrasilia(dados.pago_em),
       valor_pago: dados.valor_pago,
       forma_pagamento_baixa: dados.forma_pagamento,
-      observacao_baixa: dados.observacao,
+      observacao_baixa: dados.observacao?.toUpperCase() ?? null,
     })
     .eq("id", id);
   if (error) return { erro: "Não foi possível dar baixa. Tente novamente." };

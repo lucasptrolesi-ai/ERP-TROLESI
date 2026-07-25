@@ -47,10 +47,10 @@ export async function registrarGarantia(_prev: ResultadoForm, formData: FormData
     limpeza_realizada: formData.get("limpeza_realizada") === "on",
     sinais_mau_uso: formData.get("sinais_mau_uso") === "on",
     alianca: formData.get("alianca") === "on",
-    parecer: normalizarCampo(formData.get("parecer")),
+    parecer: normalizarCampo(formData.get("parecer"), { caixaAlta: true }),
     aprovado,
-    justificativa: justificativaAuto ?? normalizarCampo(formData.get("justificativa")),
-    numero_serie: normalizarCampo(formData.get("numero_serie")),
+    justificativa: justificativaAuto ?? normalizarCampo(formData.get("justificativa"), { caixaAlta: true }),
+    numero_serie: normalizarCampo(formData.get("numero_serie"), { caixaAlta: true }),
     status_orient: tipo === "orient" ? "aguardando_fabricante" : null,
   });
 
@@ -74,7 +74,7 @@ export async function decidirGarantia(
   const { error } = await supabase.rpc("aprovar_reprovar_garantia", {
     p_id: id,
     p_aprovado: aprovado,
-    p_justificativa: justificativa ?? null,
+    p_justificativa: justificativa?.toUpperCase() ?? null,
   });
   if (error) return { erro: error.message };
   revalidatePath("/garantias");

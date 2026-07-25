@@ -109,9 +109,23 @@ export function BaixaContaModal(props: Props) {
             </label>
             <textarea
               value={observacao}
-              onChange={(e) => setObservacao(e.target.value)}
+              onChange={(e) => {
+                // Sem preservar o cursor, cada tecla jogaria o cursor pro fim
+                // do texto (o valor mudou de caixa, o React reconcilia o
+                // textarea e o navegador reresseta a seleção) — mesma técnica
+                // de `form-field.tsx`, adaptada pro caso controlado: muda o
+                // DOM primeiro, restaura a seleção, só depois atualiza o
+                // estado (com o valor que o DOM já tem, então o React não
+                // teria motivo pra tocar na seleção de novo).
+                const posicaoCursor = e.target.selectionStart;
+                const valorMaiusculo = e.target.value.toUpperCase();
+                e.target.value = valorMaiusculo;
+                if (posicaoCursor !== null) e.target.setSelectionRange(posicaoCursor, posicaoCursor);
+                setObservacao(valorMaiusculo);
+              }}
               rows={2}
               placeholder="Ex: quitado com desconto, acordo de renegociação..."
+              style={{ textTransform: "uppercase" }}
               className="rounded-lg border border-line bg-cream px-3 py-2 text-sm text-ink outline-none focus:border-rose focus:ring-2 focus:ring-rose-soft"
             />
           </div>

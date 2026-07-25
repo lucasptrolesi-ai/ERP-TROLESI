@@ -22,6 +22,8 @@ export type Cliente = {
   crediario_autorizado_em: string | null;
   crediario_limite: number | null;
   crediario_status: string;
+  contatado_reativacao_em: string | null;
+  contatado_reativacao_por: string | null;
 };
 
 export type CrediarioLancamento = {

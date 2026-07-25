@@ -2,6 +2,16 @@
 
 Histórico de decisões de escopo e arquitetura, na ordem em que foram tomadas. Decisões revistas ficam marcadas como tal, não apagadas.
 
+## 2026-07-25 (cont. 2) — Caixa alta: opt-in por campo, não opt-out global; "reativar" é só uma anotação
+
+- **Contexto:** usuário pediu "tudo que for ou foi digitado deve ser caixa alta" — pergunta genuinamente ambígua em dois pontos, então perguntei antes de codar em vez de supor.
+- **Pergunta 1 — dado já existente também converte?** Usuário confirmou: **sim, também converter tudo que já existe**, não só daqui pra frente. Isso definiu que a mudança precisava de duas camadas (código pra formulário novo + migration/patch pro dado antigo), não uma só.
+- **Pergunta 2 — o que "reativar" cliente inativo deveria fazer?** Cogitei um link de WhatsApp, atalho pro PDV, ou algo mais automatizado — usuário foi explícito: **"só marcar 'já entrei em contato'"**. Nada de automação; implementado como uma anotação manual pura (timestamp + quem marcou), sem nenhum efeito colateral em outra parte do sistema.
+- **Decisão minha (não perguntada, mas necessária pra não quebrar nada):** `normalizarCampo` ganhou a opção como **opt-in** (`{ caixaAlta: true }`, default false), não opt-out. Motivo: várias colunas já existentes são enum do Postgres (`garantia_tipo`) ou código fiscal (`origem_mercadoria`/`cest`/`cfop_padrao`/`cst`) que têm que bater exatamente com uma constante — um design opt-out quebraria essas silenciosamente se eu esquecesse de listar alguma como exceção. Opt-in significa que qualquer campo que eu não toque simplesmente continua como estava (seguro por padrão).
+- **Decisão minha:** texto **gerado pelo sistema** (não digitado por ninguém) fica de fora mesmo sendo salvo na mesma coluna que às vezes recebe texto digitado — ex.: `abatimentos.motivo_avaliacao` (sempre gerado por `avaliarPecaParaAbatimento`) e a parte de `garantias.justificativa` que vem de `avaliarGarantiaFolheado` (quando é preenchimento manual via `decidirGarantia`, aí sim maiusculiza). Fiel à letra do pedido ("o que for ou foi **digitado**"), não à leitura mais ampla de "todo texto do sistema".
+- **Decisão minha:** o marcador de "já contatado" **não** é limpo automaticamente quando o cliente volta a comprar (mexeria em `criar_pedido`, a function mais crítica e mais vezes corrigida do projeto, por um ganho cosmético pequeno). Documentado como limitação aceita na própria migration — se o cliente ficar inativo de novo num ciclo futuro, o marcador antigo aparece até alguém marcar/desmarcar de novo.
+- **Pendência real:** as duas migrations novas (`20260725000001_normaliza_texto_caixa_alta.sql`, `20260725000002_contato_reativacao_cliente.sql`) não foram aplicadas por mim — não tenho a senha do Postgres neste ambiente (diferente do patch de dado via REST, que só precisa da service_role key e por isso rodei direto). Usuário optou por colar o SQL manualmente no SQL Editor do Supabase Dashboard.
+
 ## 2026-07-25 — Envio de cupom ao cliente: PDF salvo em pasta, não integração automática com WhatsApp
 
 - **Contexto:** usuário pediu que o sistema mandasse o cupom pro cliente via WhatsApp automaticamente, ao finalizar o pedido.

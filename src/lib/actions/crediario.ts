@@ -14,7 +14,7 @@ export async function converterEmCrediario(
   const { error } = await supabase.rpc("converter_cliente_em_crediario", {
     p_cliente_id: clienteId,
     p_limite: limite,
-    p_justificativa: justificativa,
+    p_justificativa: justificativa.toUpperCase(),
   });
   if (error) return { erro: error.message };
 
@@ -44,7 +44,7 @@ export async function lancarCrediario(
 
 export async function receberCrediario(id: string, reciboNumero?: string): Promise<{ erro?: string }> {
   const supabase = await createClient();
-  const { error } = await supabase.rpc("receber_crediario", { p_id: id, p_recibo_numero: reciboNumero ?? null });
+  const { error } = await supabase.rpc("receber_crediario", { p_id: id, p_recibo_numero: reciboNumero?.toUpperCase() ?? null });
   if (error) return { erro: error.message };
 
   revalidatePath("/crediario");

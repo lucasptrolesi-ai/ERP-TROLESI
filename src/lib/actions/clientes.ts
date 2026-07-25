@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { getPerfilAtual } from "@/lib/supabase/auth";
 import { mensagemErroSalvar, mensagemErroExcluir, normalizarCampo } from "./erros";
 
 type ResultadoForm = { erro?: string } | undefined;
@@ -20,7 +21,7 @@ function revalidarClientes() {
 }
 
 export async function salvarCliente(_prev: ResultadoForm, formData: FormData): Promise<ResultadoForm> {
-  const nome = normalizarCampo(formData.get("nome"));
+  const nome = normalizarCampo(formData.get("nome"), { caixaAlta: true });
   if (!nome) return { erro: "Nome é obrigatório." };
 
   const id = normalizarCampo(formData.get("id"));
@@ -30,18 +31,18 @@ export async function salvarCliente(_prev: ResultadoForm, formData: FormData): P
     telefone: normalizarCampo(formData.get("telefone")),
     email: normalizarCampo(formData.get("email")),
     data_nascimento: normalizarCampo(formData.get("data_nascimento")),
-    cidade: normalizarCampo(formData.get("cidade")),
+    cidade: normalizarCampo(formData.get("cidade"), { caixaAlta: true }),
     uf: normalizarCampo(formData.get("uf"))?.toUpperCase().slice(0, 2) ?? null,
-    bairro: normalizarCampo(formData.get("bairro")),
+    bairro: normalizarCampo(formData.get("bairro"), { caixaAlta: true }),
     cep: normalizarCampo(formData.get("cep")),
-    endereco: normalizarCampo(formData.get("endereco")),
-    razao_social: normalizarCampo(formData.get("razao_social")),
-    nome_fantasia: normalizarCampo(formData.get("nome_fantasia")),
-    situacao_cadastral: normalizarCampo(formData.get("situacao_cadastral")),
+    endereco: normalizarCampo(formData.get("endereco"), { caixaAlta: true }),
+    razao_social: normalizarCampo(formData.get("razao_social"), { caixaAlta: true }),
+    nome_fantasia: normalizarCampo(formData.get("nome_fantasia"), { caixaAlta: true }),
+    situacao_cadastral: normalizarCampo(formData.get("situacao_cadastral"), { caixaAlta: true }),
     data_abertura: normalizarCampo(formData.get("data_abertura")),
-    natureza_juridica: normalizarCampo(formData.get("natureza_juridica")),
-    porte: normalizarCampo(formData.get("porte")),
-    atividade_principal: normalizarCampo(formData.get("atividade_principal")),
+    natureza_juridica: normalizarCampo(formData.get("natureza_juridica"), { caixaAlta: true }),
+    porte: normalizarCampo(formData.get("porte"), { caixaAlta: true }),
+    atividade_principal: normalizarCampo(formData.get("atividade_principal"), { caixaAlta: true }),
   };
 
   const supabase = await createClient();
@@ -59,6 +60,27 @@ export async function alternarAtivoCliente(id: string, ativo: boolean) {
   const supabase = await createClient();
   await supabase.from("clientes").update({ ativo }).eq("id", id);
   revalidarClientes();
+}
+
+// Anotação manual pro vendedor lembrar quem da lista de "clientes inativos"
+// (/relatorios) já foi contatado pra reativação — só isso, não dispara nada
+// (decisão do usuário: "só marcar já entrei em contato"). Não é limpo
+// automaticamente numa venda nova; se o cliente ficar inativo de novo depois,
+// o marcador antigo continua até alguém marcar/desmarcar de novo.
+export async function marcarClienteContatado(id: string, contatado: boolean): Promise<{ erro?: string }> {
+  const perfil = await getPerfilAtual();
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("clientes")
+    .update({
+      contatado_reativacao_em: contatado ? new Date().toISOString() : null,
+      contatado_reativacao_por: contatado ? perfil.id : null,
+    })
+    .eq("id", id);
+  if (error) return { erro: "Não foi possível atualizar. Tente novamente." };
+
+  revalidatePath("/relatorios");
+  return {};
 }
 
 export async function excluirCliente(id: string): Promise<{ erro?: string }> {

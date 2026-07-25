@@ -1,9 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { KpiCard } from "@/components/kpi-card";
 import { formatarMoeda } from "@/lib/formatar-moeda";
 import { FORMA_LABEL } from "@/lib/forma-pagamento";
+import { marcarClienteContatado } from "@/lib/actions/clientes";
 import {
   deslocarPeriodo,
   dentroDoPeriodo,
@@ -48,8 +50,27 @@ export function RelatoriosView({
   comissoes: ComissaoRelatorio[];
   clientes: Cliente[];
 }) {
+  const router = useRouter();
   const [tipoPeriodo, setTipoPeriodo] = useState<TipoPeriodo>("mes");
   const [referencia, setReferencia] = useState(hojeIso());
+  const [, iniciarAtualizacaoContato] = useTransition();
+  const [idAtualizandoContato, setIdAtualizandoContato] = useState<string | null>(null);
+  const [erroContato, setErroContato] = useState<string | null>(null);
+
+  function alternarContato(clienteId: string, contatado: boolean) {
+    setErroContato(null);
+    setIdAtualizandoContato(clienteId);
+    iniciarAtualizacaoContato(async () => {
+      const resultado = await marcarClienteContatado(clienteId, contatado);
+      if (resultado.erro) {
+        setErroContato(resultado.erro);
+        setIdAtualizandoContato(null);
+      } else {
+        router.refresh();
+        setIdAtualizandoContato(null);
+      }
+    });
+  }
 
   const { inicio, fim } = limitesPeriodo(tipoPeriodo, referencia);
   const anterior = periodoAnterior(tipoPeriodo, referencia);
@@ -282,6 +303,11 @@ export function RelatoriosView({
         <h2 className="mb-3 font-display text-base font-semibold text-ink">
           Clientes inativos ({clientesInativos.length})
         </h2>
+        {erroContato && (
+          <p role="alert" className="mb-2 rounded-lg bg-crit-bg px-3 py-2 text-sm font-medium text-crit">
+            {erroContato}
+          </p>
+        )}
         <div className="flex flex-col gap-1.5 text-sm">
           {clientesInativos.slice(0, 30).map(({ cliente, ultimaCompra }) => (
             <div key={cliente.id} className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
@@ -289,8 +315,30 @@ export function RelatoriosView({
                 {cliente.nome}
                 {cliente.telefone && <span className="text-text-soft"> — {cliente.telefone}</span>}
               </span>
-              <span className="text-xs text-text-soft">
+              <span className="flex items-baseline gap-2 text-xs text-text-soft">
                 {ultimaCompra ? `última compra ${formatarDataIso(ultimaCompra)}` : "nunca comprou"}
+                {cliente.contatado_reativacao_em ? (
+                  <span className="whitespace-nowrap">
+                    · ✓ contatado em {formatarDataIso(cliente.contatado_reativacao_em)}{" "}
+                    <button
+                      type="button"
+                      disabled={idAtualizandoContato === cliente.id}
+                      onClick={() => alternarContato(cliente.id, false)}
+                      className="font-semibold text-rose-deep hover:underline disabled:opacity-60"
+                    >
+                      desfazer
+                    </button>
+                  </span>
+                ) : (
+                  <button
+                    type="button"
+                    disabled={idAtualizandoContato === cliente.id}
+                    onClick={() => alternarContato(cliente.id, true)}
+                    className="whitespace-nowrap font-semibold text-rose-deep hover:underline disabled:opacity-60"
+                  >
+                    já entrei em contato
+                  </button>
+                )}
               </span>
             </div>
           ))}

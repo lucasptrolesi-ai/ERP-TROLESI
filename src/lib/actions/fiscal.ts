@@ -73,7 +73,7 @@ export async function gerarNotaFiscal(pedidoId: string): Promise<{ erro?: string
   if (!clienteRow) return { erro: "Pedido não encontrado." };
 
   const cfop = cfopPadrao(pedido.clientes.uf);
-  const naturezaOperacao = "Venda de mercadoria";
+  const naturezaOperacao = "VENDA DE MERCADORIA";
   const serie = "1";
 
   const xml = gerarXmlConferencia(montarDadosNfe(pedido, cfop, naturezaOperacao, serie));
@@ -112,11 +112,12 @@ export async function atualizarDadosFiscais(
   const pedido = await buscarPedidoPendente(nota.pedido_id);
   if (!pedido || !pedido.clientes) return { erro: "Pedido não encontrado." };
 
-  const xml = gerarXmlConferencia(montarDadosNfe(pedido, dados.cfop, dados.naturezaOperacao, "1"));
+  const naturezaOperacao = dados.naturezaOperacao.toUpperCase();
+  const xml = gerarXmlConferencia(montarDadosNfe(pedido, dados.cfop, naturezaOperacao, "1"));
 
   const { error } = await supabase
     .from("notas_fiscais")
-    .update({ cfop: dados.cfop, natureza_operacao: dados.naturezaOperacao, xml, atualizado_em: new Date().toISOString() })
+    .update({ cfop: dados.cfop, natureza_operacao: naturezaOperacao, xml, atualizado_em: new Date().toISOString() })
     .eq("id", notaId);
 
   if (error) return { erro: "Não foi possível atualizar. Tente novamente." };

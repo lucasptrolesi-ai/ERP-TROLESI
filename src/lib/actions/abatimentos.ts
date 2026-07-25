@@ -13,7 +13,7 @@ export async function registrarAbatimento(_prev: ResultadoForm, formData: FormDa
   if (!clienteId) return { erro: "Selecione um cliente." };
 
   const peca: PecaAbatimento = {
-    material: normalizarCampo(formData.get("material")),
+    material: normalizarCampo(formData.get("material"), { caixaAlta: true }),
     danificada: formData.get("danificada") === "on",
     marcaPresente: formData.get("marca_presente") === "on",
     temPedra: formData.get("tem_pedra") === "on",
@@ -37,7 +37,7 @@ export async function registrarAbatimento(_prev: ResultadoForm, formData: FormDa
     cliente_id: clienteId,
     pedido_id: normalizarCampo(formData.get("pedido_id")),
     material: peca.material,
-    tipo_peca: normalizarCampo(formData.get("tipo_peca")),
+    tipo_peca: normalizarCampo(formData.get("tipo_peca"), { caixaAlta: true }),
     marca_presente: peca.marcaPresente,
     danificada: peca.danificada,
     tem_pedra: peca.temPedra,
@@ -45,7 +45,7 @@ export async function registrarAbatimento(_prev: ResultadoForm, formData: FormDa
     eh_fita_ou_fio: peca.ehFitaOuFio,
     ultima_colecao: peca.ultimaColecao,
     eh_relogio: peca.ehRelogio,
-    estado_descricao: normalizarCampo(formData.get("estado_descricao")),
+    estado_descricao: normalizarCampo(formData.get("estado_descricao"), { caixaAlta: true }),
     motivo_avaliacao: avaliacao.motivo ?? null,
     valor_atribuido: avaliacao.elegivel ? valorAtribuido : null,
     status: avaliacao.elegivel ? "avaliando" : "reprovado",
@@ -66,7 +66,7 @@ export async function aprovarAbatimento(
   const { error } = await supabase.rpc("aprovar_abatimento", {
     p_id: id,
     p_valor_final: valorFinal ?? null,
-    p_justificativa: justificativa ?? null,
+    p_justificativa: justificativa?.toUpperCase() ?? null,
   });
   if (error) return { erro: error.message };
   revalidatePath("/abatimentos");
@@ -75,7 +75,10 @@ export async function aprovarAbatimento(
 
 export async function reprovarAbatimento(id: string, justificativa?: string): Promise<{ erro?: string }> {
   const supabase = await createClient();
-  const { error } = await supabase.rpc("reprovar_abatimento", { p_id: id, p_justificativa: justificativa ?? null });
+  const { error } = await supabase.rpc("reprovar_abatimento", {
+    p_id: id,
+    p_justificativa: justificativa?.toUpperCase() ?? null,
+  });
   if (error) return { erro: error.message };
   revalidatePath("/abatimentos");
   return {};

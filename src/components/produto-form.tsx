@@ -70,7 +70,7 @@ export function ProdutoForm({
           />
         </div>
 
-        <FormField label="URL da foto" name="foto_url" defaultValue={produto?.foto_url} />
+        <FormField label="URL da foto" name="foto_url" type="url" defaultValue={produto?.foto_url} />
 
         <div className="grid grid-cols-2 gap-3">
           <FormField label="Código de barras" name="codigo_barras" defaultValue={produto?.codigo_barras} />
@@ -208,13 +208,14 @@ export function ProdutoForm({
           </div>
 
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <FormField label="CEST" name="cest" defaultValue={produto?.cest} />
-            <FormField label="CFOP padrão" name="cfop_padrao" defaultValue={produto?.cfop_padrao} />
-            <FormField label="CST" name="cst" defaultValue={produto?.cst} />
+            <FormField label="CEST" name="cest" defaultValue={produto?.cest} semCaixaAlta />
+            <FormField label="CFOP padrão" name="cfop_padrao" defaultValue={produto?.cfop_padrao} semCaixaAlta />
+            <FormField label="CST" name="cst" defaultValue={produto?.cst} semCaixaAlta />
             <FormField
               label="Origem da mercadoria"
               name="origem_mercadoria"
               defaultValue={produto?.origem_mercadoria ?? "0"}
+              semCaixaAlta
             />
           </div>
         </div>

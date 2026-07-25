@@ -18,8 +18,8 @@ function numeroOuNulo(valor: FormDataEntryValue | null): number | null {
 }
 
 export async function salvarProduto(_prev: ResultadoForm, formData: FormData): Promise<ResultadoForm> {
-  const nome = normalizarCampo(formData.get("nome"));
-  const categoria = normalizarCampo(formData.get("categoria"));
+  const nome = normalizarCampo(formData.get("nome"), { caixaAlta: true });
+  const categoria = normalizarCampo(formData.get("categoria"), { caixaAlta: true });
   if (!nome) return { erro: "Nome é obrigatório." };
   if (!categoria) return { erro: "Categoria é obrigatória." };
 
@@ -27,10 +27,10 @@ export async function salvarProduto(_prev: ResultadoForm, formData: FormData): P
   const dados = {
     nome,
     categoria,
-    subcategoria: normalizarCampo(formData.get("subcategoria")),
-    subsubcategoria: normalizarCampo(formData.get("subsubcategoria")),
+    subcategoria: normalizarCampo(formData.get("subcategoria"), { caixaAlta: true }),
+    subsubcategoria: normalizarCampo(formData.get("subsubcategoria"), { caixaAlta: true }),
     foto_url: normalizarCampo(formData.get("foto_url")),
-    codigo_interno: normalizarCampo(formData.get("codigo_interno")),
+    codigo_interno: normalizarCampo(formData.get("codigo_interno"), { caixaAlta: true }),
     codigo_peca: Math.max(0, numeroOuZero(formData.get("codigo_peca"))),
     multiplicador: (() => {
       const valor = formData.get("multiplicador");
@@ -43,11 +43,11 @@ export async function salvarProduto(_prev: ResultadoForm, formData: FormData): P
     quantidade_estoque: Math.max(0, Math.trunc(numeroOuZero(formData.get("quantidade_estoque")))),
     estoque_minimo: Math.max(0, Math.trunc(numeroOuZero(formData.get("estoque_minimo")))),
     ativo: formData.get("ativo") === "on",
-    codigo_barras: normalizarCampo(formData.get("codigo_barras")),
-    referencia: normalizarCampo(formData.get("referencia")),
-    descricao: normalizarCampo(formData.get("descricao")),
-    material: normalizarCampo(formData.get("material")),
-    tipo_banho: normalizarCampo(formData.get("tipo_banho")),
+    codigo_barras: normalizarCampo(formData.get("codigo_barras"), { caixaAlta: true }),
+    referencia: normalizarCampo(formData.get("referencia"), { caixaAlta: true }),
+    descricao: normalizarCampo(formData.get("descricao"), { caixaAlta: true }),
+    material: normalizarCampo(formData.get("material"), { caixaAlta: true }),
+    tipo_banho: normalizarCampo(formData.get("tipo_banho"), { caixaAlta: true }),
     tem_pedra: formData.get("tem_pedra") === "on",
     tem_perola: formData.get("tem_perola") === "on",
     tem_resina: formData.get("tem_resina") === "on",
@@ -57,12 +57,12 @@ export async function salvarProduto(_prev: ResultadoForm, formData: FormData): P
     eh_fornitura: formData.get("eh_fornitura") === "on",
     eh_embalagem: formData.get("eh_embalagem") === "on",
     eh_relogio: formData.get("eh_relogio") === "on",
-    colecao: normalizarCampo(formData.get("colecao")),
+    colecao: normalizarCampo(formData.get("colecao"), { caixaAlta: true }),
     ultima_colecao: formData.get("ultima_colecao") === "on",
-    cor: normalizarCampo(formData.get("cor")),
-    tamanho: normalizarCampo(formData.get("tamanho")),
+    cor: normalizarCampo(formData.get("cor"), { caixaAlta: true }),
+    tamanho: normalizarCampo(formData.get("tamanho"), { caixaAlta: true }),
     peso: numeroOuNulo(formData.get("peso")),
-    genero: normalizarCampo(formData.get("genero")),
+    genero: normalizarCampo(formData.get("genero"), { caixaAlta: true }),
     garantia_tipo: normalizarCampo(formData.get("garantia_tipo")) ?? "sem_garantia",
     marca_gravada: formData.get("marca_gravada") === "on",
     custo_aquisicao: numeroOuNulo(formData.get("custo_aquisicao")),

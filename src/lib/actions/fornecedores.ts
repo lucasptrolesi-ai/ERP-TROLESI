@@ -15,7 +15,7 @@ function revalidarFornecedores() {
 }
 
 export async function salvarFornecedor(_prev: ResultadoForm, formData: FormData): Promise<ResultadoForm> {
-  const nome = normalizarCampo(formData.get("nome"));
+  const nome = normalizarCampo(formData.get("nome"), { caixaAlta: true });
   if (!nome) return { erro: "Nome é obrigatório." };
 
   const id = normalizarCampo(formData.get("id"));
@@ -23,7 +23,7 @@ export async function salvarFornecedor(_prev: ResultadoForm, formData: FormData)
     nome,
     cnpj: normalizarCampo(formData.get("cnpj")),
     telefone: normalizarCampo(formData.get("telefone")),
-    cidade: normalizarCampo(formData.get("cidade")),
+    cidade: normalizarCampo(formData.get("cidade"), { caixaAlta: true }),
     uf: normalizarCampo(formData.get("uf"))?.toUpperCase().slice(0, 2) ?? null,
   };
 

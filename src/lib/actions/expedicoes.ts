@@ -42,13 +42,13 @@ export async function criarExpedicao(_prev: ResultadoForm, formData: FormData): 
   // obrigatório — checado dentro da function, não confiar em nada aqui.
   const { error } = await supabase.rpc("criar_expedicao", {
     p_pedido_id: pedidoId,
-    p_endereco_entrega: String(formData.get("endereco_entrega") ?? "") || null,
-    p_destinatario: String(formData.get("destinatario") ?? "") || null,
-    p_transportadora: String(formData.get("transportadora") ?? "") || null,
-    p_modalidade: String(formData.get("modalidade") ?? "") || null,
+    p_endereco_entrega: String(formData.get("endereco_entrega") ?? "").toUpperCase() || null,
+    p_destinatario: String(formData.get("destinatario") ?? "").toUpperCase() || null,
+    p_transportadora: String(formData.get("transportadora") ?? "").toUpperCase() || null,
+    p_modalidade: String(formData.get("modalidade") ?? "").toUpperCase() || null,
     p_custo: custo,
     p_frete_gratis: freteGratis,
-    p_motivo_frete_gratis: freteGratis ? String(formData.get("motivo_frete_gratis") ?? "") || null : null,
+    p_motivo_frete_gratis: freteGratis ? String(formData.get("motivo_frete_gratis") ?? "").toUpperCase() || null : null,
   });
 
   if (error) return { erro: error.message };
