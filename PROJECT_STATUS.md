@@ -2,11 +2,7 @@
 
 _Atualizado em 2026-07-27._
 
-## 2026-07-27 (cont.) — Vision AI removido; ficou só a verificação de duplicidade
-
-O Trolesi Vision AI (entrada abaixo) foi revertido a pedido do usuário — decidiu que a IA não é necessária, o cadastro continua manual. O que sobrou e foi mantido: uma sobretela de "produto parecido encontrado" dentro do próprio formulário "Novo produto" do Estoque, comparando categoria/subcategoria/material/cor contra o catálogo (sem foto, sem IA). Ver `DECISIONS.md`/`CHANGELOG.md` (2026-07-27, cont.) para detalhes. Migration `20260727000002` desfaz o que a tentativa de IA tinha criado no banco (mantém a correção de schema da migration `20260727000001`, que continua válida).
-
-## 2026-07-27 — Trolesi Vision AI: cadastro de produto por foto (primeira IA do projeto) — REVERTIDO, ver entrada acima
+## 2026-07-27 — Trolesi Vision AI: cadastro de produto por foto (primeira IA do projeto)
 
 Nova tela `/estoque/cadastro-ia`: operador fotografa a peça, Google Gemini sugere os atributos comerciais que já existem em `produtos` (material, cor, tipo de banho, tamanho, coleção, descrição, tem_pedra/tem_perola), operador revisa (só `codigo_peca` é manual) e confirma — gera código interno e etiqueta com código de barras (CODE128 do próprio código interno). Antiduplicação por metadados antes de salvar.
 

@@ -2,13 +2,6 @@
 
 Histórico de decisões de escopo e arquitetura, na ordem em que foram tomadas. Decisões revistas ficam marcadas como tal, não apagadas.
 
-## 2026-07-27 (cont.) — Decisão revista: Vision AI (Gemini) removido, só a checagem de duplicidade ficou
-
-- **O usuário decidiu que a IA não é necessária: o preenchimento do produto continua manual.** Depois de ver os limites do tier gratuito do Gemini (20 requisições/dia no `gemini-flash-latest`) e reconsiderar o valor real do passo de análise por foto, pediu explicitamente pra tirar a parte de IA e manter só a verificação de duplicidade.
-- **Removido por completo:** rota `/estoque/cadastro-ia`, `src/lib/actions/vision-ai.ts`, `src/lib/comprimir-imagem.ts`, dependências `@google/genai` e `jsbarcode`, tabelas `produto_imagens`/`produto_ia_correcoes`, coluna `tags` em `produtos`, bucket de Storage `produtos-fotos` — migration `20260727000002`. `GEMINI_API_KEY` removida da Vercel e do `.env.local`.
-- **A checagem de duplicidade foi migrada pro formulário existente** (`produto-form.tsx`, "Novo produto" do Estoque), a pedido do usuário — em vez de um fluxo separado por foto, agora é uma sobretela que aparece ao clicar "Salvar" num produto novo, comparando categoria/subcategoria/material/cor contra o catálogo ativo (`buscarProdutosParecidos` em `src/lib/actions/produtos.ts`) e listando os parecidos com "Cancelar"/"Salvar mesmo assim". Só roda pra cadastro novo, não em edição (comparar um produto com ele mesmo não agrega nada).
-- **O que fica da tentativa anterior:** a migration `20260727000001` (remoção das colunas equivocadas de banho/pedra/etc. e do índice único indevido em `codigo_barras`) continua válida e não é desfeita — aquele problema era real e independente da decisão de manter ou não a IA.
-
 ## 2026-07-27 — Trolesi Vision AI: cadastro de produto por foto, e a divergência de duas sessões paralelas
 
 - **Decisão revista: "sem IA nativa avançada" (2026-07-16) não se aplica aqui.** Aquela decisão respondia a um "prompt master" genérico de terceiro pedindo IA como item entre dezenas de outros numa reescrita enterprise completa. Aqui é diferente: o usuário trouxe uma visão de produto própria, específica e bem escopada (cadastro de produto por foto) — decisão de fazer.
