@@ -2,6 +2,14 @@
 
 Histórico de decisões de escopo e arquitetura, na ordem em que foram tomadas. Decisões revistas ficam marcadas como tal, não apagadas.
 
+## 2026-07-27 (cont. 2) — Decisão revista de novo: Vision AI (Gemini) volta
+
+- **O usuário pediu pra tirar a IA (ver entrada anterior), testou a alternativa manual (sobretela de duplicidade no formulário) e decidiu voltar atrás — quer o Gemini de volta.** Revertido via `git revert` do commit que tinha removido tudo, restaurando `/estoque/cadastro-ia`, `vision-ai.ts`, `comprimir-imagem.ts`, as dependências e o schema exatamente como estavam.
+- **A sobretela de duplicidade embutida em `produto-form.tsx` (que tinha sido feita como substituta) saiu de novo** — o Vision AI já tem sua própria checagem de duplicidade (`buscarProdutosSemelhantes`, dentro do próprio fluxo por foto).
+- **Migration `20260727000002` (a que tinha removido tags/produto_imagens/produto_ia_correcoes/bucket) não foi apagada do repositório** mesmo revertida — ela rodou de verdade contra o banco real, então fica como registro histórico do que aconteceu. `20260727000003` é a nova migration que desfaz o que ela tinha desfeito (recria tudo com o mesmo padrão idempotente da original).
+- `GEMINI_API_KEY` volta pra Vercel (nunca saiu do `.env.local` local).
+- Fica reaberta a questão do limite de 20 requisições/dia do tier gratuito do `gemini-flash-latest` (ver conversa anterior) — não resolvida ainda, só não é mais bloqueante pra essa decisão.
+
 ## 2026-07-27 — Trolesi Vision AI: cadastro de produto por foto, e a divergência de duas sessões paralelas
 
 - **Decisão revista: "sem IA nativa avançada" (2026-07-16) não se aplica aqui.** Aquela decisão respondia a um "prompt master" genérico de terceiro pedindo IA como item entre dezenas de outros numa reescrita enterprise completa. Aqui é diferente: o usuário trouxe uma visão de produto própria, específica e bem escopada (cadastro de produto por foto) — decisão de fazer.

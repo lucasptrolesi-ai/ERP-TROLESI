@@ -2,6 +2,10 @@
 
 _Atualizado em 2026-07-27._
 
+## 2026-07-27 (cont. 2) — Vision AI restaurado
+
+O usuário pediu pra remover a IA, testou a alternativa manual (sobretela de duplicidade no formulário de produto) e decidiu voltar com o Gemini. Estado atual: `/estoque/cadastro-ia` ativo de novo, exatamente como descrito na entrada original abaixo. **Pendente: migration `20260727000003` precisa ser aplicada no SQL Editor** (recria tags/produto_imagens/produto_ia_correcoes/bucket que a remoção tinha apagado). Ver `DECISIONS.md`/`CHANGELOG.md` pro histórico completo dessa ida e volta.
+
 ## 2026-07-27 — Trolesi Vision AI: cadastro de produto por foto (primeira IA do projeto)
 
 Nova tela `/estoque/cadastro-ia`: operador fotografa a peça, Google Gemini sugere os atributos comerciais que já existem em `produtos` (material, cor, tipo de banho, tamanho, coleção, descrição, tem_pedra/tem_perola), operador revisa (só `codigo_peca` é manual) e confirma — gera código interno e etiqueta com código de barras (CODE128 do próprio código interno). Antiduplicação por metadados antes de salvar.

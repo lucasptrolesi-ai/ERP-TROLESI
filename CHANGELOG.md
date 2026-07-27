@@ -1,5 +1,11 @@
 # CHANGELOG — ERP Trolesi
 
+## 2026-07-27 (cont. 2) — Vision AI restaurado (revertida a remoção)
+
+- Usuário testou a alternativa manual (sobretela de duplicidade em "Novo produto") e decidiu voltar com o Gemini — `git revert` da remoção, restaurando `/estoque/cadastro-ia` e tudo que dependia dele. A sobretela de duplicidade no `produto-form.tsx` saiu de novo (o Vision AI já cobre isso no próprio fluxo).
+- Migration `20260727000003` recria no banco o que `20260727000002` tinha removido (tags, `produto_imagens`, `produto_ia_correcoes`, bucket `produtos-fotos`) — precisa ser aplicada no SQL Editor.
+- `GEMINI_API_KEY` de volta na Vercel. Ver `DECISIONS.md`.
+
 ## 2026-07-27 — Trolesi Vision AI: cadastro de produto por foto
 
 - Novo fluxo em `/estoque/cadastro-ia` (botão "Cadastrar com foto" ao lado de "+ Novo produto" no Estoque): operador fotografa a peça (frente obrigatória, verso/detalhe opcionais, compressão client-side pro limite de payload do Server Action) → IA (Google Gemini, `gemini-flash-latest`) sugere categoria, material, cor, tipo de banho, tamanho, coleção, descrição, tags e os booleanos tem_pedra/tem_perola → revisão editável, com `codigo_peca` como único campo manual → verificação de produto parecido por metadados → confirmação gera código interno e etiqueta imprimível (código de barras CODE128 codifica o próprio código interno).
