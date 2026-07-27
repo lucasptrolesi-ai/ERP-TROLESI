@@ -1,6 +1,14 @@
 # PROJECT_STATUS — ERP Trolesi
 
-_Atualizado em 2026-07-25._
+_Atualizado em 2026-07-27._
+
+## 2026-07-27 — Trolesi Vision AI: cadastro de produto por foto (primeira IA do projeto)
+
+Nova tela `/estoque/cadastro-ia`: operador fotografa a peça, Google Gemini sugere os atributos comerciais que já existem em `produtos` (material, cor, tipo de banho, tamanho, coleção, descrição, tem_pedra/tem_perola), operador revisa (só `codigo_peca` é manual) e confirma — gera código interno e etiqueta com código de barras (CODE128 do próprio código interno). Antiduplicação por metadados antes de salvar.
+
+**⚠️ Construído numa sessão que rodou em outra máquina, sem visibilidade do pivô "documento mestre" (ver seção logo abaixo) — teve que ser realinhado antes de publicar.** A primeira tentativa criou colunas de produto redundantes com os atributos comerciais que a Fase 2 do documento mestre já tinha adicionado; migration `20260727000001` corrige isso (remove as colunas equivocadas e um índice único indevido em `codigo_barras`, que já existia com outro propósito). Nenhum dado real foi perdido — a correção é só estrutural. Ver `DECISIONS.md` para o relato completo.
+
+Migration `20260725000001` (histórica) + `20260727000001` (corretiva) — **aplicar as duas no SQL Editor do Supabase antes de considerar essa entrega concluída**, na ordem.
 
 ## 2026-07-25 — Caixa alta em tudo + "já entrei em contato" pra cliente inativo — ⚠️ 2 migrations pendentes de aplicar
 
