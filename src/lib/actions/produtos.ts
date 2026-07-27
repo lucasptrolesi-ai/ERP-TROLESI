@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { mensagemErroSalvar, mensagemErroExcluir, normalizarCampo } from "./erros";
+import type { ProdutoSemelhante } from "@/lib/types";
 
 type ResultadoForm = { erro?: string } | undefined;
 
@@ -84,6 +85,42 @@ export async function salvarProduto(_prev: ResultadoForm, formData: FormData): P
   revalidatePath("/estoque");
   revalidatePath("/pedidos");
   return undefined;
+}
+
+/**
+ * Checagem de duplicidade no cadastro de produto: pontua o catálogo ativo
+ * por sobreposição de categoria/subcategoria/material/cor com o que o
+ * operador já digitou no formulário — não é comparação visual, só metadado.
+ */
+export async function buscarProdutosParecidos(dados: {
+  categoria: string;
+  subcategoria: string | null;
+  material: string | null;
+  cor: string | null;
+  excluirId?: string | null;
+}): Promise<ProdutoSemelhante[]> {
+  if (!dados.categoria.trim()) return [];
+
+  const supabase = await createClient();
+  const { data: produtos } = await supabase.from("produtos").select("*").eq("ativo", true);
+  if (!produtos) return [];
+
+  const totalPossivel = 7;
+  const pontuados = produtos
+    .filter((p) => p.id !== dados.excluirId)
+    .map((p) => {
+      let pontos = 0;
+      if (p.categoria?.toLowerCase() === dados.categoria.trim().toLowerCase()) pontos += 3;
+      if (dados.subcategoria && p.subcategoria?.toLowerCase() === dados.subcategoria.toLowerCase()) pontos += 2;
+      if (dados.material && p.material?.toLowerCase() === dados.material.toLowerCase()) pontos += 1;
+      if (dados.cor && p.cor?.toLowerCase() === dados.cor.toLowerCase()) pontos += 1;
+      return { ...p, pontuacao: Math.round((pontos / totalPossivel) * 100) };
+    });
+
+  return pontuados
+    .filter((p) => p.pontuacao >= 60)
+    .sort((a, b) => b.pontuacao - a.pontuacao)
+    .slice(0, 5);
 }
 
 export async function excluirProduto(id: string): Promise<{ erro?: string }> {

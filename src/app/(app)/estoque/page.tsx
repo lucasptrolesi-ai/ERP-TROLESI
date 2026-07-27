@@ -4,18 +4,13 @@ import { hojeIso } from "@/lib/datas";
 import { EstoqueView } from "./estoque-view";
 import type { CotacaoDiaria } from "@/lib/types";
 
-export default async function EstoquePage({
-  searchParams,
-}: {
-  searchParams: Promise<{ editar?: string }>;
-}) {
+export default async function EstoquePage() {
   const perfil = await getPerfilAtual();
   const supabase = await createClient();
-  const [{ data: produtos }, { data: cotacoesHoje }, { data: podeInformarCotacao }, { editar }] = await Promise.all([
+  const [{ data: produtos }, { data: cotacoesHoje }, { data: podeInformarCotacao }] = await Promise.all([
     supabase.from("produtos").select("*").order("nome"),
     supabase.from("cotacoes_diarias").select("*").eq("data", hojeIso()),
     supabase.rpc("tem_permissao", { p_permissao: "informar_cotacao" }),
-    searchParams,
   ]);
 
   return (
@@ -24,7 +19,6 @@ export default async function EstoquePage({
       produtos={produtos ?? []}
       cotacoesHoje={(cotacoesHoje ?? []) as CotacaoDiaria[]}
       podeInformarCotacao={podeInformarCotacao === true}
-      editarId={editar}
     />
   );
 }

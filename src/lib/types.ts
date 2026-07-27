@@ -107,43 +107,10 @@ export type Produto = {
   cst: string | null;
   origem_mercadoria: string;
   localizacao_id: string | null;
-  // Trolesi Vision AI — único campo sem equivalente nos atributos comerciais
-  // do documento mestre; usado pra antiduplicação por metadados.
-  tags: string[] | null;
 };
 
-export type TipoImagemProduto = "frente" | "verso" | "detalhe" | "outra";
-
-export type ProdutoImagem = {
-  id: string;
-  produto_id: string;
-  tipo: TipoImagemProduto;
-  storage_path: string;
-  criado_em: string;
-};
-
-/**
- * Sugestão estruturada que a IA devolve depois de analisar as fotos (Vision
- * AI, Etapas 2 e 3) — mapeia direto pros atributos comerciais que já existem
- * em `Produto` (tipo_banho/tem_pedra/tem_perola/tamanho/colecao), não uma
- * cópia paralela deles.
- */
-export type AnaliseIaProduto = {
-  nome: string;
-  categoria: string;
-  subcategoria: string | null;
-  material: string | null;
-  cor: string | null;
-  tipo_banho: string | null;
-  tem_pedra: boolean;
-  tem_perola: boolean;
-  tamanho: string | null;
-  colecao: string | null;
-  descricao: string;
-  tags: string[];
-};
-
-/** Produto do catálogo já cadastrado com uma pontuação de semelhança (Vision AI, Etapa 4). */
+/** Produto do catálogo já cadastrado com uma pontuação de semelhança — usado
+ * na checagem de duplicidade do formulário de "Novo produto" (Estoque). */
 export type ProdutoSemelhante = Produto & { pontuacao: number };
 
 export type StatusPedido =

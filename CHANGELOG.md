@@ -1,5 +1,12 @@
 # CHANGELOG — ERP Trolesi
 
+## 2026-07-27 (cont.) — Vision AI removido; verificação de duplicidade migrada pro formulário de produto
+
+- A entrada anterior deste changelog (Trolesi Vision AI) foi **revertida a pedido do usuário** — sem necessidade de IA, o cadastro de produto continua manual. Removidos: rota `/estoque/cadastro-ia`, `vision-ai.ts`, `comprimir-imagem.ts`, dependências `@google/genai`/`jsbarcode`, tabelas `produto_imagens`/`produto_ia_correcoes`, coluna `tags`, bucket `produtos-fotos` (migration `20260727000002`).
+- **Nova sobretela de verificação de duplicidade em "Novo produto"** (`produto-form.tsx`): ao clicar "Salvar" num cadastro novo, compara categoria/subcategoria/material/cor contra o catálogo ativo (`buscarProdutosParecidos`, `src/lib/actions/produtos.ts`) e mostra os parecidos (nome, categoria, % de pontuação) antes de salvar, com opção de cancelar ou seguir mesmo assim. Só roda em cadastro novo.
+- `GEMINI_API_KEY` removida do `.env.local` e da Vercel.
+- Ver `DECISIONS.md` pro contexto completo da decisão.
+
 ## 2026-07-27 — Trolesi Vision AI: cadastro de produto por foto
 
 - Novo fluxo em `/estoque/cadastro-ia` (botão "Cadastrar com foto" ao lado de "+ Novo produto" no Estoque): operador fotografa a peça (frente obrigatória, verso/detalhe opcionais, compressão client-side pro limite de payload do Server Action) → IA (Google Gemini, `gemini-flash-latest`) sugere categoria, material, cor, tipo de banho, tamanho, coleção, descrição, tags e os booleanos tem_pedra/tem_perola → revisão editável, com `codigo_peca` como único campo manual → verificação de produto parecido por metadados → confirmação gera código interno e etiqueta imprimível (código de barras CODE128 codifica o próprio código interno).

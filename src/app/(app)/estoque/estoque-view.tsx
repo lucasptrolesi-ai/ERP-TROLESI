@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import Link from "next/link";
 import { ProdutoForm } from "@/components/produto-form";
 import { CotacaoDoDia } from "@/components/cotacao-do-dia";
 import { filtra } from "@/lib/filtra";
@@ -22,21 +21,15 @@ export function EstoqueView({
   produtos,
   cotacoesHoje,
   podeInformarCotacao,
-  editarId,
 }: {
   papelAtual: string;
   produtos: Produto[];
   cotacoesHoje: CotacaoDiaria[];
   podeInformarCotacao: boolean;
-  editarId?: string;
 }) {
   const [busca, setBusca] = useState("");
   const [categoriaAtiva, setCategoriaAtiva] = useState<string | null>(null);
-  // Suporte ao link "Atualizar estoque" do Vision AI (?editar=<id>): abre já
-  // com o produto encontrado como parecido, pra ajustar a quantidade.
-  const [produtoEditando, setProdutoEditando] = useState<Produto | null | undefined>(() =>
-    editarId ? produtos.find((p) => p.id === editarId) : undefined,
-  );
+  const [produtoEditando, setProdutoEditando] = useState<Produto | null | undefined>(undefined);
 
   const podeEditar = podeEditarProdutos(papelAtual);
 
@@ -90,20 +83,12 @@ export function EstoqueView({
             </button>
           ))}
           {podeEditar && (
-            <>
-              <Link
-                href="/estoque/cadastro-ia"
-                className="shrink-0 rounded-full border border-rose px-4 py-2 text-sm font-semibold text-rose-deep"
-              >
-                Cadastrar com foto
-              </Link>
-              <button
-                onClick={() => setProdutoEditando(null)}
-                className="shrink-0 rounded-full bg-gradient-to-br from-gold-start to-gold-end px-4 py-2 text-sm font-semibold text-gold-ink"
-              >
-                + Novo produto
-              </button>
-            </>
+            <button
+              onClick={() => setProdutoEditando(null)}
+              className="shrink-0 rounded-full bg-gradient-to-br from-gold-start to-gold-end px-4 py-2 text-sm font-semibold text-gold-ink"
+            >
+              + Novo produto
+            </button>
           )}
         </div>
       </div>

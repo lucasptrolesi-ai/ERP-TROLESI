@@ -1,13 +1,13 @@
 "use client";
 
-import { useActionState, useState, useTransition } from "react";
+import { useActionState, useRef, useState, useTransition } from "react";
 import { Modal } from "@/components/modal";
 import { FormField } from "@/components/form-field";
-import { salvarProduto, excluirProduto } from "@/lib/actions/produtos";
+import { salvarProduto, excluirProduto, buscarProdutosParecidos } from "@/lib/actions/produtos";
 import { useFecharAoSalvar } from "@/lib/use-fechar-ao-salvar";
 import { formatarMoeda } from "@/lib/formatar-moeda";
 import { calcularPrecoUnitario, MULTIPLICADOR_PADRAO } from "@/lib/precificacao";
-import type { Produto } from "@/lib/types";
+import type { Produto, ProdutoSemelhante } from "@/lib/types";
 
 export function ProdutoForm({
   aberto,
@@ -27,6 +27,11 @@ export function ProdutoForm({
   const [multiplicador, setMultiplicador] = useState(produto?.multiplicador ?? MULTIPLICADOR_PADRAO);
   useFecharAoSalvar(pending, state?.erro, onFechar);
 
+  const formRef = useRef<HTMLFormElement>(null);
+  const [semelhantes, setSemelhantes] = useState<ProdutoSemelhante[] | null>(null);
+  const [verificando, iniciarVerificacao] = useTransition();
+  const jaConfirmouDuplicidade = useRef(false);
+
   function handleExcluir() {
     if (!produto) return;
     if (!confirm(`Excluir "${produto.nome}"? Essa ação não pode ser desfeita.`)) return;
@@ -41,9 +46,38 @@ export function ProdutoForm({
     });
   }
 
+  // Checagem de duplicidade só faz sentido pra cadastro novo — editar um
+  // produto já existente contra o próprio catálogo não agrega nada. Usa
+  // onSubmit + preventDefault (em vez de trocar o botão pra type="button")
+  // pra manter o Enter-pra-salvar funcionando normalmente no formulário.
+  function handleFormSubmit(e: React.FormEvent<HTMLFormElement>) {
+    if (produto || jaConfirmouDuplicidade.current) return;
+    e.preventDefault();
+    const dados = new FormData(e.currentTarget);
+    iniciarVerificacao(async () => {
+      const parecidos = await buscarProdutosParecidos({
+        categoria: String(dados.get("categoria") ?? ""),
+        subcategoria: normalizarOpcional(dados.get("subcategoria")),
+        material: normalizarOpcional(dados.get("material")),
+        cor: normalizarOpcional(dados.get("cor")),
+      });
+      if (parecidos.length > 0) {
+        setSemelhantes(parecidos);
+      } else {
+        jaConfirmouDuplicidade.current = true;
+        formRef.current?.requestSubmit();
+      }
+    });
+  }
+
+  function normalizarOpcional(valor: FormDataEntryValue | null): string | null {
+    const texto = String(valor ?? "").trim();
+    return texto.length > 0 ? texto : null;
+  }
+
   return (
     <Modal aberto={aberto} onFechar={onFechar} titulo={produto ? "Editar produto" : "Novo produto"}>
-      <form action={formAction} className="flex flex-col gap-4">
+      <form ref={formRef} action={formAction} onSubmit={handleFormSubmit} className="flex flex-col gap-4">
         {produto && <input type="hidden" name="id" value={produto.id} />}
 
         <FormField label="Código interno" name="codigo_interno" defaultValue={produto?.codigo_interno} />
@@ -249,13 +283,59 @@ export function ProdutoForm({
           )}
           <button
             type="submit"
-            disabled={pending}
+            disabled={pending || verificando}
             className="flex-1 rounded-full bg-gradient-to-br from-gold-start to-gold-end py-2.5 text-sm font-semibold text-gold-ink transition disabled:opacity-60"
           >
-            {pending ? "Salvando…" : "Salvar"}
+            {verificando ? "Verificando…" : pending ? "Salvando…" : "Salvar"}
           </button>
         </div>
       </form>
+
+      <Modal
+        aberto={semelhantes !== null}
+        onFechar={() => setSemelhantes(null)}
+        titulo="Já existe algo parecido"
+      >
+        <div className="flex flex-col gap-3">
+          <p className="text-sm text-text-soft">
+            Comparação por categoria/subcategoria/material/cor — não é comparação visual.
+          </p>
+          {semelhantes?.map((p) => (
+            <div key={p.id} className="flex items-center gap-3 rounded-lg border border-line bg-cream p-3">
+              <div className="flex-1">
+                <p className="text-sm font-bold text-ink">{p.nome}</p>
+                <p className="text-xs text-text-soft">
+                  {[p.categoria, p.subcategoria].filter(Boolean).join(" · ")}
+                  {p.codigo_interno ? ` · #${p.codigo_interno}` : ""}
+                </p>
+              </div>
+              <span className="rounded-full bg-warn-bg px-2.5 py-1 text-xs font-bold text-warn">
+                {p.pontuacao}% parecido
+              </span>
+            </div>
+          ))}
+          <div className="mt-2 flex gap-3">
+            <button
+              type="button"
+              onClick={() => setSemelhantes(null)}
+              className="flex-1 rounded-full border border-line py-2.5 text-sm font-semibold text-text transition"
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                jaConfirmouDuplicidade.current = true;
+                setSemelhantes(null);
+                formRef.current?.requestSubmit();
+              }}
+              className="flex-1 rounded-full bg-gradient-to-br from-gold-start to-gold-end py-2.5 text-sm font-semibold text-gold-ink transition"
+            >
+              Salvar mesmo assim
+            </button>
+          </div>
+        </div>
+      </Modal>
     </Modal>
   );
 }
