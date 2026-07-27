@@ -97,7 +97,7 @@ export async function analisarFotosProduto(
   let texto: string | undefined;
   try {
     const response = await genai.models.generateContent({
-      model: process.env.GEMINI_MODEL_VISION ?? "gemini-flash-latest",
+      model: process.env.GEMINI_MODEL_VISION ?? "gemini-3.1-flash-lite",
       contents: [
         {
           role: "user",
