@@ -1,5 +1,12 @@
 # CHANGELOG — ERP Trolesi
 
+## 2026-07-27 (cont. 4) — Ícone próprio do app (tela de início do iOS / aba do navegador)
+
+- Usuário notou que adicionar o ERP na tela de início do iOS mostrava o ícone genérico (triângulo branco da Vercel) — o projeto não tinha `apple-icon`/`icon` configurados, só um `favicon.ico` padrão do scaffold inicial.
+- Novo `src/app/icon.png` (512×512) e `src/app/apple-icon.png` (180×180, convenção de arquivo do Next.js — gera a tag `<link rel="apple-touch-icon">` sozinho, sem código extra), com o mesmo emblema já usado na barra lateral (`BrandBadge`): círculo com "T", fundo em degradê rosa/vinho.
+- Aprovado por mockup antes de aplicar (Artifact mostrando o ícone em contexto real — grade de apps do iOS e aba de navegador — regra 1 do `CLAUDE.md`), com uma rodada de ajuste de cor (fundo café → rosa) pedida pelo usuário.
+- `favicon.ico` antigo mantido como está — navegadores modernos já priorizam `icon.png` pela tag `<link>`, só o fallback legado de `/favicon.ico` direto continua com o ícone genérico anterior (baixo impacto, não é o caso que motivou o pedido).
+
 ## 2026-07-27 (cont. 3) — PDV: venda em andamento não se perde mais ao navegar
 
 - Usuário relatou que sair da tela de Nova venda (pra checar Estoque/Cadastros e voltar) perdia todo o progresso da venda — o React desmonta `NovoPedido` a cada troca de rota, e o estado era só `useState` local, sem persistência nenhuma.
