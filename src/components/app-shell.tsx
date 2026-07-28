@@ -7,6 +7,7 @@ import { BrandBadge } from "@/components/brand-badge";
 import { AlertaVencimentos } from "@/components/alerta-vencimentos";
 import { RealtimeRefresh } from "@/components/realtime-refresh";
 import { logout } from "@/lib/actions/auth";
+import { CHAVE_RASCUNHO_PEDIDO } from "@/lib/rascunho-pedido";
 import type { ContaPagarVencendo, ParcelaVencendo } from "@/lib/types";
 
 export function AppShell({
@@ -57,7 +58,18 @@ export function AppShell({
             <Link href="/conta" onClick={() => setMenuAberto(false)} className="text-xs underline decoration-dotted hover:text-white">
               Minha conta
             </Link>
-            <form action={logout}>
+            <form
+              action={logout}
+              onSubmit={() => {
+                // Rascunho de venda em andamento não pode vazar pro próximo
+                // operador que logar neste mesmo terminal/aba.
+                try {
+                  sessionStorage.removeItem(CHAVE_RASCUNHO_PEDIDO);
+                } catch {
+                  // sessionStorage indisponível — sem risco real (nada foi salvo).
+                }
+              }}
+            >
               <button type="submit" className="text-xs underline decoration-dotted hover:text-white">
                 Sair
               </button>

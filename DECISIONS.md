@@ -2,6 +2,13 @@
 
 Histórico de decisões de escopo e arquitetura, na ordem em que foram tomadas. Decisões revistas ficam marcadas como tal, não apagadas.
 
+## 2026-07-27 (cont. 3) — Rascunho de venda: sessionStorage, sem sobreviver entre máquinas
+
+- **Problema relatado pelo usuário:** sair da tela de Nova venda (PDV) pra consultar Estoque/Cadastros no meio de uma venda perdia o progresso inteiro.
+- **Opções consideradas:** (a) `sessionStorage` client-side, (b) Context/estado global mantido no layout, (c) rascunho persistido no banco. Usuário escolheu explicitamente a mais simples, sem exigência de sobreviver entre máquinas/dispositivos diferentes — decisão dele, não suposição: "siga da forma mais simples, sem precisar sobreviver entre máquinas".
+- **Trade-off aceito:** o rascunho é por aba/navegador, não sincroniza entre abas nem dispositivos — coerente com o comportamento de hoje (só uma venda em andamento por vez, num único lugar).
+- **Ideia de pop-up de confirmação ao sair da tela foi descartada** (sugestão do próprio usuário, no meio da implementação) — com o autosave, nunca existe um momento de "sair e perder", então o pop-up seria redundante; além disso, interceptar navegação do App Router do Next não tem um hook pronto pra isso. Em vez disso, foi adicionado um botão explícito "Cancelar venda" (com confirmação) pra quem quiser descartar de propósito.
+
 ## 2026-07-27 (cont. 2) — Decisão revista de novo: Vision AI (Gemini) volta
 
 - **O usuário pediu pra tirar a IA (ver entrada anterior), testou a alternativa manual (sobretela de duplicidade no formulário) e decidiu voltar atrás — quer o Gemini de volta.** Revertido via `git revert` do commit que tinha removido tudo, restaurando `/estoque/cadastro-ia`, `vision-ai.ts`, `comprimir-imagem.ts`, as dependências e o schema exatamente como estavam.

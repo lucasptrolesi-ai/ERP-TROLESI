@@ -1,5 +1,13 @@
 # CHANGELOG — ERP Trolesi
 
+## 2026-07-27 (cont. 3) — PDV: venda em andamento não se perde mais ao navegar
+
+- Usuário relatou que sair da tela de Nova venda (pra checar Estoque/Cadastros e voltar) perdia todo o progresso da venda — o React desmonta `NovoPedido` a cada troca de rota, e o estado era só `useState` local, sem persistência nenhuma.
+- `novo-pedido.tsx` agora salva um rascunho (cliente, carrinho, desconto/acréscimo, forma de pagamento, parcelas, pagamento misto, justificativa de exceção, idempotency key) em `sessionStorage` a cada mudança, e restaura ao montar de novo — sobrevive tanto a troca de rota quanto a um F5 completo. Buscas, buffers de edição por linha, modal de "novo cliente" e estado pós-envio (tela de sucesso) ficam de fora de propósito, não fazem parte do rascunho.
+- Nova barra "Venda em andamento salva automaticamente" com botão **Cancelar venda** (confirmação antes de descartar) — aparece só quando há cliente selecionado ou item no carrinho.
+- Rascunho é limpo no logout (`app-shell.tsx`), pra não vazar de um operador pro próximo no mesmo terminal/aba.
+- **Achado só ao testar reload de verdade (SSR + hidratação, não só troca de rota client-side):** a primeira versão usava um `useEffect` pra reidratar o rascunho, rejeitado pelo lint do projeto (`react-hooks/set-state-in-effect`); a correção com `useSyncExternalStore` (mesmo padrão de `alerta-vencimentos.tsx`) inicialmente ainda perdia o rascunho num F5 real, porque o efeito que persiste rodava com estado padrão vazio antes da correção de hidratação — corrigido distinguindo explicitamente "ainda não sei se há rascunho" (`pronto: false`) de "sei que não há" no valor lido, e só ligando a persistência depois de resolvido. Testado via Playwright (login real, navegação, F5, cancelar) depois da correção — sem esse teste ao vivo o bug do reload não teria aparecido (lint/build/testes automatizados não pegam esse tipo de race).
+
 ## 2026-07-27 (cont. 2) — Vision AI restaurado (revertida a remoção)
 
 - Usuário testou a alternativa manual (sobretela de duplicidade em "Novo produto") e decidiu voltar com o Gemini — `git revert` da remoção, restaurando `/estoque/cadastro-ia` e tudo que dependia dele. A sobretela de duplicidade no `produto-form.tsx` saiu de novo (o Vision AI já cobre isso no próprio fluxo).

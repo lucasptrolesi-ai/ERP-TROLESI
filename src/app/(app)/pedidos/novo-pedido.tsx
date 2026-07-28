@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { ClienteForm } from "@/components/cliente-form";
 import { criarPedido, buscarEstatisticasCliente } from "@/lib/actions/pedidos";
@@ -9,6 +9,7 @@ import { parseMoeda } from "@/lib/parse-moeda";
 import { formatarDataIso, hojeIso } from "@/lib/datas";
 import { calcularPrecoPorCotacao, calcularPrecoUnitario } from "@/lib/precificacao";
 import { maxParcelasSemJuros } from "@/lib/parcelamento";
+import { CHAVE_RASCUNHO_PEDIDO } from "@/lib/rascunho-pedido";
 import type {
   Cliente,
   CotacaoDiaria,
@@ -19,6 +20,69 @@ import type {
   Parcela,
   Produto,
 } from "@/lib/types";
+
+// Só os campos que representam a venda em andamento — buscas, buffers de
+// edição, modal de "novo cliente" e estado pós-envio (pedidoCriado etc.)
+// ficam de fora de propósito, ver comentário junto do useEffect de rascunho.
+type RascunhoPedido = {
+  clienteSelecionado: Cliente | null;
+  carrinho: ItemCarrinho[];
+  percentualDesconto: string;
+  valorDesconto: string;
+  percentualAcrescimo: string;
+  valorAcrescimo: string;
+  formaPagamento: FormaPagamento;
+  numeroParcelas: number;
+  primeiroVencimento: string;
+  valorComJuros: string;
+  pagamentosMistos: { forma: FormaPagamento; valor: string }[];
+  justificativaExcecao: string;
+  idempotencyKey: string;
+};
+
+// Leitura do rascunho via useSyncExternalStore (mesmo padrão de
+// alerta-vencimentos.tsx): no servidor não existe sessionStorage, então o
+// snapshot do servidor não pode ler o valor real — evita mismatch de
+// hidratação (e o lint do projeto já rejeita ler storage num useEffect e
+// disparar setState direto, ver aplicação do rascunho dentro do
+// componente). `pronto: false` no servidor (e na primeira pintura do
+// cliente, que usa o mesmo snapshot pra bater com o HTML hidratado) marca
+// "ainda não sei se existe rascunho" — sem esse flag, um F5 de verdade
+// (SSR + hidratação) não dá tempo do efeito de salvar rodar só depois da
+// correção do useSyncExternalStore, e ele grava o estado padrão vazio por
+// cima do rascunho antes dele ser lido (bug visto ao testar reload).
+// Cache por string bruta porque getSnapshot precisa devolver a mesma
+// referência enquanto o conteúdo salvo não mudar, senão
+// useSyncExternalStore entende que o valor muda a cada chamada e loopa.
+type LeituraRascunho = { pronto: false } | { pronto: true; dados: RascunhoPedido | null };
+
+const LEITURA_SERVIDOR: LeituraRascunho = { pronto: false };
+
+let cacheRascunhoBruto: string | null | undefined;
+let cacheRascunhoLeitura: LeituraRascunho | undefined;
+
+function lerRascunho(): LeituraRascunho {
+  const bruto = sessionStorage.getItem(CHAVE_RASCUNHO_PEDIDO);
+  if (bruto === cacheRascunhoBruto && cacheRascunhoLeitura) return cacheRascunhoLeitura;
+  cacheRascunhoBruto = bruto;
+  let dados: RascunhoPedido | null = null;
+  try {
+    dados = bruto ? (JSON.parse(bruto) as RascunhoPedido) : null;
+  } catch {
+    dados = null;
+  }
+  cacheRascunhoLeitura = { pronto: true, dados };
+  return cacheRascunhoLeitura;
+}
+
+function lerRascunhoNoServidor(): LeituraRascunho {
+  return LEITURA_SERVIDOR;
+}
+
+function inscreverRascunho(avisar: () => void) {
+  window.addEventListener("storage", avisar);
+  return () => window.removeEventListener("storage", avisar);
+}
 
 function somaMeses(dataIso: string, meses: number): string {
   const data = new Date(`${dataIso}T00:00:00`);
@@ -78,6 +142,86 @@ export function NovoPedido({
   const [pedidoCriado, setPedidoCriado] = useState<{ id: string; promissoria: boolean } | null>(null);
   const [avisoPopupBloqueado, setAvisoPopupBloqueado] = useState(false);
   const router = useRouter();
+
+  // Venda em andamento não pode se perder ao navegar pra Estoque/Cadastros e
+  // voltar (o React desmonta esse componente na troca de rota) — guarda um
+  // rascunho no sessionStorage a cada mudança (efeito abaixo) e restaura ao
+  // montar de novo. leituraRascunho vem do useSyncExternalStore acima:
+  // `pronto: false` no servidor/primeira pintura (sem mismatch de
+  // hidratação), e a leitura real logo em seguida, já no cliente.
+  const leituraRascunho = useSyncExternalStore(inscreverRascunho, lerRascunho, lerRascunhoNoServidor);
+  const [rascunhoAplicado, setRascunhoAplicado] = useState(false);
+
+  // Aplicar durante a renderização (não num useEffect) é o padrão que o
+  // React recomenda pra inicializar estado a partir de algo só disponível
+  // depois do primeiro render sem gastar um round-trip de efeito — e é
+  // exatamente o que o lint do projeto pede ao rejeitar setState direto
+  // dentro de useEffect. O guard usa estado (não ref — o lint também
+  // rejeita ler ref.current durante a renderização) pra aplicar uma vez só.
+  if (leituraRascunho.pronto && !rascunhoAplicado) {
+    setRascunhoAplicado(true);
+    const dados = leituraRascunho.dados;
+    if (dados) {
+      setClienteSelecionado(dados.clienteSelecionado);
+      setCarrinho(dados.carrinho);
+      setPercentualDesconto(dados.percentualDesconto);
+      setValorDesconto(dados.valorDesconto);
+      setPercentualAcrescimo(dados.percentualAcrescimo);
+      setValorAcrescimo(dados.valorAcrescimo);
+      setFormaPagamento(dados.formaPagamento);
+      setNumeroParcelas(dados.numeroParcelas);
+      setPrimeiroVencimento(dados.primeiroVencimento);
+      setValorComJuros(dados.valorComJuros);
+      setPagamentosMistos(dados.pagamentosMistos);
+      setJustificativaExcecao(dados.justificativaExcecao);
+      setIdempotencyKey(dados.idempotencyKey);
+    }
+  }
+
+  useEffect(() => {
+    // Só grava depois que a leitura real (client-side) do rascunho já foi
+    // resolvida e aplicada acima — senão esse efeito roda primeiro, ainda
+    // com o estado padrão vazio, e sobrescreve o rascunho salvo antes dele
+    // ser restaurado (bug visto especificamente num F5/reload completo,
+    // que passa por SSR+hidratação de verdade — a troca de rota client-side
+    // não sofre disso, mas o reload sim).
+    if (!rascunhoAplicado) return;
+    const rascunho: RascunhoPedido = {
+      clienteSelecionado,
+      carrinho,
+      percentualDesconto,
+      valorDesconto,
+      percentualAcrescimo,
+      valorAcrescimo,
+      formaPagamento,
+      numeroParcelas,
+      primeiroVencimento,
+      valorComJuros,
+      pagamentosMistos,
+      justificativaExcecao,
+      idempotencyKey,
+    };
+    try {
+      sessionStorage.setItem(CHAVE_RASCUNHO_PEDIDO, JSON.stringify(rascunho));
+    } catch {
+      // sessionStorage indisponível/cheio — segue sem persistir.
+    }
+  }, [
+    rascunhoAplicado,
+    clienteSelecionado,
+    carrinho,
+    percentualDesconto,
+    valorDesconto,
+    percentualAcrescimo,
+    valorAcrescimo,
+    formaPagamento,
+    numeroParcelas,
+    primeiroVencimento,
+    valorComJuros,
+    pagamentosMistos,
+    justificativaExcecao,
+    idempotencyKey,
+  ]);
 
   // Ao fechar a venda, abre o cupom sozinho numa aba nova — lá, o próprio
   // cupom já dispara a impressão da via loja automaticamente (ver
@@ -284,6 +428,12 @@ export function NovoPedido({
     setCarrinho((atual) => atual.filter((i) => i.produto_id !== produtoId));
   }
 
+  function cancelarVenda() {
+    if (!confirm("Cancelar essa venda e descartar o rascunho salvo?")) return;
+    setErro(null);
+    limparFormulario();
+  }
+
   function limparFormulario() {
     setClienteSelecionado(null);
     setCarrinho([]);
@@ -454,6 +604,19 @@ export function NovoPedido({
 
   return (
     <div className="flex flex-col gap-5 p-4 sm:p-5">
+      {(carrinho.length > 0 || clienteSelecionado) && (
+        <div className="flex items-center justify-between rounded-lg bg-cream px-3 py-2 text-xs text-text-soft">
+          <span>Venda em andamento salva automaticamente — pode sair e voltar sem perder nada.</span>
+          <button
+            type="button"
+            onClick={cancelarVenda}
+            className="shrink-0 font-semibold text-rose-deep hover:underline"
+          >
+            Cancelar venda
+          </button>
+        </div>
+      )}
+
       <div>
         <label className="text-xs font-semibold uppercase tracking-wide text-text-soft">Cliente</label>
         {clienteSelecionado ? (
