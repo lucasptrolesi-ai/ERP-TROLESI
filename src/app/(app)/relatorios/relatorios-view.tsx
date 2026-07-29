@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { GraficoMovimentoVendas } from "@/components/grafico-movimento-vendas";
 import { KpiCard } from "@/components/kpi-card";
 import { formatarMoeda } from "@/lib/formatar-moeda";
 import { FORMA_LABEL } from "@/lib/forma-pagamento";
@@ -11,6 +12,7 @@ import {
   dentroDoPeriodo,
   faturamentoTotal,
   limitesPeriodo,
+  movimentoDiario,
   pedidosNoPeriodo,
   periodoAnterior,
   quebraPorFormaPagamento,
@@ -80,6 +82,8 @@ export function RelatoriosView({
     () => pedidosNoPeriodo(pedidos, anterior.inicio, anterior.fim),
     [pedidos, anterior],
   );
+
+  const movimentoPeriodo = useMemo(() => movimentoDiario(pedidosPeriodo, inicio, fim), [pedidosPeriodo, inicio, fim]);
 
   const faturamento = faturamentoTotal(pedidosPeriodo);
   const faturamentoAnterior = faturamentoTotal(pedidosAnterior);
@@ -235,6 +239,8 @@ export function RelatoriosView({
         />
         <KpiCard label="Comissões do período" valor={formatarMoeda(totalComissoes)} nota={`${comissoesPeriodo.length} lançamento(s)`} />
       </div>
+
+      {movimentoPeriodo.length > 1 && <GraficoMovimentoVendas dados={movimentoPeriodo} />}
 
       <div className="rounded-[14px] border border-line bg-surface p-4 shadow-sm sm:p-5">
         <h2 className="mb-3 font-display text-base font-semibold text-ink">Quebra por forma de pagamento</h2>

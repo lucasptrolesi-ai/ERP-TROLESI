@@ -279,6 +279,11 @@ export type Garantia = {
 };
 
 export type ItemCarrinho = {
+  // Identifica a linha do carrinho, não o produto — duas linhas podem
+  // apontar pro mesmo produto_id (ex: duas correntes iguais no cadastro mas
+  // com código/peso de peça diferente cada uma). Chave de UI (React key,
+  // edição de quantidade/código, remoção); nunca vai pro servidor.
+  linha_id: string;
   produto_id: string;
   nome: string;
   quantidade: number;

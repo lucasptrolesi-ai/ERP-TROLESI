@@ -122,3 +122,30 @@ export function variacaoPercentual(atual: number, anterior: number): number | nu
   if (anterior === 0) return null;
   return ((atual - anterior) / anterior) * 100;
 }
+
+function proximoDia(iso: string): string {
+  const data = paraDataLocal(iso);
+  data.setDate(data.getDate() + 1);
+  return paraIsoSimples(data);
+}
+
+/** Faturamento por dia dentro de [inicio, fim], um ponto por dia mesmo nos
+ * dias sem venda (valor 0) — pro gráfico de movimento de vendas, que precisa
+ * de um eixo de dias contínuo, não só os dias em que algo foi vendido. */
+export function movimentoDiario(
+  pedidos: { status: string; total: number; criado_em: string }[],
+  inicio: string,
+  fim: string,
+): { data: string; valor: number }[] {
+  const porDia = new Map<string, number>();
+  for (const p of pedidos) {
+    if (p.status !== "faturado") continue;
+    const dia = dataLocalDoTimestamptz(p.criado_em);
+    porDia.set(dia, (porDia.get(dia) ?? 0) + p.total);
+  }
+  const dias: { data: string; valor: number }[] = [];
+  for (let cursor = inicio; cursor <= fim; cursor = proximoDia(cursor)) {
+    dias.push({ data: cursor, valor: porDia.get(cursor) ?? 0 });
+  }
+  return dias;
+}

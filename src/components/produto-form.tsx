@@ -46,7 +46,14 @@ export function ProdutoForm({
       <form action={formAction} className="flex flex-col gap-4">
         {produto && <input type="hidden" name="id" value={produto.id} />}
 
-        <FormField label="Código interno" name="codigo_interno" defaultValue={produto?.codigo_interno} />
+        <div className="flex flex-col gap-1">
+          <FormField label="Código interno" name="codigo_interno" defaultValue={produto?.codigo_interno} />
+          {!produto && (
+            <p className="text-[0.7rem] text-text-soft">
+              Deixe em branco pra numerar automaticamente (1, 2, 3...) — só preencha se quiser um código específico.
+            </p>
+          )}
+        </div>
         <FormField label="Nome" name="nome" defaultValue={produto?.nome} required />
         <FormField
           label="Categoria"

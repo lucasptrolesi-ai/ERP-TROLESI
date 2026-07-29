@@ -84,6 +84,33 @@ function inscreverRascunho(avisar: () => void) {
   return () => window.removeEventListener("storage", avisar);
 }
 
+/** Handler de ArrowUp/ArrowDown/Enter pra combobox de busca — mesmo
+ * comportamento nas duas listas (cliente e produto) do PDV, só muda a lista
+ * e o que "selecionar" faz em cada uma. */
+function aoNavegarLista<T>(
+  itens: T[],
+  indiceAtivo: number,
+  setIndiceAtivo: (atualizar: (i: number) => number) => void,
+  selecionar: (item: T) => void,
+) {
+  return (evento: React.KeyboardEvent<HTMLInputElement>) => {
+    if (itens.length === 0) return;
+    if (evento.key === "ArrowDown") {
+      evento.preventDefault();
+      setIndiceAtivo((i) => Math.min(i + 1, itens.length - 1));
+    } else if (evento.key === "ArrowUp") {
+      evento.preventDefault();
+      setIndiceAtivo((i) => Math.max(i - 1, 0));
+    } else if (evento.key === "Enter") {
+      const item = itens[indiceAtivo];
+      if (item) {
+        evento.preventDefault();
+        selecionar(item);
+      }
+    }
+  };
+}
+
 function somaMeses(dataIso: string, meses: number): string {
   const data = new Date(`${dataIso}T00:00:00`);
   data.setMonth(data.getMonth() + meses);
@@ -105,9 +132,11 @@ export function NovoPedido({
 }) {
   const [clienteSelecionado, setClienteSelecionado] = useState<Cliente | null>(null);
   const [buscaCliente, setBuscaCliente] = useState("");
+  const [indiceClienteAtivo, setIndiceClienteAtivo] = useState(0);
   const [novoClienteAberto, setNovoClienteAberto] = useState(false);
   const [carrinho, setCarrinho] = useState<ItemCarrinho[]>([]);
   const [buscaProduto, setBuscaProduto] = useState("");
+  const [indiceProdutoAtivo, setIndiceProdutoAtivo] = useState(0);
   // Buffer de texto por linha do carrinho (qtd./código) — sem isso, o campo
   // é controlado direto por um número já clampado (`value={i.quantidade}`):
   // apagar o dígito pra digitar um valor novo passa por "" no meio do
@@ -274,6 +303,13 @@ export function NovoPedido({
       )
       .slice(0, 8);
   }, [clientes, buscaCliente]);
+  const indiceClienteClampado = Math.min(indiceClienteAtivo, Math.max(0, clientesFiltrados.length - 1));
+
+  function selecionarCliente(c: Cliente) {
+    setClienteSelecionado(c);
+    setEstatisticasCliente(null);
+    setBuscaCliente("");
+  }
 
   const produtosFiltrados = useMemo(() => {
     const termo = buscaProduto.trim().toLowerCase();
@@ -287,6 +323,7 @@ export function NovoPedido({
       )
       .slice(0, 8);
   }, [produtos, buscaProduto]);
+  const indiceProdutoClampado = Math.min(indiceProdutoAtivo, Math.max(0, produtosFiltrados.length - 1));
 
   const subtotal = carrinho.reduce((soma, i) => soma + i.quantidade * i.preco_unitario, 0);
 
@@ -374,16 +411,13 @@ export function NovoPedido({
 
   function adicionarProduto(produto: Produto) {
     setBuscaProduto("");
-    // Estoque negativo autorizado (2026-07-21): não bloqueia mais adicionar
-    // um produto sem saldo — só informa o estoque disponível (ver aviso no
-    // carrinho quando a quantidade escolhida ultrapassa esse valor).
+    // Cada clique cria uma linha nova, mesmo que o produto já esteja no
+    // carrinho — nunca soma quantidade numa linha existente (pedido do
+    // usuário, 2026-07-29: duas peças "iguais" no cadastro podem ter
+    // peso/código diferente cada uma, e o campo "Código" da linha só faz
+    // sentido editável por unidade se cada peça física tiver sua própria
+    // linha).
     setCarrinho((atual) => {
-      const existente = atual.find((i) => i.produto_id === produto.id);
-      if (existente) {
-        return atual.map((i) =>
-          i.produto_id === produto.id ? { ...i, quantidade: i.quantidade + 1 } : i,
-        );
-      }
       const cotacao = produto.usa_cotacao_diaria
         ? cotacaoPorMaterial.get((produto.material ?? "").trim().toLowerCase())
         : undefined;
@@ -395,6 +429,7 @@ export function NovoPedido({
       return [
         ...atual,
         {
+          linha_id: crypto.randomUUID(),
           produto_id: produto.id,
           nome: produto.nome,
           quantidade: 1,
@@ -407,25 +442,25 @@ export function NovoPedido({
     });
   }
 
-  function alterarQuantidade(produtoId: string, quantidade: number) {
+  function alterarQuantidade(linhaId: string, quantidade: number) {
     setCarrinho((atual) =>
-      atual.map((i) => (i.produto_id === produtoId ? { ...i, quantidade: Math.max(1, quantidade) } : i)),
+      atual.map((i) => (i.linha_id === linhaId ? { ...i, quantidade: Math.max(1, quantidade) } : i)),
     );
   }
 
-  function alterarCodigoPeca(produtoId: string, codigoPeca: number) {
+  function alterarCodigoPeca(linhaId: string, codigoPeca: number) {
     const codigoValido = Math.max(0, codigoPeca);
     setCarrinho((atual) =>
       atual.map((i) =>
-        i.produto_id === produtoId
+        i.linha_id === linhaId
           ? { ...i, codigo_peca: codigoValido, preco_unitario: calcularPrecoUnitario(codigoValido, i.multiplicador) }
           : i,
       ),
     );
   }
 
-  function removerItem(produtoId: string) {
-    setCarrinho((atual) => atual.filter((i) => i.produto_id !== produtoId));
+  function removerItem(linhaId: string) {
+    setCarrinho((atual) => atual.filter((i) => i.linha_id !== linhaId));
   }
 
   function cancelarVenda() {
@@ -603,7 +638,7 @@ export function NovoPedido({
   }
 
   return (
-    <div className="flex flex-col gap-5 p-4 sm:p-5">
+    <div className="flex flex-col gap-5 p-4 sm:gap-3 sm:p-4">
       {(carrinho.length > 0 || clienteSelecionado) && (
         <div className="flex items-center justify-between rounded-lg bg-cream px-3 py-2 text-xs text-text-soft">
           <span>Venda em andamento salva automaticamente — pode sair e voltar sem perder nada.</span>
@@ -650,30 +685,37 @@ export function NovoPedido({
             <div className="flex gap-2">
               <input
                 value={buscaCliente}
-                onChange={(e) => setBuscaCliente(e.target.value)}
+                onChange={(e) => {
+                  setBuscaCliente(e.target.value);
+                  setIndiceClienteAtivo(0);
+                }}
+                onKeyDown={aoNavegarLista(clientesFiltrados, indiceClienteClampado, setIndiceClienteAtivo, selecionarCliente)}
                 placeholder="Buscar cliente por nome, telefone ou documento"
-                className="w-full rounded-lg border border-line bg-cream px-3 py-2 text-sm text-ink outline-none focus:border-rose focus:ring-2 focus:ring-rose-soft"
+                className="w-full rounded-lg border border-line bg-cream px-3 py-2 text-sm text-ink outline-none focus:border-rose focus:ring-2 focus:ring-rose-soft sm:px-2.5 sm:py-1.5"
               />
               <button
                 type="button"
                 onClick={() => setNovoClienteAberto(true)}
-                className="shrink-0 rounded-lg border border-line px-3 py-2 text-xs font-semibold text-rose-deep"
+                className="shrink-0 rounded-lg border border-line px-3 py-2 text-xs font-semibold text-rose-deep sm:px-2.5 sm:py-1.5"
               >
                 + Novo
               </button>
             </div>
             {clientesFiltrados.length > 0 && (
               <ul className="absolute z-10 mt-1 max-h-60 w-full overflow-y-auto rounded-lg border-2 border-rose-soft bg-cream shadow-lg">
-                {clientesFiltrados.map((c) => (
-                  <li key={c.id}>
+                {clientesFiltrados.map((c, i) => (
+                  <li key={c.id} ref={(el) => {
+                    if (i === indiceClienteClampado) el?.scrollIntoView({ block: "nearest" });
+                  }}>
                     <button
                       type="button"
-                      onClick={() => {
-                        setClienteSelecionado(c);
-                        setEstatisticasCliente(null);
-                        setBuscaCliente("");
-                      }}
-                      className="block w-full px-3 py-2 text-left text-sm hover:bg-rose-soft/40"
+                      onClick={() => selecionarCliente(c)}
+                      onMouseEnter={() => setIndiceClienteAtivo(i)}
+                      className={`block w-full border-l-[3px] px-3 py-2 text-left text-sm sm:px-2.5 sm:py-1 ${
+                        i === indiceClienteClampado
+                          ? "border-rose-deep bg-rose-soft font-medium text-rose-deep"
+                          : "border-transparent hover:bg-rose-soft/40"
+                      }`}
                     >
                       {c.nome} <span className="text-text-soft">— {c.telefone ?? "sem telefone"}</span>
                     </button>
@@ -692,20 +734,34 @@ export function NovoPedido({
         <div className="relative mt-1.5">
           <input
             value={buscaProduto}
-            onChange={(e) => setBuscaProduto(e.target.value)}
+            onChange={(e) => {
+              setBuscaProduto(e.target.value);
+              setIndiceProdutoAtivo(0);
+            }}
+            onKeyDown={aoNavegarLista(produtosFiltrados, indiceProdutoClampado, setIndiceProdutoAtivo, adicionarProduto)}
             placeholder="Buscar por nome, categoria ou código interno"
-            className="w-full rounded-lg border border-line bg-cream px-3 py-2 text-sm text-ink outline-none focus:border-rose focus:ring-2 focus:ring-rose-soft"
+            className="w-full rounded-lg border border-line bg-cream px-3 py-2 text-sm text-ink outline-none focus:border-rose focus:ring-2 focus:ring-rose-soft sm:px-2.5 sm:py-1.5"
           />
           {produtosFiltrados.length > 0 && (
             <ul className="absolute z-10 mt-1 max-h-60 w-full overflow-y-auto rounded-lg border-2 border-rose-soft bg-cream shadow-lg">
-              {produtosFiltrados.map((p) => (
-                <li key={p.id}>
+              {produtosFiltrados.map((p, i) => (
+                <li key={p.id} ref={(el) => {
+                    if (i === indiceProdutoClampado) el?.scrollIntoView({ block: "nearest" });
+                  }}>
                   <button
                     type="button"
                     onClick={() => adicionarProduto(p)}
-                    className="flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-rose-soft/40"
+                    onMouseEnter={() => setIndiceProdutoAtivo(i)}
+                    className={`flex w-full items-center justify-between border-l-[3px] px-3 py-2 text-left text-sm sm:px-2.5 sm:py-1 ${
+                      i === indiceProdutoClampado
+                        ? "border-rose-deep bg-rose-soft font-medium text-rose-deep"
+                        : "border-transparent hover:bg-rose-soft/40"
+                    }`}
                   >
-                    <span>{p.nome}</span>
+                    <span>
+                      {p.codigo_interno && <span className="text-text-soft">#{p.codigo_interno} · </span>}
+                      {p.nome}
+                    </span>
                     <span className={p.quantidade_estoque <= 0 ? "font-semibold text-warn" : "text-text-soft"}>
                       {formatarMoeda(p.preco)} · {p.quantidade_estoque} em estoque
                     </span>
@@ -721,71 +777,75 @@ export function NovoPedido({
         <table className="w-full text-sm">
           <thead>
             <tr className="text-left text-xs font-bold uppercase tracking-wide text-text-soft">
-              <th className="px-3 py-2">Produto</th>
-              <th className="px-3 py-2">Qtd.</th>
-              <th className="px-3 py-2">Código</th>
-              <th className="px-3 py-2">Preço unit.</th>
-              <th className="px-3 py-2">Subtotal</th>
-              <th className="px-3 py-2" />
+              <th className="px-3 py-2 sm:px-2.5 sm:py-1.5">Cód. interno</th>
+              <th className="px-3 py-2 sm:px-2.5 sm:py-1.5">Descrição</th>
+              <th className="px-3 py-2 sm:px-2.5 sm:py-1.5">Qtd.</th>
+              <th className="px-3 py-2 sm:px-2.5 sm:py-1.5">Ref.</th>
+              <th className="px-3 py-2 sm:px-2.5 sm:py-1.5">Unit.</th>
+              <th className="px-3 py-2 sm:px-2.5 sm:py-1.5">Total</th>
+              <th className="px-3 py-2 sm:px-2.5 sm:py-1.5" />
             </tr>
           </thead>
           <tbody>
             {carrinho.map((i) => (
-              <tr key={i.produto_id} className="border-t border-line">
-                <td className="px-3 py-2">{i.nome}</td>
-                <td className="px-3 py-2">
+              <tr key={i.linha_id} className="border-t border-line">
+                <td className="px-3 py-2 text-text-soft tabular-nums sm:px-2.5 sm:py-1">
+                  {produtosPorId.get(i.produto_id)?.codigo_interno ?? "—"}
+                </td>
+                <td className="px-3 py-2 sm:px-2.5 sm:py-1">{i.nome}</td>
+                <td className="px-3 py-2 sm:px-2.5 sm:py-1">
                   <input
                     type="text"
                     inputMode="numeric"
-                    value={edicaoQuantidade[i.produto_id] ?? String(i.quantidade)}
+                    value={edicaoQuantidade[i.linha_id] ?? String(i.quantidade)}
                     onChange={(e) => {
                       const texto = e.target.value;
-                      setEdicaoQuantidade((atual) => ({ ...atual, [i.produto_id]: texto }));
+                      setEdicaoQuantidade((atual) => ({ ...atual, [i.linha_id]: texto }));
                       const numero = Number(texto);
-                      if (texto.trim() !== "" && Number.isFinite(numero)) alterarQuantidade(i.produto_id, numero);
+                      if (texto.trim() !== "" && Number.isFinite(numero)) alterarQuantidade(i.linha_id, numero);
                     }}
                     onBlur={() =>
                       setEdicaoQuantidade((atual) => {
                         const copia = { ...atual };
-                        delete copia[i.produto_id];
+                        delete copia[i.linha_id];
                         return copia;
                       })
                     }
-                    className="w-16 rounded border border-line bg-cream px-2 py-1 text-sm"
+                    className="w-16 rounded border border-line bg-cream px-2 py-1 text-sm sm:py-0.5"
                   />
                 </td>
-                <td className="px-3 py-2">
+                <td className="px-3 py-2 sm:px-2.5 sm:py-1">
                   <input
                     type="text"
                     inputMode="decimal"
-                    value={edicaoCodigo[i.produto_id] ?? String(i.codigo_peca ?? 0)}
+                    value={edicaoCodigo[i.linha_id] ?? String(i.codigo_peca ?? 0)}
                     onChange={(e) => {
                       const texto = e.target.value;
-                      setEdicaoCodigo((atual) => ({ ...atual, [i.produto_id]: texto }));
+                      setEdicaoCodigo((atual) => ({ ...atual, [i.linha_id]: texto }));
                       // Código da peça aceita vírgula decimal (convenção
                       // brasileira, mesmo tratamento de `parseMoeda`).
                       const numero = Number(texto.replace(",", "."));
-                      if (texto.trim() !== "" && Number.isFinite(numero)) alterarCodigoPeca(i.produto_id, numero);
+                      if (texto.trim() !== "" && Number.isFinite(numero)) alterarCodigoPeca(i.linha_id, numero);
                     }}
                     onBlur={() =>
                       setEdicaoCodigo((atual) => {
                         const copia = { ...atual };
-                        delete copia[i.produto_id];
+                        delete copia[i.linha_id];
                         return copia;
                       })
                     }
-                    title={`Código × ${i.multiplicador} = preço unitário`}
-                    className="w-20 rounded border border-line bg-cream px-2 py-1 text-sm"
+                    title={`Ref. × ${i.multiplicador} = valor unitário`}
+                    className="w-20 rounded border border-line bg-cream px-2 py-1 text-sm sm:py-0.5"
                   />
                 </td>
-                <td className="px-3 py-2 tabular-nums">{formatarMoeda(i.preco_unitario)}</td>
-                <td className="px-3 py-2 tabular-nums">
+                <td className="px-3 py-2 tabular-nums sm:px-2.5 sm:py-1">{formatarMoeda(i.preco_unitario)}</td>
+                <td className="px-3 py-2 tabular-nums sm:px-2.5 sm:py-1">
                   {formatarMoeda(i.quantidade * i.preco_unitario)}
                 </td>
-                <td className="px-1 py-2 text-right">
+                <td className="px-1 py-2 text-right sm:py-1">
                   <button
                     type="button"
-                    onClick={() => removerItem(i.produto_id)}
+                    onClick={() => removerItem(i.linha_id)}
                     className="-m-2 rounded-full p-2 text-text-soft hover:bg-crit-bg hover:text-crit"
                     aria-label={`Remover ${i.nome}`}
                   >
@@ -796,7 +856,7 @@ export function NovoPedido({
             ))}
             {carrinho.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-3 py-6 text-center text-sm text-text-soft">
+                <td colSpan={7} className="px-3 py-6 text-center text-sm text-text-soft">
                   Nenhum produto adicionado ainda.
                 </td>
               </tr>
@@ -805,12 +865,12 @@ export function NovoPedido({
         </table>
       </div>
 
-      <div className="rounded-lg border border-line bg-cream p-4">
-        <p className="mb-3 text-xs font-bold uppercase tracking-wide text-text-soft">
+      <div className="rounded-lg border border-line bg-cream p-4 sm:p-3">
+        <p className="mb-3 text-xs font-bold uppercase tracking-wide text-text-soft sm:mb-2">
           Desconto / acréscimo
         </p>
 
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-2">
           <div className="flex flex-col gap-1">
             <label className="text-[0.7rem] text-text-soft">Desconto (%)</label>
             <input
@@ -821,7 +881,7 @@ export function NovoPedido({
                 if (Number.isFinite(p)) setValorDesconto(((subtotal * p) / 100).toFixed(2));
               }}
               placeholder="0"
-              className="rounded-lg border border-line bg-surface px-2 py-1.5 text-sm"
+              className="rounded-lg border border-line bg-surface px-2 py-1.5 text-sm sm:py-1"
             />
           </div>
           <div className="flex flex-col gap-1">
@@ -829,7 +889,7 @@ export function NovoPedido({
             <input
               value={valorDesconto}
               onChange={(e) => setValorDesconto(e.target.value)}
-              className="rounded-lg border border-line bg-surface px-2 py-1.5 text-sm"
+              className="rounded-lg border border-line bg-surface px-2 py-1.5 text-sm sm:py-1"
             />
           </div>
           <div className="flex flex-col gap-1">
@@ -842,7 +902,7 @@ export function NovoPedido({
                 if (Number.isFinite(p)) setValorAcrescimo(((subtotal * p) / 100).toFixed(2));
               }}
               placeholder="0"
-              className="rounded-lg border border-line bg-surface px-2 py-1.5 text-sm"
+              className="rounded-lg border border-line bg-surface px-2 py-1.5 text-sm sm:py-1"
             />
           </div>
           <div className="flex flex-col gap-1">
@@ -850,17 +910,17 @@ export function NovoPedido({
             <input
               value={valorAcrescimo}
               onChange={(e) => setValorAcrescimo(e.target.value)}
-              className="rounded-lg border border-line bg-surface px-2 py-1.5 text-sm"
+              className="rounded-lg border border-line bg-surface px-2 py-1.5 text-sm sm:py-1"
             />
           </div>
         </div>
       </div>
 
-      <div className="rounded-lg border border-line bg-cream p-4">
-        <p className="mb-3 text-xs font-bold uppercase tracking-wide text-text-soft">
+      <div className="rounded-lg border border-line bg-cream p-4 sm:p-3">
+        <p className="mb-3 text-xs font-bold uppercase tracking-wide text-text-soft sm:mb-2">
           Forma de pagamento
         </p>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2 sm:gap-1.5">
           {(
             [
               ["dinheiro", "Dinheiro"],
@@ -878,7 +938,7 @@ export function NovoPedido({
                 setFormaPagamento(valor);
                 setNumeroParcelas(1);
               }}
-              className={`rounded-full border px-3 py-1.5 text-xs font-semibold ${
+              className={`rounded-full border px-3 py-1.5 text-xs font-semibold sm:px-2.5 sm:py-1 ${
                 formaPagamento === valor
                   ? "border-rose bg-rose-soft text-rose-deep"
                   : "border-line bg-surface text-text-soft"
@@ -975,7 +1035,7 @@ export function NovoPedido({
                   type="date"
                   value={primeiroVencimento}
                   onChange={(e) => setPrimeiroVencimento(e.target.value)}
-                  className="rounded-lg border border-line bg-surface px-2 py-1.5 text-sm"
+                  className="rounded-lg border border-line bg-surface px-2 py-1.5 text-sm sm:py-1"
                 />
               </div>
             </div>
@@ -1006,7 +1066,7 @@ export function NovoPedido({
                       atual.map((l, i) => (i === indice ? { ...l, forma: e.target.value as FormaPagamento } : l)),
                     )
                   }
-                  className="rounded-lg border border-line bg-surface px-2 py-1.5 text-sm"
+                  className="rounded-lg border border-line bg-surface px-2 py-1.5 text-sm sm:py-1"
                 >
                   {(["dinheiro", "pix", "debito", "cartao_credito", "promissoria"] as const).map((f) => (
                     <option key={f} value={f}>
