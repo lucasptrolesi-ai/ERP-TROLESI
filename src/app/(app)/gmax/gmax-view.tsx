@@ -14,7 +14,7 @@ type Fase =
   | { tipo: "inicial" }
   | { tipo: "buscando" }
   | { tipo: "revisao"; solicitacaoId: string; pedidos: PedidoResolvidoGmax[] }
-  | { tipo: "concluido"; importados: number; jaExistentes: number }
+  | { tipo: "concluido"; importados: number; jaExistentes: number; excluidos: number }
   | { tipo: "erro"; mensagem: string };
 
 const INTERVALO_POLLING_MS = 2000;
@@ -96,6 +96,7 @@ export function GmaxView() {
         tipo: "concluido",
         importados: resultado.importados ?? 0,
         jaExistentes: resultado.jaExistentes ?? 0,
+        excluidos: resultado.excluidos ?? 0,
       });
     });
   }
@@ -198,6 +199,12 @@ export function GmaxView() {
             ✓ {fase.importados} pedido(s) importado(s)
             {fase.jaExistentes > 0 && ` (${fase.jaExistentes} já tinham sido importados antes)`}.
           </p>
+          {fase.excluidos > 0 && (
+            <p className="text-sm text-text-soft">
+              {fase.excluidos} pedido(s) de cliente(s) na lista de exclusão não {fase.excluidos === 1 ? "foi" : "foram"}{" "}
+              importado(s).
+            </p>
+          )}
           <button
             type="button"
             onClick={buscar}

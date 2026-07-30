@@ -59,7 +59,7 @@ export async function buscarStatusImportacaoGmax(id: string): Promise<Solicitaca
 
 export async function confirmarImportacaoGmax(
   id: string,
-): Promise<{ importados?: number; jaExistentes?: number; erro?: string }> {
+): Promise<{ importados?: number; jaExistentes?: number; excluidos?: number; erro?: string }> {
   const perfil = await getPerfilAtual();
   if (perfil.papel !== "admin") {
     return { erro: "Só administradores podem confirmar a importação." };
@@ -82,5 +82,5 @@ export async function confirmarImportacaoGmax(
   revalidatePath("/financeiro");
   revalidatePath("/", "layout");
 
-  return { importados: resultado.importados, jaExistentes: resultado.ja_existentes };
+  return { importados: resultado.importados, jaExistentes: resultado.ja_existentes, excluidos: resultado.excluidos };
 }

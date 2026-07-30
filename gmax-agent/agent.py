@@ -162,6 +162,10 @@ def buscar_pedidos_novos_gmax(con, ids_ja_importados):
         gmax_id = row[0]
         if gmax_id in ids_ja_importados:
             continue
+        nome_cliente = (row[1] or "").strip()
+        if cliente_excluido(nome_cliente):
+            print(f'Pedido GMax #{gmax_id} ignorado: cliente "{nome_cliente}" está na lista de exclusão.')
+            continue
         pedidos.append(
             {
                 "gmax_id": gmax_id,
@@ -227,6 +231,24 @@ def resolver_cliente(cpf_cnpj):
     return resultado[0]["id"] if resultado else None
 
 
+# Clientes que nunca devem ser importados pro Trolesi (pedido direto do
+# usuário, 2026-07-30) — compras/notas pessoais que não são venda de
+# verdade da loja. Cada entrada é uma frase; o match exige todas as
+# palavras da frase presentes no nome do GMax, em qualquer ordem/posição —
+# não substring exata, pra pegar variação com sobrenome no meio (ex:
+# "LUCAS MORAIS PEIXOTO" também bate com "LUCAS MORAIS BELTRAO SILVA
+# PEIXOTO TROLESI"). Mesma lista replicada na function SQL
+# `cliente_excluido_importacao_gmax` — esta aqui evita que a venda apareça
+# na tela de revisão; aquela é a trava final antes de gravar de verdade.
+NOMES_EXCLUIDOS_IMPORTACAO = [
+    "LUCAS MORAIS PEIXOTO",
+    "CRISJANE",
+    "KATIA",
+    "ROMEU",
+    "APARECIDA ALVES DA CUNHA",
+]
+
+
 def normalizar(texto):
     """Maiúsculo, sem acento — pra comparar nome de produto sem falso
     negativo por causa de acentuação. Achado real (2026-07-24): "RELÓGIO"
@@ -234,6 +256,15 @@ def normalizar(texto):
     do acento, e quase virou um produto duplicado criado à toa."""
     sem_acento = unicodedata.normalize("NFKD", texto).encode("ascii", "ignore").decode("ascii")
     return sem_acento.strip().upper()
+
+
+def cliente_excluido(nome):
+    palavras_nome = set(normalizar(nome).split())
+    for frase in NOMES_EXCLUIDOS_IMPORTACAO:
+        palavras_frase = set(normalizar(frase).split())
+        if palavras_frase <= palavras_nome:
+            return True
+    return False
 
 
 # Categoria inferida por palavra-chave no nome — mesmo padrão "best-effort,
