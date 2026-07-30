@@ -35,8 +35,15 @@ export function PedidosView({
   const pedidosFiltrados = useMemo(() => {
     const termo = busca.trim().toLowerCase();
     if (!termo) return pedidos;
+    // Busca por valor aceita "450", "450,00" ou "450.00" — compara contra o
+    // total bruto (sem formatação) pra não depender do usuário digitar a
+    // vírgula/pontuação exatamente como aparece na tela.
+    const termoValor = termo.replace(/[^\d,.]/g, "").replace(",", ".");
     return pedidos.filter(
-      (p) => String(p.numero).includes(termo) || (p.clientes?.nome ?? "").toLowerCase().includes(termo),
+      (p) =>
+        String(p.numero).includes(termo) ||
+        (p.clientes?.nome ?? "").toLowerCase().includes(termo) ||
+        (termoValor !== "" && p.total.toFixed(2).includes(termoValor)),
     );
   }, [pedidos, busca]);
 
@@ -71,7 +78,7 @@ export function PedidosView({
             <input
               value={busca}
               onChange={(e) => setBusca(e.target.value)}
-              placeholder="Buscar por nº do pedido ou cliente"
+              placeholder="Buscar por nº do pedido, cliente ou valor"
               className="w-full rounded-full border border-line bg-cream px-4 py-2 text-sm text-ink outline-none focus:border-rose sm:max-w-xs"
             />
           </div>
