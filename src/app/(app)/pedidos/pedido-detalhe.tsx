@@ -82,10 +82,10 @@ export function PedidoDetalhe({
               {pedido.pedido_itens.map((item, i) => (
                 <tr key={i} className="border-b border-line last:border-0">
                   <td className="px-2 py-1.5">
-                    {item.codigo_peca != null && (
-                      <span className="text-text-soft">{item.codigo_peca.toLocaleString("pt-BR")} · </span>
-                    )}
                     {item.quantidade}x {item.produtos?.nome ?? "Produto"}
+                    {item.codigo_peca != null && (
+                      <span className="text-text-soft"> · {item.codigo_peca.toLocaleString("pt-BR")}</span>
+                    )}
                   </td>
                   <td className="px-2 py-1.5 text-right tabular-nums">
                     {formatarMoeda(item.quantidade * item.preco_unitario)}
