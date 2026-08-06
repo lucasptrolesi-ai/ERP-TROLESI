@@ -29,11 +29,12 @@ export function construirLinhasCupom(pedido: Pedido, parcelas: ContaReceber[], v
   linhas.push({ tipo: "texto", texto: `Cliente: ${pedido.clientes?.nome ?? "-"}` });
   linhas.push({ tipo: "linha" });
 
+  linhas.push({ tipo: "colunas", esquerda: "Qtd Peça / Ponto", direita: "Preço", negrito: true });
   for (const item of pedido.pedido_itens) {
-    const codigo = item.codigo_peca != null ? `${item.codigo_peca.toLocaleString("pt-BR")} ` : "";
+    const codigo = item.codigo_peca != null ? ` ${item.codigo_peca.toLocaleString("pt-BR")}` : "";
     linhas.push({
       tipo: "colunas",
-      esquerda: `${codigo}${item.quantidade}x ${item.produtos?.nome ?? "Produto"}`,
+      esquerda: `${item.quantidade}x ${item.produtos?.nome ?? "Produto"}${codigo}`,
       direita: formatarMoeda(item.quantidade * item.preco_unitario),
     });
   }
