@@ -35,7 +35,7 @@ export default async function RelatoriosPage() {
     supabase
       .from("pedidos")
       .select(
-        "id, numero, status, forma_pagamento, total, criado_em, cliente_id, clientes(nome), pedido_itens(quantidade, preco_unitario, produto_id, produtos(nome))",
+        "id, numero, status, forma_pagamento, total, criado_em, cliente_id, clientes(nome), pedido_itens(quantidade, preco_unitario, codigo_peca, produto_id, produtos(nome))",
       )
       .gte("criado_em", desde)
       .order("criado_em", { ascending: false }),

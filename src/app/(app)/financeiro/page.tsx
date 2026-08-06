@@ -45,7 +45,7 @@ export default async function FinanceiroPage() {
       supabase
         .from("pedidos")
         .select(
-          "id, numero, status, forma_pagamento, total, criado_em, clientes(nome), pedido_itens(quantidade, preco_unitario, produto_id, produtos(nome))",
+          "id, numero, status, forma_pagamento, total, criado_em, clientes(nome), pedido_itens(quantidade, preco_unitario, codigo_peca, produto_id, produtos(nome))",
         )
         .gte("criado_em", desde),
     ]);

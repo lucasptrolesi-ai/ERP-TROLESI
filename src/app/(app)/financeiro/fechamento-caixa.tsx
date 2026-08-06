@@ -11,6 +11,8 @@ import {
   periodoAnterior,
   pedidosNoPeriodo,
   faturamentoTotal,
+  formatarPontos,
+  pontosTotal,
   quebraPorFormaPagamento,
   topProdutos,
   variacaoPercentual,
@@ -49,6 +51,7 @@ export function FechamentoCaixa({
   const faturamento = faturamentoTotal(pedidosPeriodo);
   const faturamentoAnterior = faturamentoTotal(pedidosAnteriorPeriodo);
   const variacao = variacaoPercentual(faturamento, faturamentoAnterior);
+  const pontos = pontosTotal(pedidosPeriodo);
 
   const quebra = quebraPorFormaPagamento(pedidosPeriodo);
   const top = topProdutos(pedidosPeriodo);
@@ -124,7 +127,7 @@ export function FechamentoCaixa({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <KpiCard
           label="Faturamento do período"
           valor={formatarMoeda(faturamento)}
@@ -146,6 +149,7 @@ export function FechamentoCaixa({
           valor={formatarMoeda(pagarBaixadoNoPeriodo)}
           nota="pago no período"
         />
+        <KpiCard label="Pontos vendidos" valor={formatarPontos(pontos)} nota="soma dos códigos das peças" />
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">

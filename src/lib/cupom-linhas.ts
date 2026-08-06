@@ -47,6 +47,10 @@ export function construirLinhasCupom(pedido: Pedido, parcelas: ContaReceber[], v
     linhas.push({ tipo: "colunas", esquerda: "Acrescimo", direita: `+ ${formatarMoeda(pedido.valor_acrescimo)}` });
   }
   linhas.push({ tipo: "colunas", esquerda: "TOTAL", direita: formatarMoeda(pedido.total), negrito: true });
+  const totalPontos = pedido.pedido_itens.reduce((s, i) => s + (i.codigo_peca ?? 0) * i.quantidade, 0);
+  if (totalPontos > 0) {
+    linhas.push({ tipo: "colunas", esquerda: "Pontos", direita: totalPontos.toLocaleString("pt-BR") });
+  }
   linhas.push({ tipo: "linha" });
 
   linhas.push({

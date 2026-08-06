@@ -28,6 +28,7 @@ export function PedidoDetalhe({
   const numDesconto = parseMoeda(valorDesconto);
   const numAcrescimo = parseMoeda(valorAcrescimo);
   const totalRecalculado = Math.max(0, pedido.subtotal - numDesconto + numAcrescimo);
+  const totalPontos = pedido.pedido_itens.reduce((s, i) => s + (i.codigo_peca ?? 0) * i.quantidade, 0);
   const cancelado = pedido.status === "cancelado";
   const aguardandoGmax = pedido.status === "aguardando_lancamento_gmax";
   const lancadoGmax = pedido.status === "lancado_gmax";
@@ -99,6 +100,12 @@ export function PedidoDetalhe({
           <span className="text-text-soft">Subtotal</span>
           <span className="tabular-nums">{formatarMoeda(pedido.subtotal)}</span>
         </div>
+        {totalPontos > 0 && (
+          <div className="flex justify-between text-sm">
+            <span className="text-text-soft">Pontos</span>
+            <span className="tabular-nums">{totalPontos.toLocaleString("pt-BR")}</span>
+          </div>
+        )}
 
         {editavel ? (
           <div className="grid grid-cols-2 gap-3">

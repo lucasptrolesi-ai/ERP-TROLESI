@@ -150,6 +150,8 @@ export function CupomView({ pedido, parcelas }: { pedido: Pedido; parcelas: Cont
     setTimeout(() => window.print(), 150);
   }
 
+  const totalPontos = pedido.pedido_itens.reduce((s, i) => s + (i.codigo_peca ?? 0) * i.quantidade, 0);
+
   return (
     <div className="flex flex-col items-center gap-4 py-6 print:gap-0 print:py-0">
       <style>{`
@@ -217,6 +219,12 @@ export function CupomView({ pedido, parcelas }: { pedido: Pedido; parcelas: Cont
           <span>TOTAL</span>
           <span className="tabular-nums">{formatarMoeda(pedido.total)}</span>
         </div>
+        {totalPontos > 0 && (
+          <div className="flex justify-between">
+            <span>Pontos</span>
+            <span className="tabular-nums">{totalPontos.toLocaleString("pt-BR")}</span>
+          </div>
+        )}
 
         <div className="my-1 border-t border-dashed border-black/50" />
 

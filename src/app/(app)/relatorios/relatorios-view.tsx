@@ -12,9 +12,11 @@ import {
   dentroDoPeriodo,
   faturamentoTotal,
   limitesPeriodo,
+  formatarPontos,
   movimentoDiario,
   pedidosNoPeriodo,
   periodoAnterior,
+  pontosTotal,
   quebraPorFormaPagamento,
   variacaoPercentual,
   type PedidoRelatorio,
@@ -86,6 +88,7 @@ export function RelatoriosView({
   const movimentoPeriodo = useMemo(() => movimentoDiario(pedidosPeriodo, inicio, fim), [pedidosPeriodo, inicio, fim]);
 
   const faturamento = faturamentoTotal(pedidosPeriodo);
+  const pontos = pontosTotal(pedidosPeriodo);
   const faturamentoAnterior = faturamentoTotal(pedidosAnterior);
   const variacao = variacaoPercentual(faturamento, faturamentoAnterior);
 
@@ -221,6 +224,7 @@ export function RelatoriosView({
         <KpiCard label="Vendas" valor={String(vendasFaturadas.length)} nota="pedidos faturados/registrados" />
         <KpiCard label="Ticket médio" valor={formatarMoeda(ticketMedio)} nota="por venda" />
         <KpiCard label="Cancelamentos" valor={String(cancelamentos)} nota="pedidos extornados" tom={cancelamentos > 0 ? "warn" : "ok"} />
+        <KpiCard label="Pontos vendidos" valor={formatarPontos(pontos)} nota="soma dos códigos das peças" />
       </div>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">

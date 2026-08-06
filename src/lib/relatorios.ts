@@ -9,7 +9,13 @@ export type PedidoRelatorio = {
   total: number;
   criado_em: string;
   clientes: { nome: string } | null;
-  pedido_itens: { quantidade: number; preco_unitario: number; produto_id: string; produtos: { nome: string } | null }[];
+  pedido_itens: {
+    quantidade: number;
+    preco_unitario: number;
+    codigo_peca: number | null;
+    produto_id: string;
+    produtos: { nome: string } | null;
+  }[];
 };
 
 export type TipoPeriodo = "dia" | "semana" | "mes";
@@ -82,6 +88,22 @@ export function pedidosNoPeriodo<T extends { criado_em: string }>(pedidos: T[], 
 
 export function faturamentoTotal(pedidos: { status: string; total: number }[]): number {
   return pedidos.filter((p) => p.status === "faturado").reduce((s, p) => s + p.total, 0);
+}
+
+/** Soma de "pontos" (código da peça × quantidade) das vendas faturadas —
+ * métrica própria da loja, em paralelo ao faturamento em R$. */
+export function pontosTotal(
+  pedidos: { status: string; pedido_itens: { codigo_peca: number | null; quantidade: number }[] }[],
+): number {
+  return pedidos
+    .filter((p) => p.status === "faturado")
+    .reduce((soma, p) => soma + p.pedido_itens.reduce((s, i) => s + (i.codigo_peca ?? 0) * i.quantidade, 0), 0);
+}
+
+/** "1.234,5 pts" — mesmo formato de número que formatarMoeda, sem o
+ * símbolo de moeda (pontos não é dinheiro). */
+export function formatarPontos(valor: number): string {
+  return `${valor.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} pts`;
 }
 
 export function quebraPorFormaPagamento(
