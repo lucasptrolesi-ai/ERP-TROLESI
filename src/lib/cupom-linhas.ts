@@ -30,9 +30,10 @@ export function construirLinhasCupom(pedido: Pedido, parcelas: ContaReceber[], v
   linhas.push({ tipo: "linha" });
 
   for (const item of pedido.pedido_itens) {
+    const codigo = item.produtos?.codigo_interno ? `#${item.produtos.codigo_interno} ` : "";
     linhas.push({
       tipo: "colunas",
-      esquerda: `${item.quantidade}x ${item.produtos?.nome ?? "Produto"}`,
+      esquerda: `${codigo}${item.quantidade}x ${item.produtos?.nome ?? "Produto"}`,
       direita: formatarMoeda(item.quantidade * item.preco_unitario),
     });
   }

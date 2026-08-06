@@ -81,6 +81,9 @@ export function PedidoDetalhe({
               {pedido.pedido_itens.map((item, i) => (
                 <tr key={i} className="border-b border-line last:border-0">
                   <td className="px-2 py-1.5">
+                    {item.produtos?.codigo_interno && (
+                      <span className="text-text-soft">#{item.produtos.codigo_interno} · </span>
+                    )}
                     {item.quantidade}x {item.produtos?.nome ?? "Produto"}
                   </td>
                   <td className="px-2 py-1.5 text-right tabular-nums">

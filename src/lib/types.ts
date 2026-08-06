@@ -314,7 +314,11 @@ export type Pedido = {
   parcelas_planejadas: Parcela[] | null;
   lancado_gmax_em: string | null;
   clientes: { nome: string; cpf_cnpj: string | null; endereco: string | null; bairro: string | null; cidade: string | null; uf: string | null } | null;
-  pedido_itens: { quantidade: number; preco_unitario: number; produtos: { nome: string } | null }[];
+  pedido_itens: {
+    quantidade: number;
+    preco_unitario: number;
+    produtos: { nome: string; codigo_interno: string | null } | null;
+  }[];
   pedido_pagamentos_mistos: { forma_pagamento: FormaPagamento; valor: number }[];
 };
 
