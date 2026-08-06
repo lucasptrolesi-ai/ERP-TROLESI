@@ -188,7 +188,7 @@ export function CupomView({ pedido, parcelas }: { pedido: Pedido; parcelas: Cont
         {pedido.pedido_itens.map((item, i) => (
           <div key={i} className="mb-0.5 flex justify-between gap-2">
             <span className="flex-1">
-              {item.produtos?.codigo_interno ? `#${item.produtos.codigo_interno} ` : ""}
+              {item.codigo_peca != null ? `${item.codigo_peca.toLocaleString("pt-BR")} ` : ""}
               {item.quantidade}x {item.produtos?.nome ?? "Produto"}
             </span>
             <span className="tabular-nums">{formatarMoeda(item.quantidade * item.preco_unitario)}</span>

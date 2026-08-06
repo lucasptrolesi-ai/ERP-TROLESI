@@ -46,6 +46,7 @@ export async function criarPedido(
       produto_id: i.produto_id,
       quantidade: i.quantidade,
       preco_unitario: i.preco_unitario,
+      codigo_peca: i.codigo_peca,
     })),
     p_valor_desconto: ajuste.valorDesconto,
     p_percentual_desconto: ajuste.percentualDesconto,

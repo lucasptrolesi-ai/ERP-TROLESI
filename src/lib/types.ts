@@ -317,7 +317,10 @@ export type Pedido = {
   pedido_itens: {
     quantidade: number;
     preco_unitario: number;
-    produtos: { nome: string; codigo_interno: string | null } | null;
+    // Código digitado na hora da venda (× multiplicador = preco_unitario) —
+    // null em pedidos antigos, gravados antes desta coluna existir.
+    codigo_peca: number | null;
+    produtos: { nome: string } | null;
   }[];
   pedido_pagamentos_mistos: { forma_pagamento: FormaPagamento; valor: number }[];
 };

@@ -30,7 +30,7 @@ export function construirLinhasCupom(pedido: Pedido, parcelas: ContaReceber[], v
   linhas.push({ tipo: "linha" });
 
   for (const item of pedido.pedido_itens) {
-    const codigo = item.produtos?.codigo_interno ? `#${item.produtos.codigo_interno} ` : "";
+    const codigo = item.codigo_peca != null ? `${item.codigo_peca.toLocaleString("pt-BR")} ` : "";
     linhas.push({
       tipo: "colunas",
       esquerda: `${codigo}${item.quantidade}x ${item.produtos?.nome ?? "Produto"}`,
