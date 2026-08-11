@@ -38,10 +38,13 @@ export async function salvarFornecedor(_prev: ResultadoForm, formData: FormData)
   return undefined;
 }
 
-export async function alternarAtivoFornecedor(id: string, ativo: boolean) {
+export async function alternarAtivoFornecedor(id: string, ativo: boolean): Promise<{ erro?: string }> {
   const supabase = await createClient();
-  await supabase.from("fornecedores").update({ ativo }).eq("id", id);
+  const { error } = await supabase.from("fornecedores").update({ ativo }).eq("id", id);
+  if (error) return { erro: "Não foi possível atualizar. Tente novamente." };
+
   revalidarFornecedores();
+  return {};
 }
 
 export async function excluirFornecedor(id: string): Promise<{ erro?: string }> {

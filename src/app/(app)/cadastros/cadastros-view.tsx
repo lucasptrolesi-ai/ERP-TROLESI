@@ -130,24 +130,12 @@ export function CadastrosView({
             </thead>
             <tbody>
               {clientesFiltrados.map((c) => (
-                <tr key={c.id} className="border-t border-line">
-                  <td className="px-5 py-2.5">{c.nome}</td>
-                  <td className="px-5 py-2.5">{c.cpf_cnpj ?? "—"}</td>
-                  <td className="px-5 py-2.5">{c.telefone ?? "—"}</td>
-                  <td className="px-5 py-2.5">{[c.cidade, c.uf].filter(Boolean).join("/") || "—"}</td>
-                  <td className="px-5 py-2.5">
-                    <StatusPill ativo={c.ativo} />
-                  </td>
-                  {podeEditarClientes && (
-                    <td className="px-5 py-2.5 text-right">
-                      <AcoesLinha
-                        onEditar={() => setClienteEditando(c)}
-                        ativo={c.ativo}
-                        onAlternarAtivo={() => alternarAtivoCliente(c.id, !c.ativo)}
-                      />
-                    </td>
-                  )}
-                </tr>
+                <LinhaCliente
+                  key={c.id}
+                  cliente={c}
+                  podeEditar={podeEditarClientes}
+                  onEditar={() => setClienteEditando(c)}
+                />
               ))}
               {clientesFiltrados.length === 0 && <LinhaVazia colSpan={6} texto="Nenhum cliente encontrado." />}
             </tbody>
@@ -170,24 +158,12 @@ export function CadastrosView({
             </thead>
             <tbody>
               {fornecedoresFiltrados.map((f) => (
-                <tr key={f.id} className="border-t border-line">
-                  <td className="px-5 py-2.5">{f.nome}</td>
-                  <td className="px-5 py-2.5">{f.cnpj ?? "—"}</td>
-                  <td className="px-5 py-2.5">{f.telefone ?? "—"}</td>
-                  <td className="px-5 py-2.5">{[f.cidade, f.uf].filter(Boolean).join("/") || "—"}</td>
-                  <td className="px-5 py-2.5">
-                    <StatusPill ativo={f.ativo} />
-                  </td>
-                  {podeEditarFornecedores && (
-                    <td className="px-5 py-2.5 text-right">
-                      <AcoesLinha
-                        onEditar={() => setFornecedorEditando(f)}
-                        ativo={f.ativo}
-                        onAlternarAtivo={() => alternarAtivoFornecedor(f.id, !f.ativo)}
-                      />
-                    </td>
-                  )}
-                </tr>
+                <LinhaFornecedor
+                  key={f.id}
+                  fornecedor={f}
+                  podeEditar={podeEditarFornecedores}
+                  onEditar={() => setFornecedorEditando(f)}
+                />
               ))}
               {fornecedoresFiltrados.length === 0 && (
                 <LinhaVazia colSpan={6} texto="Nenhum fornecedor encontrado." />
@@ -254,6 +230,84 @@ export function CadastrosView({
         />
       )}
     </div>
+  );
+}
+
+function LinhaCliente({
+  cliente: c,
+  podeEditar,
+  onEditar,
+}: {
+  cliente: Cliente;
+  podeEditar: boolean;
+  onEditar: () => void;
+}) {
+  const [pending, iniciar] = useTransition();
+  const [erro, setErro] = useState<string | null>(null);
+
+  function alternarAtivo() {
+    setErro(null);
+    iniciar(async () => {
+      const resultado = await alternarAtivoCliente(c.id, !c.ativo);
+      if (resultado.erro) setErro(resultado.erro);
+    });
+  }
+
+  return (
+    <tr className="border-t border-line">
+      <td className="px-5 py-2.5">{c.nome}</td>
+      <td className="px-5 py-2.5">{c.cpf_cnpj ?? "—"}</td>
+      <td className="px-5 py-2.5">{c.telefone ?? "—"}</td>
+      <td className="px-5 py-2.5">{[c.cidade, c.uf].filter(Boolean).join("/") || "—"}</td>
+      <td className="px-5 py-2.5">
+        <StatusPill ativo={c.ativo} />
+        {erro && <p className="mt-1 text-xs font-medium text-crit">{erro}</p>}
+      </td>
+      {podeEditar && (
+        <td className="px-5 py-2.5 text-right">
+          <AcoesLinha onEditar={onEditar} ativo={c.ativo} onAlternarAtivo={alternarAtivo} pending={pending} />
+        </td>
+      )}
+    </tr>
+  );
+}
+
+function LinhaFornecedor({
+  fornecedor: f,
+  podeEditar,
+  onEditar,
+}: {
+  fornecedor: Fornecedor;
+  podeEditar: boolean;
+  onEditar: () => void;
+}) {
+  const [pending, iniciar] = useTransition();
+  const [erro, setErro] = useState<string | null>(null);
+
+  function alternarAtivo() {
+    setErro(null);
+    iniciar(async () => {
+      const resultado = await alternarAtivoFornecedor(f.id, !f.ativo);
+      if (resultado.erro) setErro(resultado.erro);
+    });
+  }
+
+  return (
+    <tr className="border-t border-line">
+      <td className="px-5 py-2.5">{f.nome}</td>
+      <td className="px-5 py-2.5">{f.cnpj ?? "—"}</td>
+      <td className="px-5 py-2.5">{f.telefone ?? "—"}</td>
+      <td className="px-5 py-2.5">{[f.cidade, f.uf].filter(Boolean).join("/") || "—"}</td>
+      <td className="px-5 py-2.5">
+        <StatusPill ativo={f.ativo} />
+        {erro && <p className="mt-1 text-xs font-medium text-crit">{erro}</p>}
+      </td>
+      {podeEditar && (
+        <td className="px-5 py-2.5 text-right">
+          <AcoesLinha onEditar={onEditar} ativo={f.ativo} onAlternarAtivo={alternarAtivo} pending={pending} />
+        </td>
+      )}
+    </tr>
   );
 }
 
@@ -336,17 +390,23 @@ function AcoesLinha({
   onEditar,
   ativo,
   onAlternarAtivo,
+  pending,
 }: {
   onEditar: () => void;
   ativo: boolean;
   onAlternarAtivo: () => void;
+  pending?: boolean;
 }) {
   return (
     <div className="flex justify-end gap-3 text-xs font-semibold">
       <button onClick={onEditar} className="text-rose-deep hover:underline">
         Editar
       </button>
-      <button onClick={onAlternarAtivo} className="text-text-soft hover:underline">
+      <button
+        onClick={onAlternarAtivo}
+        disabled={pending}
+        className="text-text-soft hover:underline disabled:opacity-60"
+      >
         {ativo ? "Desativar" : "Ativar"}
       </button>
     </div>

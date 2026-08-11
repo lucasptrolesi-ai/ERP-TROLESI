@@ -40,7 +40,7 @@ Antes de rodar qualquer migration nova contra o banco real de produção, o roll
 | Tabela | admin | vendedor | financeiro | estoque |
 |---|---|---|---|---|
 | `profiles` | leitura/escrita de todos | só o próprio | só o próprio | só o próprio |
-| `clientes` | leitura/escrita | leitura/escrita | leitura | leitura |
+| `clientes` | leitura/escrita | leitura/escrita | leitura | **sem acesso** (restrito em 2026-08-12, ver `DECISIONS.md` — CPF/endereço/data de nascimento não são necessários pro trabalho de `estoque`) |
 | `fornecedores` | leitura/escrita | leitura | leitura/escrita | leitura |
 | `produtos` | leitura/escrita | leitura | leitura | leitura/escrita |
 | `movimentos_estoque` | leitura/escrita | cria (venda) | leitura | leitura/escrita |

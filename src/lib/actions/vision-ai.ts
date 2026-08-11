@@ -3,7 +3,7 @@
 import { GoogleGenAI } from "@google/genai";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { mensagemErroSalvar } from "./erros";
+import { mensagemErroSalvar, normalizarCampo } from "./erros";
 import type { AnaliseIaProduto, ProdutoSemelhante, TipoImagemProduto } from "@/lib/types";
 
 const genai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
@@ -209,17 +209,17 @@ export async function salvarProdutoComIA(dados: {
   const { data: produto, error } = await supabase
     .from("produtos")
     .insert({
-      nome: analise.nome,
-      categoria: analise.categoria,
-      subcategoria: analise.subcategoria,
-      material: analise.material,
-      cor: analise.cor,
-      tipo_banho: analise.tipo_banho,
+      nome: normalizarCampo(analise.nome, { caixaAlta: true }),
+      categoria: normalizarCampo(analise.categoria, { caixaAlta: true }),
+      subcategoria: normalizarCampo(analise.subcategoria, { caixaAlta: true }),
+      material: normalizarCampo(analise.material, { caixaAlta: true }),
+      cor: normalizarCampo(analise.cor, { caixaAlta: true }),
+      tipo_banho: normalizarCampo(analise.tipo_banho, { caixaAlta: true }),
       tem_pedra: analise.tem_pedra,
       tem_perola: analise.tem_perola,
-      tamanho: analise.tamanho,
-      colecao: analise.colecao,
-      descricao: analise.descricao,
+      tamanho: normalizarCampo(analise.tamanho, { caixaAlta: true }),
+      colecao: normalizarCampo(analise.colecao, { caixaAlta: true }),
+      descricao: normalizarCampo(analise.descricao, { caixaAlta: true }),
       tags: analise.tags,
       codigo_peca: Math.max(0, dados.codigoPeca),
       codigo_interno: codigoInterno,
@@ -230,6 +230,12 @@ export async function salvarProdutoComIA(dados: {
   if (error || !produto) return { erro: mensagemErroSalvar(error!, "código interno") };
 
   let fotosEnviadas = 0;
+  // Distinto de "upload falhou" (contemplado desde sempre): o arquivo pode
+  // subir com sucesso na Storage e ainda assim o registro em
+  // `produto_imagens`/`foto_url` falhar (RLS, erro transitório) — sem essa
+  // flag, a foto fica órfã na Storage e o cadastro reporta sucesso sem
+  // avisar nada (achado de code review, 2026-08-11).
+  let houveFalhaPosUpload = false;
   for (const imagem of dados.imagens) {
     if (!MEDIA_TYPES_PERMITIDOS.has(imagem.mediaType)) continue;
 
@@ -239,19 +245,33 @@ export async function salvarProdutoComIA(dados: {
       .from("produtos-fotos")
       .upload(caminho, bytes, { contentType: imagem.mediaType });
     if (erroUpload) continue; // uma foto falhar não deve derrubar o cadastro inteiro
-    fotosEnviadas++;
 
-    await supabase.from("produto_imagens").insert({ produto_id: produto.id, tipo: imagem.tipo, storage_path: caminho });
+    const { error: erroImagem } = await supabase
+      .from("produto_imagens")
+      .insert({ produto_id: produto.id, tipo: imagem.tipo, storage_path: caminho });
+    if (erroImagem) {
+      houveFalhaPosUpload = true;
+      continue;
+    }
 
     if (imagem.tipo === "frente") {
       const { data: url } = supabase.storage.from("produtos-fotos").getPublicUrl(caminho);
-      await supabase.from("produtos").update({ foto_url: url.publicUrl }).eq("id", produto.id);
+      const { error: erroFotoUrl } = await supabase
+        .from("produtos")
+        .update({ foto_url: url.publicUrl })
+        .eq("id", produto.id);
+      if (erroFotoUrl) {
+        houveFalhaPosUpload = true;
+        continue;
+      }
     }
+
+    fotosEnviadas++;
   }
 
   const avisoFotos =
-    dados.imagens.length > 0 && fotosEnviadas === 0
-      ? "O produto foi cadastrado, mas nenhuma foto foi salva — tente anexar as fotos de novo pela tela de Estoque."
+    dados.imagens.length > 0 && (fotosEnviadas === 0 || houveFalhaPosUpload)
+      ? "O produto foi cadastrado, mas uma ou mais fotos não foram salvas corretamente — confira e tente anexar de novo pela tela de Estoque."
       : undefined;
 
   if (dados.correcoes.length > 0) {

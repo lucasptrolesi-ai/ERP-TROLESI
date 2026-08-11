@@ -1,9 +1,9 @@
 "use client";
 
-import { useActionState, useRef, useState, useTransition } from "react";
+import { useActionState, useEffect, useRef, useState, useTransition } from "react";
 import { Modal } from "@/components/modal";
 import { FormField } from "@/components/form-field";
-import { salvarCliente, excluirCliente } from "@/lib/actions/clientes";
+import { salvarCliente, excluirCliente, registrarVisualizacaoFichaCliente } from "@/lib/actions/clientes";
 import { buscarCnpj } from "@/lib/actions/cnpj";
 import { useFecharAoSalvar } from "@/lib/use-fechar-ao-salvar";
 import { preencherCampo } from "@/lib/preencher-form";
@@ -25,6 +25,15 @@ export function ClienteForm({
   const [buscandoCnpj, iniciarBuscaCnpj] = useTransition();
   const formRef = useRef<HTMLFormElement>(null);
   useFecharAoSalvar(pending, state?.erro, onFechar);
+
+  // Auditoria LGPD (item 9) — só quando abre a ficha de um cliente já
+  // existente (CPF/endereço visíveis), não ao abrir o formulário em branco
+  // de "Novo cliente". Este componente é remontado por `key` a cada cliente
+  // diferente (ver cadastros-view.tsx), então o efeito roda uma vez por
+  // ficha aberta, não a cada render.
+  useEffect(() => {
+    if (cliente) void registrarVisualizacaoFichaCliente(cliente.id);
+  }, [cliente]);
 
   function handleBuscarCnpj() {
     const form = formRef.current;

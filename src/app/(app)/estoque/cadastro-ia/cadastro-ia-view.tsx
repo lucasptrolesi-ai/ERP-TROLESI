@@ -61,6 +61,18 @@ function CampoTexto({
   onChange: (valor: string) => void;
   textarea?: boolean;
 }) {
+  // Mesma convenção de caixa alta do resto do sistema desde 2026-07-25 (ver
+  // src/components/form-field.tsx) — a revisão da IA também é texto digitado
+  // (editável) e não seguia o padrão. Preserva a posição do cursor, senão
+  // setar `.value` manualmente jogaria o cursor pro fim a cada tecla.
+  function aoMudar(evento: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) {
+    const posicaoCursor = evento.target.selectionStart;
+    const valorMaiusculo = evento.target.value.toUpperCase();
+    evento.target.value = valorMaiusculo;
+    if (posicaoCursor !== null) evento.target.setSelectionRange(posicaoCursor, posicaoCursor);
+    onChange(valorMaiusculo);
+  }
+
   return (
     <div className="flex flex-col gap-1.5">
       <label className="flex items-center justify-between text-xs font-semibold uppercase tracking-wide text-text-soft">
@@ -72,14 +84,16 @@ function CampoTexto({
       {textarea ? (
         <textarea
           value={valor}
-          onChange={(e) => onChange(e.target.value)}
+          onChange={aoMudar}
           rows={3}
+          style={{ textTransform: "uppercase" }}
           className="rounded-lg border border-line bg-cream px-3 py-2 text-sm text-ink outline-none focus:border-rose focus:ring-2 focus:ring-rose-soft"
         />
       ) : (
         <input
           value={valor}
-          onChange={(e) => onChange(e.target.value)}
+          onChange={aoMudar}
+          style={{ textTransform: "uppercase" }}
           className="rounded-lg border border-line bg-cream px-3 py-2 text-sm text-ink outline-none focus:border-rose focus:ring-2 focus:ring-rose-soft"
         />
       )}

@@ -70,7 +70,12 @@ async function buscarNaBrasilApi(cnpj: string): Promise<DadosCnpj | null> {
     headers: CABECALHOS,
     signal: AbortSignal.timeout(8000),
   });
-  if (!resposta.ok) return null;
+  // 404 é "CNPJ não existe" de verdade — qualquer outro !ok (429 rate
+  // limit, 500/503 fora do ar) é falha da API, não "não encontrado", e
+  // precisa propagar como erro pro chamador distinguir os dois casos
+  // (achado de code review, 2026-08-11).
+  if (resposta.status === 404) return null;
+  if (!resposta.ok) throw new Error(`BrasilAPI respondeu ${resposta.status}`);
 
   const json: RespostaBrasilApi = await resposta.json();
   return {
@@ -101,10 +106,11 @@ async function buscarNaReceitaWs(cnpj: string): Promise<DadosCnpj | null> {
     headers: CABECALHOS,
     signal: AbortSignal.timeout(8000),
   });
-  if (!resposta.ok) return null;
+  if (resposta.status === 404) return null;
+  if (!resposta.ok) throw new Error(`ReceitaWS respondeu ${resposta.status}`);
 
   const json: RespostaReceitaWs = await resposta.json();
-  if (json.status === "ERROR") return null;
+  if (json.status === "ERROR") return null; // resposta 200 dizendo "não encontrado" — não é falha de API
 
   return {
     nome: json.nome || json.fantasia || "",

@@ -56,10 +56,13 @@ export async function salvarCliente(_prev: ResultadoForm, formData: FormData): P
   return undefined;
 }
 
-export async function alternarAtivoCliente(id: string, ativo: boolean) {
+export async function alternarAtivoCliente(id: string, ativo: boolean): Promise<{ erro?: string }> {
   const supabase = await createClient();
-  await supabase.from("clientes").update({ ativo }).eq("id", id);
+  const { error } = await supabase.from("clientes").update({ ativo }).eq("id", id);
+  if (error) return { erro: "Não foi possível atualizar. Tente novamente." };
+
   revalidarClientes();
+  return {};
 }
 
 // Anotação manual pro vendedor lembrar quem da lista de "clientes inativos"
@@ -81,6 +84,18 @@ export async function marcarClienteContatado(id: string, contatado: boolean): Pr
 
   revalidatePath("/relatorios");
   return {};
+}
+
+// Auditoria LGPD (item 9, 2026-08-11 — ver DECISIONS.md): registra quando
+// alguém abre a ficha completa de um cliente (CPF/endereço visíveis), não
+// toda leitura da lista. Chama um wrapper SQL fino porque
+// `registrar_auditoria` teve o EXECUTE revogado de `authenticated` de
+// propósito (achado de segurança de 2026-07-21) — nunca pode ser chamada
+// direto por RPC do cliente. Falha aqui nunca deve travar a tela: é só
+// registro, não controle de acesso.
+export async function registrarVisualizacaoFichaCliente(id: string): Promise<void> {
+  const supabase = await createClient();
+  await supabase.rpc("registrar_visualizacao_ficha_cliente", { p_cliente_id: id });
 }
 
 export async function excluirCliente(id: string): Promise<{ erro?: string }> {

@@ -166,6 +166,22 @@ export function RelatoriosView({
       });
   }, [clientes, ultimaCompraPorCliente, seiseMesesAtrasIso]);
 
+  // Aniversariantes do mês (item 8 da auditoria LGPD, 2026-08-11 — ver
+  // DECISIONS.md): único uso real de `data_nascimento` hoje, decidido em vez
+  // de parar de coletar. Sem envio automático nenhum — só a lista, pro
+  // vendedor entrar em contato manualmente (mesmo espírito do PDF de cupom:
+  // automação para no aviso, o contato continua manual/sem custo).
+  // Comparação por texto "MM"/"DD" direto da coluna date (chega como
+  // "AAAA-MM-DD" puro) — evita qualquer problema de fuso que um Date()
+  // traria pra essa conta.
+  const mesAtual = hojeIso().slice(5, 7);
+  const diaHoje = hojeIso().slice(8, 10);
+  const aniversariantesDoMes = useMemo(() => {
+    return clientes
+      .filter((c) => c.data_nascimento?.slice(5, 7) === mesAtual)
+      .sort((a, b) => a.data_nascimento!.slice(8, 10).localeCompare(b.data_nascimento!.slice(8, 10)));
+  }, [clientes, mesAtual]);
+
   const crediarioComSituacao = crediarioLancamentos.map((l) => ({
     ...l,
     situacaoCalculada: situacaoEfetiva(l.situacao as SituacaoConta, l.vencimento),
@@ -355,6 +371,30 @@ export function RelatoriosView({
           {clientesInativos.length === 0 && <p className="text-text-soft">Nenhum cliente inativo.</p>}
           {clientesInativos.length > 30 && (
             <p className="text-xs text-text-soft">e mais {clientesInativos.length - 30}...</p>
+          )}
+        </div>
+      </div>
+
+      <div className="rounded-[14px] border border-line bg-surface p-4 shadow-sm sm:p-5">
+        <h2 className="mb-3 font-display text-base font-semibold text-ink">
+          Aniversariantes do mês ({aniversariantesDoMes.length})
+        </h2>
+        <div className="flex flex-col gap-1.5 text-sm">
+          {aniversariantesDoMes.map((c) => {
+            const dia = c.data_nascimento!.slice(8, 10);
+            const ehHoje = dia === diaHoje;
+            return (
+              <div key={c.id} className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
+                <span className={ehHoje ? "font-semibold text-rose-deep" : "text-ink"}>
+                  {c.nome}
+                  {c.telefone && <span className="text-text-soft"> — {c.telefone}</span>}
+                </span>
+                <span className="text-xs text-text-soft">{ehHoje ? "🎂 hoje" : `dia ${dia}`}</span>
+              </div>
+            );
+          })}
+          {aniversariantesDoMes.length === 0 && (
+            <p className="text-text-soft">Nenhum aniversariante este mês.</p>
           )}
         </div>
       </div>
