@@ -345,9 +345,19 @@ export function NovoPedido({
   const total = Math.max(0, subtotal - numDesconto + numAcrescimo);
 
   const ehPromissoria = formaPagamento === "promissoria";
-  const temParcelamento = formaPagamento === "cartao_credito" || ehPromissoria;
   const ehMisto = formaPagamento === "misto";
   const somaPagamentosMistos = pagamentosMistos.reduce((s, p) => s + (parseMoeda(p.valor) || 0), 0);
+  // Achado em code review (2026-08-11, ver DECISIONS.md): pagamento misto
+  // com perna promissória salvava a venda sem gerar contas_receber — a
+  // dívida sumia do sistema, porque `temParcelamento`/`totalParaDividir`
+  // só conheciam promissória "pura". A perna promissória dentro do misto
+  // agora também vira parcelas — só que sobre o valor DELA, não da venda
+  // inteira (o resto do misto já foi recebido nas outras formas).
+  const valorPromissoriaMisto = ehMisto
+    ? pagamentosMistos.filter((p) => p.forma === "promissoria").reduce((s, p) => s + (parseMoeda(p.valor) || 0), 0)
+    : 0;
+  const temPromissoriaEmMisto = ehMisto && valorPromissoriaMisto > 0;
+  const temParcelamento = formaPagamento === "cartao_credito" || ehPromissoria || temPromissoriaEmMisto;
 
   // Limiares de parcelamento sem juros por valor da venda (seção 9): a
   // partir de R$200 até 2x, a partir de R$300 até 3x — nunca a interface
@@ -387,7 +397,13 @@ export function NovoPedido({
   // No cartão 4-12x, o valor total já vem com o juros da maquininha — a
   // pessoa digita o total cobrado, o simulador só divide igualmente pra
   // mostrar quanto fica cada parcela (não editável parcela por parcela).
-  const totalParaDividir = parcelasComJuros ? parseMoeda(valorComJuros) : total;
+  // Já na promissória dentro do misto, divide só a perna promissória —
+  // o restante do total já foi recebido nas outras formas de pagamento.
+  const totalParaDividir = parcelasComJuros
+    ? parseMoeda(valorComJuros)
+    : temPromissoriaEmMisto
+      ? valorPromissoriaMisto
+      : total;
 
   // Diferença entre o total cobrado na maquininha e o total calculado pelo
   // carrinho (subtotal - desconto + acréscimo) — precisa ir junto como
@@ -1114,6 +1130,50 @@ export function NovoPedido({
             <p className={`text-sm ${Math.abs(somaPagamentosMistos - total) > 0.01 ? "text-crit" : "text-ok"}`}>
               Soma: {formatarMoeda(somaPagamentosMistos)} / Total: {formatarMoeda(total)}
             </p>
+
+            {temPromissoriaEmMisto && (
+              <div className="mt-1 flex flex-col gap-3 rounded-lg border border-line bg-cream p-3">
+                <p className="text-[0.7rem] text-text-soft">
+                  A perna de {formatarMoeda(valorPromissoriaMisto)} em promissória vira conta a receber — as outras
+                  formas já foram recebidas na hora.
+                </p>
+                <div className="flex flex-wrap gap-3">
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[0.7rem] text-text-soft">Nº de parcelas</label>
+                    <select
+                      value={numeroParcelas}
+                      onChange={(e) => setNumeroParcelas(Number(e.target.value))}
+                      className="w-24 rounded-lg border border-line bg-surface px-2 py-1.5 text-sm"
+                    >
+                      {[1, 2, 3, 4].map((n) => (
+                        <option key={n} value={n}>
+                          {n}x
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[0.7rem] text-text-soft">1º vencimento</label>
+                    <input
+                      type="date"
+                      value={primeiroVencimento}
+                      onChange={(e) => setPrimeiroVencimento(e.target.value)}
+                      className="rounded-lg border border-line bg-surface px-2 py-1.5 text-sm sm:py-1"
+                    />
+                  </div>
+                </div>
+                <ul className="text-sm text-text-soft">
+                  {Array.from({ length: numeroParcelas }, (_, i) => (
+                    <li key={i}>
+                      Parcela {i + 1}/{numeroParcelas} — vence {formatarDataIso(somaMeses(primeiroVencimento, i))} —{" "}
+                      <span className="font-semibold text-ink">
+                        {formatarMoeda(valorPromissoriaMisto / numeroParcelas)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
         )}
       </div>

@@ -177,7 +177,8 @@ export function PedidoDetalhe({
           >
             🧾 Cupom
           </a>
-          {pedido.forma_pagamento === "promissoria" && (
+          {(pedido.forma_pagamento === "promissoria" ||
+            pedido.pedido_pagamentos_mistos.some((p) => p.forma_pagamento === "promissoria")) && (
             <a
               href={`/pedidos/${pedido.id}/promissorias`}
               target="_blank"

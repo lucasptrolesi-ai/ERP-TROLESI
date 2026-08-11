@@ -2,6 +2,23 @@
 
 Histórico de decisões de escopo e arquitetura, na ordem em que foram tomadas. Decisões revistas ficam marcadas como tal, não apagadas.
 
+## 2026-08-11 — Code review completo (Cadastros/Estoque + Pedidos/PDV/Financeiro) + auditoria LGPD
+
+Pedido do usuário: revisar o ERP inteiro atrás de bugs de código/execução, e rodar uma auditoria LGPD completa. Feito em 3 revisões paralelas (subagentes). Achados registrados aqui pra não se perder; nem todos foram corrigidos ainda.
+
+**Corrigido nesta sessão:** `venda-por-foto` (feature lançada hoje mesmo) sempre mandava `parcelas: []` pro `criar_pedido`, então uma venda com forma "promissória" lançada por essa tela nunca gerava `contas_receber` — a dívida do cliente sumiria do sistema sem deixar rastro nenhum (achado pelo code review antes de causar dano real, a tela só foi ao ar há poucas horas). Correção: promissória continua aparecendo no seletor (pra não confundir o vendedor com um valor "órfão"), mas `handleConfirmar` barra o envio com mensagem explicando pra usar a tela normal de Pedidos.
+
+**Não corrigido ainda — achado real, pré-existente, mais amplo que a tela nova:** o mesmo problema de fundo já existia na tela manual de pedido (`novo-pedido.tsx`) pra **pagamento misto com perna promissória/parcelada** — `temParcelamento` (linha ~348) nunca incluiu `"misto"` no cálculo de parcelas, então uma venda "R$400 dinheiro + R$600 promissória" salva com sucesso, mas os R$600 não viram `contas_receber`, não têm vencimento, e a promissória nem consegue ser impressa depois (tela de impressão exige `forma_pagamento === 'promissoria'` puro). Precisa que `criar_pedido` derive cronograma de recebível a partir de `p_pagamentos_mistos`, não só valide que a soma bate. Ainda pendente — avaliar prioridade com o usuário.
+
+**Outros achados de code review (Cadastros/Estoque), não corrigidos ainda:**
+- Cadastro por foto (`vision-ai.ts`) não confere erro ao gravar `produto_imagens`/`foto_url` depois do upload — pode reportar sucesso com a foto órfã na Storage e o produto permanentemente sem foto.
+- Busca de CNPJ (`cnpj.ts`) trata rate-limit/API fora do ar das duas fontes (BrasilAPI + ReceitaWS) como "CNPJ não encontrado" — mensagem errada pro vendedor.
+- Cadastro por foto não aplica a convenção de caixa alta que todo o resto do sistema segue desde 25/07.
+- `fornecedores` não tem índice único de CNPJ (clientes tem) — permite fornecedor duplicado.
+- `alternarAtivoCliente`/`alternarAtivoFornecedor` não checam erro de update — negação de RLS falha silenciosamente.
+
+**Auditoria LGPD — resumo (relatório completo dado ao usuário no chat):** ponto mais importante é a política de leitura de `clientes`, que libera CPF/endereço/data de nascimento pra qualquer papel logado incluindo `estoque` (documentado como intencional, mas vale reconsiderar); `data_nascimento` é coletado sem nenhum uso no sistema; não há log de leitura de dado sensível, só de escrita; exclusão de cliente é soft-delete permanente, sem anonimização. Autenticação/senha e a parte fiscal (Focus NFe ainda não ativada) estão bem.
+
 ## 2026-08-10 — Bug encontrado e corrigido: `criar_pedido` com dois overloads divergentes desde 20260806000001
 
 - **Como foi descoberto:** trabalhando na feature nova de "lançar venda por foto" (ver PROJECT_STATUS.md), ao revisar `criarPedido`/`criar_pedido` pra entender o formato de pagamento misto, uma comparação entre `20260721000018_pagamento_misto.sql` e `20260806000001_pedido_itens_codigo_peca.sql` mostrou que a segunda recriou `criar_pedido` com 12 parâmetros (sem `p_pagamentos_mistos`) via `create or replace function`, **sem** o `drop function` explícito que a própria migration de pagamento misto já tinha deixado como aviso obrigatório ao mudar a lista de parâmetros. Como as assinaturas são diferentes, Postgres não substituiu — criou um segundo overload.

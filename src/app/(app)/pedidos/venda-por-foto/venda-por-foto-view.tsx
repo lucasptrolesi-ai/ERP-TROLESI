@@ -24,12 +24,21 @@ type ItemRevisao = {
 
 type PagamentoRevisao = { forma: FormaPagamento; valor: string };
 
+// Promissória continua na lista (pra IA/vendedor conseguirem ver e
+// escolher, e o select não ficar com um valor "órfão" fora das opções),
+// mas handleConfirmar barra o envio se aparecer: essa tela sempre manda
+// `parcelas: []` pro `criar_pedido` (a notinha não tem data de vencimento
+// nem plano de parcelas), então uma perna promissória nunca geraria
+// `contas_receber` — a dívida do cliente sumiria do sistema sem deixar
+// rastro. Até essa tela ganhar um jeito de capturar vencimento/parcelas,
+// promissória continua sendo lançada pela tela normal de Pedidos (achado em
+// code review, 2026-08-11 — ver DECISIONS.md).
 const FORMAS: { valor: FormaPagamento; rotulo: string }[] = [
   { valor: "dinheiro", rotulo: "Dinheiro" },
   { valor: "pix", rotulo: "Pix" },
   { valor: "debito", rotulo: "Débito" },
   { valor: "cartao_credito", rotulo: "Crédito" },
-  { valor: "promissoria", rotulo: "Promissória" },
+  { valor: "promissoria", rotulo: "Promissória (não suportado aqui)" },
 ];
 
 function round2(n: number): number {
@@ -44,6 +53,9 @@ function paraCampoNumero(n: number | null): string {
 // acento/maiúscula garantidos, então normaliza por trecho reconhecível em
 // vez de igualdade exata. Sem correspondência clara, cai em cartão de
 // crédito (a forma mais comum quando a nota só diz "crédito"/"cartão").
+// Continua reconhecendo "promiss…" (em vez de cair no fallback errado) só
+// pra handleConfirmar conseguir barrar e explicar o motivo — ver nota em
+// FORMAS acima.
 function normalizarForma(formaLida: string): FormaPagamento {
   const f = formaLida.toLowerCase();
   if (f.includes("pix")) return "pix";
@@ -295,6 +307,12 @@ export function VendaPorFotoView({ clientes, produtos }: { clientes: Cliente[]; 
     }
     if (pagamentos.length === 0 || pagamentos.some((p) => parseMoeda(p.valor) <= 0)) {
       setErro("Informe ao menos uma forma de pagamento com valor.");
+      return;
+    }
+    if (pagamentos.some((p) => p.forma === "promissoria")) {
+      setErro(
+        "Essa tela ainda não lança promissória (não captura vencimento/parcelas — a dívida ficaria sem registro). Lance essa venda pela tela normal de Pedidos.",
+      );
       return;
     }
     if (!pagamentoBateComTotal) {

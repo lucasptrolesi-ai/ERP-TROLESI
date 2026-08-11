@@ -15,7 +15,14 @@ export default async function PromissoriasPage({ params }: { params: Promise<{ i
   // parcelas_planejadas — defesa em profundidade contra reimprimir nota
   // promissória de uma venda cancelada se algum caminho futuro esquecer de
   // limpar esse campo (achado real do code-review, 2026-07-21).
-  if (pedido.forma_pagamento !== "promissoria" || parcelas.length === 0 || pedido.status === "cancelado") {
+  //
+  // Pagamento misto com perna promissória também imprime aqui (achado de
+  // code review, 2026-08-11): `parcelas_planejadas` só existe quando há
+  // parcela de verdade, então checar `parcelas.length === 0` já garante que
+  // um misto sem perna promissória (ex: só dinheiro + pix) continua caindo
+  // em notFound() normalmente.
+  const formaAceita = pedido.forma_pagamento === "promissoria" || pedido.forma_pagamento === "misto";
+  if (!formaAceita || parcelas.length === 0 || pedido.status === "cancelado") {
     notFound();
   }
 
