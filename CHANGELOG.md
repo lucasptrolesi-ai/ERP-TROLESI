@@ -1,5 +1,10 @@
 # CHANGELOG — ERP Trolesi
 
+## 2026-08-10 — Corrige `criar_pedido`: dois overloads divergentes desde 20260806000001
+
+- Migration `20260810000001_restaura_pagamento_misto_com_codigo_peca.sql` dropa os dois overloads de `criar_pedido` que coexistiam desde 2026-08-06 e recria um único, com pagamento misto e gravação de `codigo_peca` juntos. Reaplica o backfill de `codigo_peca` pras vendas feitas nesse intervalo. Ver `DECISIONS.md` (2026-08-10) pra detalhe de como o bug aconteceu.
+- Pendente: Lucas rodar a migration no SQL Editor da Supabase (fluxo normal do projeto, sem `service_role key` automatizada).
+
 ## 2026-07-27 (cont. 4) — Ícone próprio do app (tela de início do iOS / aba do navegador)
 
 - Usuário notou que adicionar o ERP na tela de início do iOS mostrava o ícone genérico (triângulo branco da Vercel) — o projeto não tinha `apple-icon`/`icon` configurados, só um `favicon.ico` padrão do scaffold inicial.

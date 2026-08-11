@@ -2,6 +2,13 @@
 
 Histórico de decisões de escopo e arquitetura, na ordem em que foram tomadas. Decisões revistas ficam marcadas como tal, não apagadas.
 
+## 2026-08-10 — Bug encontrado e corrigido: `criar_pedido` com dois overloads divergentes desde 20260806000001
+
+- **Como foi descoberto:** trabalhando na feature nova de "lançar venda por foto" (ver PROJECT_STATUS.md), ao revisar `criarPedido`/`criar_pedido` pra entender o formato de pagamento misto, uma comparação entre `20260721000018_pagamento_misto.sql` e `20260806000001_pedido_itens_codigo_peca.sql` mostrou que a segunda recriou `criar_pedido` com 12 parâmetros (sem `p_pagamentos_mistos`) via `create or replace function`, **sem** o `drop function` explícito que a própria migration de pagamento misto já tinha deixado como aviso obrigatório ao mudar a lista de parâmetros. Como as assinaturas são diferentes, Postgres não substituiu — criou um segundo overload.
+- **Efeito real:** `pedidos.ts` sempre envia a chave `p_pagamentos_mistos` (mesmo `null` em venda não-mista), então o PostgREST sempre resolveu pro overload de 13 parâmetros — o antigo, sem a gravação de `codigo_peca`. Ou seja: pagamento misto em si nunca quebrou, mas **toda venda criada entre 2026-08-06 e 2026-08-10 ficou sem `codigo_peca` gravado em `pedido_itens`** (o backfill de `20260806000002` só cobriu o passado até aquela data, não o fluxo novo).
+- **Correção:** `20260810000001_restaura_pagamento_misto_com_codigo_peca.sql` — dropa os dois overloads explicitamente, recria um `criar_pedido` único com pagamento misto E `codigo_peca` juntos, e reaplica o backfill pra cobrir as vendas feitas nesse intervalo.
+- **Lição:** o próprio comentário de `20260721000018` já avisava sobre esse risco (drop explícito antes de mudar assinatura) — vale conferir esse aviso sempre que uma migration nova mexer em `criar_pedido`.
+
 ## 2026-07-27 (cont. 3) — Rascunho de venda: sessionStorage, sem sobreviver entre máquinas
 
 - **Problema relatado pelo usuário:** sair da tela de Nova venda (PDV) pra consultar Estoque/Cadastros no meio de uma venda perdia o progresso inteiro.

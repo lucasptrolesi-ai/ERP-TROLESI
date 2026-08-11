@@ -146,6 +146,28 @@ export type AnaliseIaProduto = {
 /** Produto do catálogo já cadastrado com uma pontuação de semelhança (Vision AI, Etapa 4). */
 export type ProdutoSemelhante = Produto & { pontuacao: number };
 
+/** Lançar venda por foto: o que a IA leu de uma linha da notinha manuscrita.
+ * `codigo_peca`/`multiplicador` já nascem com o significado real das colunas
+ * do papel pré-impresso (a primeira coluna "Quant." é na verdade o código da
+ * peça, "Ref." é o multiplicador) — ver DECISIONS.md 2026-08-10. */
+export type ItemNotinha = {
+  descricao: string;
+  codigo_peca: number | null;
+  multiplicador: number | null;
+  valor_linha: number | null;
+};
+
+export type PagamentoNotinha = { forma: string; valor: number };
+
+export type AnaliseNotinha = {
+  cliente: string | null;
+  data: string | null;
+  itens: ItemNotinha[];
+  total: number | null;
+  pagamentos: PagamentoNotinha[];
+  campos_incertos: string[];
+};
+
 export type StatusPedido =
   | "orcamento"
   | "pedido"

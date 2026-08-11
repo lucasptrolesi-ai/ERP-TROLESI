@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { NovoPedido } from "./novo-pedido";
 import { PedidoDetalhe } from "./pedido-detalhe";
 import { formatarMoeda } from "@/lib/formatar-moeda";
@@ -49,7 +50,7 @@ export function PedidosView({
 
   return (
     <div className="rounded-[14px] border border-line bg-surface shadow-sm">
-      <div className="flex items-center justify-between border-b border-line px-4 sm:px-5">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-4 sm:px-5">
         <div className="flex gap-6">
           {podeCriar && (
             <button
@@ -70,6 +71,14 @@ export function PedidosView({
             Vendas registradas
           </button>
         </div>
+        {podeCriar && (
+          <Link
+            href="/pedidos/venda-por-foto"
+            className="shrink-0 rounded-full border border-rose px-4 py-2 text-sm font-semibold text-rose-deep"
+          >
+            📸 Lançar por foto
+          </Link>
+        )}
       </div>
 
       {aba === "lista" && (
