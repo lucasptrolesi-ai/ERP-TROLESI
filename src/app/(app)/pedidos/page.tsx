@@ -13,7 +13,7 @@ export default async function PedidosPage() {
       supabase
         .from("pedidos")
         .select(
-          "*, clientes(nome, cpf_cnpj, endereco, bairro, cidade, uf), pedido_itens(quantidade, preco_unitario, codigo_peca, produtos(nome)), pedido_pagamentos_mistos(forma_pagamento, valor)",
+          "*, clientes(nome, cpf_cnpj, telefone, endereco, bairro, cidade, uf), pedido_itens(quantidade, preco_unitario, codigo_peca, produtos(nome)), pedido_pagamentos_mistos(forma_pagamento, valor)",
         )
         .order("criado_em", { ascending: false }),
       supabase.from("clientes").select("*").eq("ativo", true).order("nome"),

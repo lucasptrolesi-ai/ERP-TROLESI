@@ -335,7 +335,15 @@ export type Pedido = {
   criado_em: string;
   parcelas_planejadas: Parcela[] | null;
   lancado_gmax_em: string | null;
-  clientes: { nome: string; cpf_cnpj: string | null; endereco: string | null; bairro: string | null; cidade: string | null; uf: string | null } | null;
+  clientes: {
+    nome: string;
+    cpf_cnpj: string | null;
+    telefone: string | null;
+    endereco: string | null;
+    bairro: string | null;
+    cidade: string | null;
+    uf: string | null;
+  } | null;
   pedido_itens: {
     quantidade: number;
     preco_unitario: number;

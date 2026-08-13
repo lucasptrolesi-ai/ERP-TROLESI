@@ -145,11 +145,19 @@ export function VendaPorFotoView({ clientes, produtos }: { clientes: Cliente[]; 
   // de pedido já aplica (seção 10 do documento mestre) — aviso antecipado
   // só, quem bloqueia de verdade é o `criar_pedido` no servidor.
   useEffect(() => {
-    if (!clienteSelecionado) {
-      setEstatisticasCliente(null);
-      return;
-    }
-    buscarEstatisticasCliente(clienteSelecionado.id).then(setEstatisticasCliente);
+    // Limpar quando não há cliente selecionado acontece nos próprios
+    // handlers que trocam `clienteSelecionado` (não aqui) — setState
+    // síncrono direto no corpo do efeito é o padrão que o lint proíbe.
+    // Seguro deixar de limpar aqui: a exibição de `estatisticasCliente` já
+    // só aparece dentro do bloco `{clienteSelecionado && ...}` na tela.
+    if (!clienteSelecionado) return;
+    let cancelado = false;
+    buscarEstatisticasCliente(clienteSelecionado.id).then((stats) => {
+      if (!cancelado) setEstatisticasCliente(stats);
+    });
+    return () => {
+      cancelado = true;
+    };
   }, [clienteSelecionado]);
 
   const minimoRequerido = (() => {

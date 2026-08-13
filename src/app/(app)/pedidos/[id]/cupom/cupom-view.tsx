@@ -7,6 +7,7 @@ import { formatarDataHoraIso, formatarDataIso } from "@/lib/datas";
 import { EMPRESA } from "@/lib/empresa";
 import { construirLinhasCupom } from "@/lib/cupom-linhas";
 import { buscarStatusImpressao, solicitarImpressaoCupom } from "@/lib/actions/impressao";
+import { linkWhatsapp, primeiroNomeCapitalizado } from "@/lib/whatsapp";
 import type { ContaReceber, Pedido } from "@/lib/types";
 
 type Via = "loja" | "cliente";
@@ -25,6 +26,9 @@ export function CupomView({ pedido, parcelas }: { pedido: Pedido; parcelas: Cont
   const [concluido, setConcluido] = useState(false);
   const [imprimindo, setImprimindo] = useState(false);
   const [erroImpressao, setErroImpressao] = useState<string | null>(null);
+  // Pré-preenchido do telefone já cadastrado do cliente, mas editável — pra
+  // quando não tiver telefone salvo ou precisar corrigir na hora.
+  const [telefoneWhatsapp, setTelefoneWhatsapp] = useState(pedido.clientes?.telefone ?? "");
   const jaImprimiuLoja = useRef(false);
   // `imprimindo` já bloqueia o clique dos botões, mas o ciclo de gravar +
   // esperar confirmação leva vários segundos — sem essa ref, um segundo
@@ -151,6 +155,9 @@ export function CupomView({ pedido, parcelas }: { pedido: Pedido; parcelas: Cont
   }
 
   const totalPontos = pedido.pedido_itens.reduce((s, i) => s + (i.codigo_peca ?? 0) * i.quantidade, 0);
+
+  const nomeCliente = pedido.clientes?.nome;
+  const mensagemWhatsapp = `Olá${nomeCliente ? `, ${primeiroNomeCapitalizado(nomeCliente)}` : ""}! Aqui está o comprovante da sua compra na Trolesi Joias (Pedido #${pedido.numero}) 💎 Segue o PDF em anexo — obrigado pela preferência!`;
 
   return (
     <div className="flex flex-col items-center gap-4 py-6 print:gap-0 print:py-0">
@@ -294,6 +301,31 @@ export function CupomView({ pedido, parcelas }: { pedido: Pedido; parcelas: Cont
               >
                 {imprimindo && via === "cliente" ? "Imprimindo…" : "Reimprimir via cliente"}
               </button>
+            </div>
+
+            <div className="mt-1 flex flex-col items-center gap-2 rounded-xl border border-line bg-surface p-3">
+              <p className="text-xs text-text-soft">
+                Enviar comprovante por WhatsApp — abre a conversa pronta, só falta anexar o PDF (já
+                salvo automaticamente) e enviar.
+              </p>
+              <input
+                value={telefoneWhatsapp}
+                onChange={(e) => setTelefoneWhatsapp(e.target.value)}
+                placeholder="Telefone do cliente (com DDD)"
+                className="w-48 rounded-lg border border-line bg-cream px-3 py-1.5 text-center text-sm text-ink outline-none focus:border-rose focus:ring-2 focus:ring-rose-soft"
+              />
+              <a
+                href={telefoneWhatsapp.trim() ? linkWhatsapp(telefoneWhatsapp, mensagemWhatsapp) : undefined}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-disabled={!telefoneWhatsapp.trim()}
+                onClick={(e) => {
+                  if (!telefoneWhatsapp.trim()) e.preventDefault();
+                }}
+                className="rounded-full bg-[#25D366] px-4 py-2 text-xs font-semibold text-white transition aria-disabled:pointer-events-none aria-disabled:opacity-50"
+              >
+                📱 Abrir no WhatsApp
+              </a>
             </div>
           </div>
         )}
