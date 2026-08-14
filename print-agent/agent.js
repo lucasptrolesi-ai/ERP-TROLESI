@@ -597,9 +597,16 @@ function marcarEtiquetaComoErro(id, mensagemErro) {
 }
 
 // Gera o PNG do código de barras (CODE128, com o número legível embaixo
-// das barras — mesma leitura que o leitor usa no PDV Eventos) e embute
-// num PDF do tamanho exato da etiqueta. `fit` centraliza e escala sem
-// distorcer, então não precisa acertar o tamanho do bwip-js no milímetro.
+// das barras — mesma leitura que o leitor usa no PDV Eventos), já girado
+// 90° (sentido horário) pra ler no mesmo sentido do adesivo físico (pedido
+// do usuário, 2026-08-14). Usa a opção nativa `rotate` do bwip-js em vez
+// de girar "na mão" no PDF — a 1ª tentativa (girar no PDFKit, trocando as
+// dimensões do `fit`) saiu correta na rotação mas minúscula, porque o
+// código de barras (naturalmente largo e baixo) não preenchia a caixa
+// alta e estreita depois de girado; `width`/`height` aqui são medidos
+// ANTES do giro (a largura de 18mm vira o comprimento da etiqueta depois
+// de girado, a altura de 4.5mm vira a largura), então o bwip-js já
+// desenha maximizando o módulo pro espaço real disponível.
 function gerarPngCodigoBarras(codigoInterno) {
   return new Promise((resolve, reject) => {
     bwipjs.toBuffer(
@@ -608,12 +615,10 @@ function gerarPngCodigoBarras(codigoInterno) {
         text: codigoInterno,
         includetext: true,
         textxalign: "center",
-        // Aumentado (pedido do usuário, 2026-08-14, depois do 1º teste
-        // físico) — scale maior = imagem fonte com mais resolução, sai
-        // mais nítido na térmica; height maior = barra mais alta, mais
-        // fácil de ler no leitor.
         scale: 5,
-        height: 5,
+        height: 4.5,
+        width: 18,
+        rotate: "R",
       },
       (erro, png) => (erro ? reject(erro) : resolve(png)),
     );
@@ -625,32 +630,15 @@ function construirPdfEtiqueta(png) {
   const alturaPt = ETIQUETA_ALTURA_MM * MM_PARA_PT;
 
   return new Promise((resolve, reject) => {
-    // A página continua exatamente 21x7mm (tem que bater com o papel de
-    // etiqueta calibrado no driver Windows) — só o CONTEÚDO gira 90°
-    // dentro dela, pra ler no mesmo sentido do adesivo físico (pedido do
-    // usuário, 2026-08-14). Gira em torno do centro da página e desenha a
-    // imagem com as dimensões do "fit" trocadas (largura/altura), já que
-    // depois de girar 90° o espaço disponível pro código de barras passa a
-    // ser 7mm no eixo que era a largura e 21mm no eixo que era a altura.
+    // Página 21x7mm (bate com o papel de etiqueta calibrado no driver
+    // Windows) — o PNG já vem girado e dimensionado do bwip-js, então só
+    // precisa centralizar/escalar sem distorcer.
     const doc = new PDFDocument({ size: [larguraPt, alturaPt], margin: 0 });
     const pedacos = [];
     doc.on("data", (pedaco) => pedacos.push(pedaco));
     doc.on("end", () => resolve(Buffer.concat(pedacos)));
     doc.on("error", reject);
-
-    doc.save();
-    doc.translate(larguraPt / 2, alturaPt / 2);
-    // Se sair girado pro lado errado (sentido anti-horário em vez de
-    // horário), troca esse "90" por "-90" — não tem como eu confirmar o
-    // sentido exato sem testar na impressora de verdade.
-    doc.rotate(90);
-    doc.image(png, -alturaPt / 2, -larguraPt / 2, {
-      fit: [alturaPt, larguraPt],
-      align: "center",
-      valign: "center",
-    });
-    doc.restore();
-
+    doc.image(png, 0, 0, { fit: [larguraPt, alturaPt], align: "center", valign: "center" });
     doc.end();
   });
 }
