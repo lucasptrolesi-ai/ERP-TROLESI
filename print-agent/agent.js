@@ -608,8 +608,12 @@ function gerarPngCodigoBarras(codigoInterno) {
         text: codigoInterno,
         includetext: true,
         textxalign: "center",
-        scale: 3,
-        height: 4,
+        // Aumentado (pedido do usuário, 2026-08-14, depois do 1º teste
+        // físico) — scale maior = imagem fonte com mais resolução, sai
+        // mais nítido na térmica; height maior = barra mais alta, mais
+        // fácil de ler no leitor.
+        scale: 5,
+        height: 5,
       },
       (erro, png) => (erro ? reject(erro) : resolve(png)),
     );
@@ -621,12 +625,32 @@ function construirPdfEtiqueta(png) {
   const alturaPt = ETIQUETA_ALTURA_MM * MM_PARA_PT;
 
   return new Promise((resolve, reject) => {
+    // A página continua exatamente 21x7mm (tem que bater com o papel de
+    // etiqueta calibrado no driver Windows) — só o CONTEÚDO gira 90°
+    // dentro dela, pra ler no mesmo sentido do adesivo físico (pedido do
+    // usuário, 2026-08-14). Gira em torno do centro da página e desenha a
+    // imagem com as dimensões do "fit" trocadas (largura/altura), já que
+    // depois de girar 90° o espaço disponível pro código de barras passa a
+    // ser 7mm no eixo que era a largura e 21mm no eixo que era a altura.
     const doc = new PDFDocument({ size: [larguraPt, alturaPt], margin: 0 });
     const pedacos = [];
     doc.on("data", (pedaco) => pedacos.push(pedaco));
     doc.on("end", () => resolve(Buffer.concat(pedacos)));
     doc.on("error", reject);
-    doc.image(png, 0, 0, { fit: [larguraPt, alturaPt], align: "center", valign: "center" });
+
+    doc.save();
+    doc.translate(larguraPt / 2, alturaPt / 2);
+    // Se sair girado pro lado errado (sentido anti-horário em vez de
+    // horário), troca esse "90" por "-90" — não tem como eu confirmar o
+    // sentido exato sem testar na impressora de verdade.
+    doc.rotate(90);
+    doc.image(png, -alturaPt / 2, -larguraPt / 2, {
+      fit: [alturaPt, larguraPt],
+      align: "center",
+      valign: "center",
+    });
+    doc.restore();
+
     doc.end();
   });
 }
