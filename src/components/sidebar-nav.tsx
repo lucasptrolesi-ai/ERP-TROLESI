@@ -11,6 +11,7 @@ import { usePathname } from "next/navigation";
 // desvinculada.
 const ITENS = [
   { href: "/pedidos", label: "PDV", icone: "🧾" },
+  { href: "/pdv-eventos", label: "PDV Eventos", icone: "🎪" },
   { href: "/cadastros", label: "Cadastros", icone: "👥" },
   { href: "/estoque", label: "Produtos & Estoque", icone: "💍" },
   { href: "/financeiro", label: "Financeiro", icone: "💰" },

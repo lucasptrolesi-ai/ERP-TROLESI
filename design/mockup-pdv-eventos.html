@@ -1,0 +1,596 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<title>PDV Eventos</title>
+<style>
+  @font-face {
+    font-family: "Cormorant";
+    src: local("Cormorant Garamond");
+  }
+
+  :root {
+    --color-rose: #c5a880;
+    --color-rose-deep: #7a5c36;
+    --color-rose-soft: #efe6d8;
+    --color-gold-start: #d2b48c;
+    --color-gold-end: #c5a880;
+    --color-gold-ink: #2a211a;
+    --color-cream: #f9f8f6;
+    --color-ink: #2c2520;
+    --color-text-soft: #7a6b5e;
+    --color-line: #e7e3dc;
+    --color-surface: #ffffff;
+    --color-ok: #10b981;
+    --color-ok-bg: #e3f5ee;
+    --color-warn: #f59e0b;
+    --color-warn-bg: #fdf1dd;
+    --color-crit: #ef4444;
+    --color-crit-bg: #fce9e8;
+    --font-display: "Cormorant", Georgia, "Times New Roman", serif;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --color-cream: #1a1714;
+      --color-ink: #f0eae2;
+      --color-text-soft: #9c8c7e;
+      --color-line: #3a322b;
+      --color-surface: #241f1a;
+      --color-ok-bg: #1c332a;
+      --color-warn-bg: #3a2c12;
+      --color-crit-bg: #3a1e19;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --color-cream: #1a1714;
+    --color-ink: #f0eae2;
+    --color-text-soft: #9c8c7e;
+    --color-line: #3a322b;
+    --color-surface: #241f1a;
+    --color-ok-bg: #1c332a;
+    --color-warn-bg: #3a2c12;
+    --color-crit-bg: #3a1e19;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--color-cream);
+    color: var(--color-ink);
+    font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+    font-size: 14px;
+  }
+
+  .page {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 28px 20px 60px;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+  }
+
+  header.topo {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  h1 {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 1.9rem;
+    margin: 0;
+    text-wrap: balance;
+  }
+
+  .sub {
+    color: var(--color-text-soft);
+    font-size: 0.85rem;
+  }
+
+  .badge-evento {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border-radius: 999px;
+    background: var(--color-rose-soft);
+    color: var(--color-rose-deep);
+    font-weight: 700;
+    font-size: 0.7rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    padding: 5px 12px;
+  }
+
+  nav.tabs {
+    display: flex;
+    gap: 6px;
+    border-bottom: 1px solid var(--color-line);
+  }
+
+  nav.tabs button {
+    appearance: none;
+    border: none;
+    background: none;
+    font: inherit;
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: var(--color-text-soft);
+    padding: 10px 16px;
+    border-bottom: 2px solid transparent;
+    cursor: pointer;
+  }
+
+  nav.tabs button.ativa {
+    color: var(--color-rose-deep);
+    border-bottom-color: var(--color-rose-deep);
+  }
+
+  nav.tabs button:focus-visible,
+  button:focus-visible,
+  input:focus-visible {
+    outline: 2px solid var(--color-rose-deep);
+    outline-offset: 2px;
+  }
+
+  .tela { display: none; flex-direction: column; gap: 16px; }
+  .tela.ativa { display: flex; }
+
+  .cartao {
+    background: var(--color-surface);
+    border: 1px solid var(--color-line);
+    border-radius: 14px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+  }
+
+  /* ---- Vender ---- */
+  .layout-vender {
+    display: grid;
+    grid-template-columns: 1.15fr 0.85fr;
+    gap: 16px;
+    align-items: start;
+  }
+  @media (max-width: 760px) {
+    .layout-vender { grid-template-columns: 1fr; }
+  }
+
+  .scanner {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 16px;
+  }
+  .scanner input {
+    flex: 1;
+    border: 1px solid var(--color-rose-deep);
+    border-radius: 10px;
+    background: var(--color-cream);
+    color: var(--color-ink);
+    padding: 12px 14px;
+    font-size: 1rem;
+    font-variant-numeric: tabular-nums;
+  }
+  .scanner .icone { font-size: 1.3rem; }
+
+  table.carrinho { width: 100%; border-collapse: collapse; }
+  table.carrinho th {
+    text-align: left;
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--color-text-soft);
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--color-line);
+  }
+  table.carrinho td {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--color-line);
+    vertical-align: middle;
+  }
+  table.carrinho td.num, table.carrinho th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  table.carrinho tr:last-child td { border-bottom: none; }
+  .nome-item { font-weight: 600; }
+  .cod-item { color: var(--color-text-soft); font-size: 0.72rem; font-family: ui-monospace, monospace; }
+
+  .qtd-controle {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border: 1px solid var(--color-line);
+    border-radius: 999px;
+    padding: 2px 4px;
+  }
+  .qtd-controle button {
+    width: 22px; height: 22px;
+    border-radius: 999px;
+    border: none;
+    background: var(--color-rose-soft);
+    color: var(--color-rose-deep);
+    font-weight: 700;
+    cursor: pointer;
+    line-height: 1;
+  }
+
+  .painel-pagamento { display: flex; flex-direction: column; gap: 14px; padding: 16px; }
+  .painel-pagamento h2 {
+    font-family: var(--font-display);
+    font-size: 1.15rem;
+    margin: 0;
+    font-weight: 600;
+  }
+
+  .linha-total {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.88rem;
+  }
+  .linha-total.total {
+    font-size: 1.3rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    padding-top: 10px;
+    border-top: 1px solid var(--color-line);
+  }
+
+  label.campo {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--color-text-soft);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+  label.campo input {
+    text-transform: none;
+    font-weight: 400;
+    border: 1px solid var(--color-line);
+    border-radius: 10px;
+    padding: 9px 12px;
+    background: var(--color-cream);
+    color: var(--color-ink);
+    font-size: 0.9rem;
+  }
+
+  .grade-pagto {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  .opcao-pagto {
+    border: 1px solid var(--color-line);
+    border-radius: 10px;
+    padding: 10px 8px;
+    text-align: center;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--color-ink);
+    cursor: pointer;
+    background: var(--color-cream);
+  }
+  .opcao-pagto.selecionada {
+    border-color: var(--color-rose-deep);
+    background: var(--color-rose-soft);
+    color: var(--color-rose-deep);
+  }
+
+  .btn-gradiente {
+    border: none;
+    border-radius: 999px;
+    background: linear-gradient(to bottom right, var(--color-gold-start), var(--color-gold-end));
+    color: var(--color-gold-ink);
+    font-weight: 700;
+    font-size: 0.95rem;
+    padding: 13px;
+    cursor: pointer;
+  }
+
+  .btn-linha {
+    border: 1px solid var(--color-rose);
+    border-radius: 999px;
+    background: none;
+    color: var(--color-rose-deep);
+    font-weight: 600;
+    font-size: 0.85rem;
+    padding: 9px 16px;
+    cursor: pointer;
+  }
+
+  /* ---- Estoque ---- */
+  .cabecalho-estoque {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px;
+    border-bottom: 1px solid var(--color-line);
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .lista-estoque { display: flex; flex-direction: column; }
+  .linha-estoque {
+    display: grid;
+    grid-template-columns: 70px 1fr 90px 90px 110px;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--color-line);
+  }
+  .linha-estoque:last-child { border-bottom: none; }
+  .linha-estoque.cabecalho {
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--color-text-soft);
+    font-weight: 700;
+  }
+  .barras {
+    font-family: ui-monospace, monospace;
+    letter-spacing: -1px;
+    font-size: 1.1rem;
+  }
+  .estoque-baixo { color: var(--color-crit); font-weight: 700; }
+  .pill-estoque {
+    display: inline-block;
+    border-radius: 999px;
+    padding: 3px 10px;
+    font-size: 0.72rem;
+    font-weight: 700;
+  }
+
+  /* ---- Resumo ---- */
+  .grade-resumo {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px;
+  }
+  @media (max-width: 700px) { .grade-resumo { grid-template-columns: 1fr; } }
+  .card-metrica { padding: 18px; display: flex; flex-direction: column; gap: 4px; }
+  .card-metrica .rotulo {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--color-text-soft);
+    font-weight: 700;
+  }
+  .card-metrica .valor {
+    font-family: var(--font-display);
+    font-size: 2rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .quebra-pagto { padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+  .quebra-pagto h2 { font-family: var(--font-display); font-size: 1.1rem; margin: 0 0 4px; font-weight: 600; }
+  .barra-pagto { display: flex; align-items: center; gap: 10px; }
+  .barra-pagto .rotulo { width: 150px; font-size: 0.82rem; font-weight: 600; }
+  .barra-pagto .trilho { flex: 1; height: 8px; border-radius: 999px; background: var(--color-rose-soft); overflow: hidden; }
+  .barra-pagto .preenche { height: 100%; background: var(--color-rose-deep); border-radius: 999px; }
+  .barra-pagto .valor { width: 90px; text-align: right; font-variant-numeric: tabular-nums; font-weight: 700; }
+
+  .nota-mockup {
+    font-size: 0.75rem;
+    color: var(--color-text-soft);
+    text-align: center;
+    padding-top: 6px;
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <header class="topo">
+    <div>
+      <h1>🎪 PDV Eventos</h1>
+      <div class="sub">Estoque e vendas separados do sistema principal — uso exclusivo da Agroshow</div>
+    </div>
+    <span class="badge-evento">Estoque próprio · sem código×multiplicador</span>
+  </header>
+
+  <nav class="tabs">
+    <button class="ativa" data-tab="vender">Vender</button>
+    <button data-tab="estoque">Estoque</button>
+    <button data-tab="resumo">Resumo</button>
+  </nav>
+
+  <!-- VENDER -->
+  <section class="tela ativa" id="tela-vender">
+    <div class="layout-vender">
+      <div style="display:flex; flex-direction:column; gap:14px;">
+        <div class="cartao scanner">
+          <span class="icone">📷</span>
+          <input type="text" placeholder="Bipar código de barras ou digitar o código…" autofocus />
+        </div>
+
+        <div class="cartao">
+          <table class="carrinho">
+            <thead>
+              <tr>
+                <th>Peça</th>
+                <th class="num">Qtd.</th>
+                <th class="num">Unit.</th>
+                <th class="num">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>
+                  <div class="nome-item">Brinco Argola Cristal</div>
+                  <div class="cod-item">#0007</div>
+                </td>
+                <td class="num">
+                  <div class="qtd-controle">
+                    <button aria-label="Diminuir">−</button>
+                    <span>1</span>
+                    <button aria-label="Aumentar">+</button>
+                  </div>
+                </td>
+                <td class="num">R$ 39,90</td>
+                <td class="num">R$ 39,90</td>
+              </tr>
+              <tr>
+                <td>
+                  <div class="nome-item">Colar Ponto de Luz</div>
+                  <div class="cod-item">#0012</div>
+                </td>
+                <td class="num">
+                  <div class="qtd-controle">
+                    <button aria-label="Diminuir">−</button>
+                    <span>2</span>
+                    <button aria-label="Aumentar">+</button>
+                  </div>
+                </td>
+                <td class="num">R$ 54,00</td>
+                <td class="num">R$ 108,00</td>
+              </tr>
+              <tr>
+                <td>
+                  <div class="nome-item">Pulseira Berloque Coração</div>
+                  <div class="cod-item">#0003</div>
+                </td>
+                <td class="num">
+                  <div class="qtd-controle">
+                    <button aria-label="Diminuir">−</button>
+                    <span>1</span>
+                    <button aria-label="Aumentar">+</button>
+                  </div>
+                </td>
+                <td class="num">R$ 42,00</td>
+                <td class="num">R$ 42,00</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="cartao painel-pagamento">
+        <h2>Fechar venda</h2>
+
+        <label class="campo">
+          Desconto (R$)
+          <input type="text" inputmode="decimal" value="0,00" />
+        </label>
+
+        <div>
+          <span style="font-size:0.75rem; font-weight:600; color:var(--color-text-soft); text-transform:uppercase; letter-spacing:0.03em;">Forma de pagamento</span>
+          <div class="grade-pagto" style="margin-top:6px;">
+            <div class="opcao-pagto selecionada">Dinheiro</div>
+            <div class="opcao-pagto">Pix</div>
+            <div class="opcao-pagto">Cartão à vista</div>
+            <div class="opcao-pagto">Cartão parcelado</div>
+          </div>
+        </div>
+
+        <div style="display:flex; flex-direction:column; gap:6px;">
+          <div class="linha-total"><span>Subtotal</span><span>R$ 189,90</span></div>
+          <div class="linha-total"><span>Desconto</span><span>− R$ 0,00</span></div>
+          <div class="linha-total total"><span>Total</span><span>R$ 189,90</span></div>
+        </div>
+
+        <button class="btn-gradiente">Finalizar venda</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ESTOQUE -->
+  <section class="tela" id="tela-estoque">
+    <div class="cartao">
+      <div class="cabecalho-estoque">
+        <div>
+          <strong style="font-size:1rem;">Estoque do evento</strong>
+          <div class="sub">18 peças cadastradas</div>
+        </div>
+        <button class="btn-gradiente" style="padding:10px 20px;">+ Nova peça</button>
+      </div>
+
+      <div class="lista-estoque">
+        <div class="linha-estoque cabecalho">
+          <span>Código</span><span>Nome</span><span>Preço</span><span>Estoque</span><span>Etiqueta</span>
+        </div>
+        <div class="linha-estoque">
+          <span class="barras">▌│▌▌│║▌│</span>
+          <span>Brinco Argola Cristal</span>
+          <span>R$ 39,90</span>
+          <span class="pill-estoque" style="background:var(--color-ok-bg); color:var(--color-ok);">6 un.</span>
+          <button class="btn-linha" style="padding:6px 14px; font-size:0.78rem;">Imprimir</button>
+        </div>
+        <div class="linha-estoque">
+          <span class="barras">│║▌│▌║│▌</span>
+          <span>Colar Ponto de Luz</span>
+          <span>R$ 54,00</span>
+          <span class="pill-estoque" style="background:var(--color-warn-bg); color:var(--color-warn);">2 un.</span>
+          <button class="btn-linha" style="padding:6px 14px; font-size:0.78rem;">Imprimir</button>
+        </div>
+        <div class="linha-estoque">
+          <span class="barras">▌▌│║▌│║│</span>
+          <span>Pulseira Berloque Coração</span>
+          <span>R$ 42,00</span>
+          <span class="pill-estoque estoque-baixo" style="background:var(--color-crit-bg);">0 un.</span>
+          <button class="btn-linha" style="padding:6px 14px; font-size:0.78rem;">Imprimir</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- RESUMO -->
+  <section class="tela" id="tela-resumo">
+    <div class="grade-resumo">
+      <div class="cartao card-metrica">
+        <span class="rotulo">Total vendido</span>
+        <span class="valor">R$ 3.240</span>
+      </div>
+      <div class="cartao card-metrica">
+        <span class="rotulo">Peças vendidas</span>
+        <span class="valor">57</span>
+      </div>
+      <div class="cartao card-metrica">
+        <span class="rotulo">Vendas realizadas</span>
+        <span class="valor">34</span>
+      </div>
+    </div>
+
+    <div class="cartao quebra-pagto">
+      <h2>Por forma de pagamento</h2>
+      <div class="barra-pagto">
+        <span class="rotulo">Dinheiro</span>
+        <div class="trilho"><div class="preenche" style="width:45%;"></div></div>
+        <span class="valor">R$ 1.458</span>
+      </div>
+      <div class="barra-pagto">
+        <span class="rotulo">Pix</span>
+        <div class="trilho"><div class="preenche" style="width:30%;"></div></div>
+        <span class="valor">R$ 972</span>
+      </div>
+      <div class="barra-pagto">
+        <span class="rotulo">Cartão à vista</span>
+        <div class="trilho"><div class="preenche" style="width:15%;"></div></div>
+        <span class="valor">R$ 486</span>
+      </div>
+      <div class="barra-pagto">
+        <span class="rotulo">Cartão parcelado</span>
+        <div class="trilho"><div class="preenche" style="width:10%;"></div></div>
+        <span class="valor">R$ 324</span>
+      </div>
+    </div>
+  </section>
+
+  <p class="nota-mockup">Mockup estático · aprovar layout antes de virar tela real (design/mockup-pdv-eventos.html)</p>
+</div>
+
+<script>
+  document.querySelectorAll("nav.tabs button").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll("nav.tabs button").forEach((b) => b.classList.remove("ativa"));
+      document.querySelectorAll(".tela").forEach((t) => t.classList.remove("ativa"));
+      btn.classList.add("ativa");
+      document.getElementById("tela-" + btn.dataset.tab).classList.add("ativa");
+    });
+  });
+</script>
+</body>
+</html>

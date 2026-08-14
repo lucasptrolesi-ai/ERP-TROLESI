@@ -494,3 +494,43 @@ export type PermissaoUsuario = {
   concedida_por: string | null;
   concedida_em: string;
 };
+
+// PDV Eventos (2026-08-13) — estoque e vendas à parte pra evento temporário
+// (Agroshow), sem código×multiplicador nem regras comerciais do PDV real.
+export type FormaPagamentoEvento = "dinheiro" | "pix" | "cartao_vista" | "cartao_parcelado";
+
+export type ProdutoEvento = {
+  id: string;
+  codigo_interno: string;
+  nome: string;
+  preco: number;
+  quantidade_estoque: number;
+  ativo: boolean;
+  criado_em: string;
+};
+
+export type ItemCarrinhoEvento = {
+  linha_id: string;
+  produto_evento_id: string;
+  nome: string;
+  preco_unitario: number;
+  quantidade: number;
+  estoqueDisponivel: number;
+};
+
+export type VendaEvento = {
+  id: string;
+  numero: number;
+  forma_pagamento: FormaPagamentoEvento;
+  numero_parcelas: number;
+  subtotal: number;
+  valor_desconto: number;
+  total: number;
+  status: "faturado" | "cancelado";
+  criado_em: string;
+  vendas_evento_itens: {
+    nome: string;
+    quantidade: number;
+    preco_unitario: number;
+  }[];
+};

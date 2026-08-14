@@ -13,8 +13,11 @@ export type StatusImpressao = {
 // ligada) fica checando essa tabela e imprime o que encontrar. Funciona
 // não importa de qual aparelho a venda foi fechada (Mac, Windows, celular),
 // diferente de um fetch direto pro loopback de uma máquina específica.
+// `pedidoId` aceita null pras vendas do PDV Eventos (tabela separada,
+// pedido_id já era nullable no schema — o print-agent trata esse caso
+// como "solicitação sem pedido vinculado" e só pula o lookup extra).
 export async function solicitarImpressaoCupom(
-  pedidoId: string,
+  pedidoId: string | null,
   via: "loja" | "cliente",
   linhas: LinhaImpressao[],
 ): Promise<{ id: string } | { erro: string }> {

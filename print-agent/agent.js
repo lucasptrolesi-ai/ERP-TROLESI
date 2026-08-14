@@ -388,7 +388,7 @@ function requisicaoSupabase(caminho, metodo, corpoObjeto) {
 
 function buscarPendentes() {
   return requisicaoSupabase(
-    "/solicitacoes_impressao?status=eq.pendente&order=criado_em.asc&limit=5&select=id,via,linhas,pedido_id",
+    "/solicitacoes_impressao?status=eq.pendente&order=criado_em.asc&limit=5&select=id,via,linhas,pedido_id,criado_em",
     "GET",
   );
 }
@@ -441,16 +441,31 @@ async function buscarInfoPedido(pedidoId) {
 // opcional e pode repetir (reimpressão), o que geraria comprovantes
 // duplicados/renomeados à toa se gerássemos em toda impressão.
 async function salvarComprovantePdf(solicitacao) {
-  if (!solicitacao.pedido_id) return; // solicitação antiga, sem pedido_id vinculado
-  const pedido = await buscarInfoPedido(solicitacao.pedido_id);
-  if (!pedido) return;
+  let dataReferencia;
+  let nomeBase;
 
-  const { dd, mm, aaaa } = dataBrasiliaDDMM(pedido.criado_em);
+  if (solicitacao.pedido_id) {
+    const pedido = await buscarInfoPedido(solicitacao.pedido_id);
+    if (!pedido) return;
+    dataReferencia = pedido.criado_em;
+    nomeBase = sanitizarNomeArquivo(pedido.clientes?.nome);
+  } else {
+    // Venda do PDV Eventos (2026-08-13): sem pedido/cliente vinculado no
+    // sistema real — usa a data da própria solicitação de impressão (feita
+    // segundos depois da venda) e um nome genérico, já que a venda é
+    // anônima. Achado de code review: antes disso a function simplesmente
+    // desistia (`if (!pedido_id) return`), então nenhuma venda de evento
+    // gerava comprovante em PDF, apesar da tela avisar o vendedor que o
+    // PDF "já foi salvo automaticamente".
+    dataReferencia = solicitacao.criado_em;
+    nomeBase = "Evento";
+  }
+
+  const { dd, mm, aaaa } = dataBrasiliaDDMM(dataReferencia);
   const pasta = path.join(PASTA_COMPROVANTES, aaaa, mm);
   fs.mkdirSync(pasta, { recursive: true });
 
-  const nomeCliente = sanitizarNomeArquivo(pedido.clientes?.nome);
-  const caminho = caminhoComprovanteDisponivel(pasta, `${nomeCliente} - ${dd}-${mm}`);
+  const caminho = caminhoComprovanteDisponivel(pasta, `${nomeBase} - ${dd}-${mm}`);
 
   const pdf = construirPdf(Array.isArray(solicitacao.linhas) ? solicitacao.linhas : []);
   fs.writeFileSync(caminho, pdf);
