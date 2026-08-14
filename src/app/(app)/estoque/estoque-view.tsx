@@ -32,6 +32,7 @@ export function EstoqueView({
 }) {
   const [busca, setBusca] = useState("");
   const [categoriaAtiva, setCategoriaAtiva] = useState<string | null>(null);
+  const [colecaoAtiva, setColecaoAtiva] = useState<string | null>(null);
   // Suporte ao link "Atualizar estoque" do Vision AI (?editar=<id>): abre já
   // com o produto encontrado como parecido, pra ajustar a quantidade.
   const [produtoEditando, setProdutoEditando] = useState<Produto | null | undefined>(() =>
@@ -52,17 +53,34 @@ export function EstoqueView({
     return Array.from(vistas.values()).sort();
   }, [produtos]);
 
+  // Mesmo padrão de agrupamento de categoria, pra "coleção" servir de
+  // estoque separado (ex: peças exclusivas de um evento) — só aparece a
+  // linha de filtro quando existe pelo menos uma coleção cadastrada, pra
+  // não poluir a tela de quem nunca usa esse campo.
+  const colecoes = useMemo(() => {
+    const vistas = new Map<string, string>();
+    for (const p of produtos) {
+      if (!p.colecao) continue;
+      const chave = p.colecao.trim().toLowerCase();
+      if (!vistas.has(chave)) vistas.set(chave, p.colecao);
+    }
+    return Array.from(vistas.values()).sort();
+  }, [produtos]);
+
   const filtrados = useMemo(() => {
-    const porCategoria = categoriaAtiva
+    let base = categoriaAtiva
       ? produtos.filter((p) => p.categoria.trim().toLowerCase() === categoriaAtiva.trim().toLowerCase())
       : produtos;
+    if (colecaoAtiva) {
+      base = base.filter((p) => (p.colecao ?? "").trim().toLowerCase() === colecaoAtiva.trim().toLowerCase());
+    }
     return filtra(
-      porCategoria,
+      base,
       busca,
       (p) =>
-        `${p.categoria} ${p.subcategoria ?? ""} ${p.subsubcategoria ?? ""} ${p.codigo_interno ?? ""}`,
+        `${p.categoria} ${p.subcategoria ?? ""} ${p.subsubcategoria ?? ""} ${p.codigo_interno ?? ""} ${p.colecao ?? ""}`,
     );
-  }, [produtos, categoriaAtiva, busca]);
+  }, [produtos, categoriaAtiva, colecaoAtiva, busca]);
 
   return (
     <div className="flex flex-col gap-4">
@@ -108,6 +126,25 @@ export function EstoqueView({
         </div>
       </div>
 
+      {colecoes.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 border-b border-line px-4 py-3 sm:px-5">
+          <span className="text-[0.65rem] font-bold uppercase tracking-wide text-text-soft">Coleção</span>
+          {colecoes.map((c) => (
+            <button
+              key={c}
+              onClick={() => setColecaoAtiva(colecaoAtiva === c ? null : c)}
+              className={`shrink-0 rounded-full border px-3 py-1.5 text-xs font-semibold ${
+                colecaoAtiva === c
+                  ? "border-rose bg-rose-soft text-rose-deep"
+                  : "border-line text-text-soft"
+              }`}
+            >
+              {c}
+            </button>
+          ))}
+        </div>
+      )}
+
       <div className="grid grid-cols-2 gap-4 p-4 sm:grid-cols-3 sm:p-5 md:grid-cols-4 lg:grid-cols-5">
         {filtrados.map((p) => {
           const status = statusEstoque(p);
@@ -140,6 +177,11 @@ export function EstoqueView({
                 <span className="text-sm font-semibold text-ink">{p.nome}</span>
                 {p.codigo_interno && (
                   <span className="font-mono text-[0.7rem] text-text-soft">#{p.codigo_interno}</span>
+                )}
+                {p.colecao && (
+                  <span className="w-fit rounded-full bg-gold-start/30 px-2 py-0.5 text-[0.65rem] font-bold text-gold-ink">
+                    {p.colecao}
+                  </span>
                 )}
                 <span className="font-display font-semibold text-rose-deep">{formatarMoeda(p.preco)}</span>
                 <span className={`w-fit rounded-full px-2 py-0.5 text-[0.7rem] font-bold ${status.classe}`}>

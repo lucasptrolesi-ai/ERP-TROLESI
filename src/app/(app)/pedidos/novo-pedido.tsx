@@ -319,7 +319,8 @@ export function NovoPedido({
         (p) =>
           p.nome.toLowerCase().includes(termo) ||
           p.categoria.toLowerCase().includes(termo) ||
-          (p.codigo_interno ?? "").toLowerCase().includes(termo),
+          (p.codigo_interno ?? "").toLowerCase().includes(termo) ||
+          (p.colecao ?? "").toLowerCase().includes(termo),
       )
       .slice(0, 8);
   }, [produtos, buscaProduto]);

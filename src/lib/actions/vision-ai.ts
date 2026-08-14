@@ -8,8 +8,6 @@ import type { AnaliseIaProduto, ProdutoSemelhante, TipoImagemProduto } from "@/l
 
 const genai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
-type Supabase = Awaited<ReturnType<typeof createClient>>;
-
 type FotoEntrada = {
   tipo: TipoImagemProduto;
   base64: string;
@@ -161,20 +159,6 @@ export async function buscarProdutosSemelhantes(analise: AnaliseIaProduto): Prom
     .slice(0, 5);
 }
 
-function gerarCodigoInterno(): string {
-  const n = Math.floor(1000 + Math.random() * 9000);
-  return `TR-${n}`;
-}
-
-async function gerarCodigoInternoUnico(supabase: Supabase): Promise<string> {
-  for (let tentativa = 0; tentativa < 5; tentativa++) {
-    const codigo = gerarCodigoInterno();
-    const { data } = await supabase.from("produtos").select("id").eq("codigo_interno", codigo).maybeSingle();
-    if (!data) return codigo;
-  }
-  throw new Error("Não foi possível gerar um código interno único.");
-}
-
 type Correcao = { campo: string; valor_sugerido: string | null; valor_corrigido: string };
 
 const MEDIA_TYPES_PERMITIDOS = new Set(["image/jpeg", "image/png", "image/webp"]);
@@ -203,8 +187,6 @@ export async function salvarProdutoComIA(dados: {
   } = await supabase.auth.getUser();
   if (!user) return { erro: "Sessão expirada. Faça login novamente." };
 
-  const codigoInterno = await gerarCodigoInternoUnico(supabase);
-
   const { analise } = dados;
   const { data: produto, error } = await supabase
     .from("produtos")
@@ -222,12 +204,21 @@ export async function salvarProdutoComIA(dados: {
       descricao: normalizarCampo(analise.descricao, { caixaAlta: true }),
       tags: analise.tags,
       codigo_peca: Math.max(0, dados.codigoPeca),
-      codigo_interno: codigoInterno,
+      // codigo_interno de propósito fora daqui — o trigger
+      // definir_codigo_interno_produto (migration 20260729000001) já
+      // atribui o próximo número sequencial sozinho quando fica null,
+      // mesmo padrão usado no cadastro manual (produto-form.tsx). Antes,
+      // esta tela gerava seu próprio código "TR-XXXX" client-side — número
+      // grande demais pro código de barras caber numa etiqueta pequena
+      // (achado de 2026-08-13, ver DECISIONS.md), além de duplicar uma
+      // lógica de unicidade que o banco já resolve melhor (sequência atômica
+      // vs. gerar-e-checar do lado do cliente).
     })
-    .select("id")
+    .select("id, codigo_interno")
     .single();
 
   if (error || !produto) return { erro: mensagemErroSalvar(error!, "código interno") };
+  const codigoInterno = produto.codigo_interno ?? "";
 
   let fotosEnviadas = 0;
   // Distinto de "upload falhou" (contemplado desde sempre): o arquivo pode
