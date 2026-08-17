@@ -662,7 +662,18 @@ async function imprimirEtiqueta(codigoInterno) {
   const arquivoTemp = path.join(os.tmpdir(), `etiqueta-${Date.now()}.pdf`);
   fs.writeFileSync(arquivoTemp, pdf);
   try {
-    await imprimirArquivoNaImpressora(arquivoTemp, { printer: IMPRESSORA_ETIQUETA, silent: true });
+    // scale: "noscale" — sem isso, o pdf-to-printer (via SumatraPDF) usa
+    // um ajuste de página padrão pensado pra impressora normal (A4/carta),
+    // que não faz sentido pra um PDF já do tamanho exato da etiqueta
+    // (21x7mm); é a opção que a própria lib recomenda pra impressora de
+    // etiqueta (achado de code review, 2026-08-17, depois de um teste
+    // sair com a etiqueta em branco apesar do PDF gerado estar correto —
+    // confirmado abrindo o etiqueta-debug.pdf salvo pelo bloco acima).
+    await imprimirArquivoNaImpressora(arquivoTemp, {
+      printer: IMPRESSORA_ETIQUETA,
+      silent: true,
+      scale: "noscale",
+    });
   } finally {
     fs.unlink(arquivoTemp, () => {}); // limpeza best-effort, não deve derrubar o fluxo se falhar
   }
