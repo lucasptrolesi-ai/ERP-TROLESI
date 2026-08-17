@@ -600,13 +600,12 @@ function marcarEtiquetaComoErro(id, mensagemErro) {
 // das barras — mesma leitura que o leitor usa no PDV Eventos), já girado
 // 90° (sentido horário) pra ler no mesmo sentido do adesivo físico (pedido
 // do usuário, 2026-08-14). Usa a opção nativa `rotate` do bwip-js em vez
-// de girar "na mão" no PDF — a 1ª tentativa (girar no PDFKit, trocando as
-// dimensões do `fit`) saiu correta na rotação mas minúscula, porque o
-// código de barras (naturalmente largo e baixo) não preenchia a caixa
-// alta e estreita depois de girado; `width`/`height` aqui são medidos
-// ANTES do giro (a largura de 18mm vira o comprimento da etiqueta depois
-// de girado, a altura de 4.5mm vira a largura), então o bwip-js já
-// desenha maximizando o módulo pro espaço real disponível.
+// de girar "na mão" no PDF (a 1ª tentativa, girando no PDFKit, saiu
+// correta na rotação mas minúscula). Sem `width`/`height` aqui de
+// propósito (2ª tentativa, ainda pequena demais) — deixa o bwip-js gerar
+// no tamanho natural dele, com resolução alta (`scale`), e quem decide o
+// tamanho final impresso é `construirPdfEtiqueta`, calculando a escala
+// certa pra preencher a etiqueta de verdade (ver comentário lá).
 function gerarPngCodigoBarras(codigoInterno) {
   return new Promise((resolve, reject) => {
     bwipjs.toBuffer(
@@ -615,9 +614,7 @@ function gerarPngCodigoBarras(codigoInterno) {
         text: codigoInterno,
         includetext: true,
         textxalign: "center",
-        scale: 5,
-        height: 4.5,
-        width: 18,
+        scale: 8,
         rotate: "R",
       },
       (erro, png) => (erro ? reject(erro) : resolve(png)),
@@ -631,14 +628,28 @@ function construirPdfEtiqueta(png) {
 
   return new Promise((resolve, reject) => {
     // Página 21x7mm (bate com o papel de etiqueta calibrado no driver
-    // Windows) — o PNG já vem girado e dimensionado do bwip-js, então só
-    // precisa centralizar/escalar sem distorcer.
+    // Windows). Em vez de usar o `fit` do PDFKit (que em duas tentativas
+    // anteriores saiu menor do que devia — não dá pra confirmar sem
+    // testar se ele amplia imagem pequena ou só encolhe grande), mede o
+    // tamanho real do PNG (`doc.openImage`) e calcula a escala na mão,
+    // garantindo que amplia OU reduz o quanto for preciso pra preencher a
+    // etiqueta o máximo possível, sem distorcer (mesma razão
+    // largura/altura mantida).
     const doc = new PDFDocument({ size: [larguraPt, alturaPt], margin: 0 });
     const pedacos = [];
     doc.on("data", (pedaco) => pedacos.push(pedaco));
     doc.on("end", () => resolve(Buffer.concat(pedacos)));
     doc.on("error", reject);
-    doc.image(png, 0, 0, { fit: [larguraPt, alturaPt], align: "center", valign: "center" });
+
+    const imagem = doc.openImage(png);
+    const escala = Math.min(larguraPt / imagem.width, alturaPt / imagem.height);
+    const larguraFinal = imagem.width * escala;
+    const alturaFinal = imagem.height * escala;
+    doc.image(png, (larguraPt - larguraFinal) / 2, (alturaPt - alturaFinal) / 2, {
+      width: larguraFinal,
+      height: alturaFinal,
+    });
+
     doc.end();
   });
 }
