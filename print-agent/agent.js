@@ -646,6 +646,19 @@ function construirPdfEtiqueta(png) {
 async function imprimirEtiqueta(codigoInterno) {
   const png = await gerarPngCodigoBarras(codigoInterno);
   const pdf = await construirPdfEtiqueta(png);
+
+  // Debug temporário (2026-08-17) — depois de um teste sair com várias
+  // etiquetas em branco (nenhuma impressa), salva sempre uma cópia fixa no
+  // Desktop pra dar pra abrir num leitor de PDF normal e ver se o
+  // problema é na geração do conteúdo (bwip-js/pdfkit) ou no envio pra
+  // impressora (pdf-to-printer/driver). Sobrescreve a cada tentativa —
+  // remover esse bloco depois que o problema for resolvido.
+  try {
+    fs.writeFileSync(path.join(os.homedir(), "Desktop", "etiqueta-debug.pdf"), pdf);
+  } catch {
+    // não deve impedir a impressão de verdade se essa gravação de debug falhar
+  }
+
   const arquivoTemp = path.join(os.tmpdir(), `etiqueta-${Date.now()}.pdf`);
   fs.writeFileSync(arquivoTemp, pdf);
   try {
