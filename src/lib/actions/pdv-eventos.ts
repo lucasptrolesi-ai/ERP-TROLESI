@@ -82,33 +82,3 @@ export async function registrarVendaEvento(
   revalidatePath("/pdv-eventos");
   return { venda };
 }
-
-export type StatusEtiqueta = { status: "pendente" | "impresso" | "erro"; mensagem: string | null };
-
-// Mesmo padrão de fila/polling do cupom (ver src/lib/actions/impressao.ts)
-// — grava o pedido de etiqueta na fila; o print-agent rodando na máquina
-// com a Argox instalada (SERVIDOR) consome e imprime de verdade.
-export async function solicitarImpressaoEtiqueta(
-  codigoInterno: string,
-  nome: string,
-): Promise<{ id: string } | { erro: string }> {
-  const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("solicitacoes_etiqueta")
-    .insert({ codigo_interno: codigoInterno, nome })
-    .select("id")
-    .single();
-
-  if (error) return { erro: error.message };
-  return { id: data.id };
-}
-
-export async function buscarStatusEtiqueta(id: string): Promise<StatusEtiqueta> {
-  const supabase = await createClient();
-  const { data, error } = await supabase.from("solicitacoes_etiqueta").select("status, erro").eq("id", id).single();
-
-  if (error || !data) {
-    return { status: "erro", mensagem: error?.message ?? "Solicitação de etiqueta não encontrada." };
-  }
-  return { status: data.status, mensagem: data.erro };
-}

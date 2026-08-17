@@ -24,19 +24,6 @@
 //
 // Não usa nenhuma dependência de npm de propósito — só módulos nativos do
 // Node — pra não exigir "npm install" na hora de configurar numa loja.
-//
-// Exceção (2026-08-14): a impressão de ETIQUETA de código de barras
-// (Argox OS-214TT, PDV Eventos) usa 3 dependências de npm — bwip-js
-// (desenha o código de barras), pdfkit (monta o PDF do tamanho exato da
-// etiqueta) e pdf-to-printer (manda o PDF pro nome exato da impressora
-// Windows, via SumatraPDF por baixo). Diferente do cupom térmico (que só
-// precisa mandar bytes ESC/POS crus), a etiqueta precisa passar pelo
-// driver Windows já calibrado (tamanho/gap/offset — ver DECISIONS.md
-// 2026-08-14), e reinventar isso na mão é como travamos semanas tentando
-// no Mac sem sucesso. Ver README.md pra instalar (`npm install` só uma
-// vez, só nesta pasta). Se as dependências não estiverem instaladas, a
-// impressão de etiqueta fica desativada automaticamente — o cupom
-// térmico continua funcionando normalmente (ver bloco logo abaixo).
 "use strict";
 
 const https = require("https");
@@ -45,23 +32,6 @@ const os = require("os");
 const path = require("path");
 const { execFile } = require("child_process");
 const { URL } = require("url");
-
-let bwipjs;
-let PDFDocument;
-let imprimirArquivoNaImpressora;
-let etiquetaDisponivel = true;
-try {
-  bwipjs = require("bwip-js");
-  PDFDocument = require("pdfkit");
-  ({ print: imprimirArquivoNaImpressora } = require("pdf-to-printer"));
-} catch (erro) {
-  etiquetaDisponivel = false;
-  console.warn(
-    "Impressão de etiqueta desativada — dependências não instaladas. Rode 'npm install' na pasta print-agent " +
-      "pra ativar (ver README.md). O cupom térmico continua funcionando normalmente. Detalhe:",
-    erro.message,
-  );
-}
 
 carregarEnvLocal();
 
@@ -560,162 +530,6 @@ async function processarPendentes() {
   }
 }
 
-// ===================== Etiqueta de código de barras =====================
-// PDV Eventos (2026-08-14) — mesmo padrão de fila/polling do cupom, tabela
-// separada (`solicitacoes_etiqueta`) porque o conteúdo é bem mais simples
-// (só código + nome, sem via/pedido). Ver comentário no topo do arquivo
-// sobre as dependências de npm usadas só aqui.
-
-const IMPRESSORA_ETIQUETA = process.env.IMPRESSORA_ETIQUETA || "Argox OS-214TT PPLA";
-// Medido com paquímetro (ver DECISIONS.md, 2026-08-13) — tem que bater com
-// o papel de etiqueta configurado como padrão no driver Windows já
-// calibrado (Preferências de impressão > Papel de etiquetas), senão volta
-// a "vazar" pra etiqueta vizinha como no primeiro teste.
-const ETIQUETA_LARGURA_MM = 21;
-const ETIQUETA_ALTURA_MM = 7;
-const MM_PARA_PT = 2.83465; // 1mm em pontos PDF (72pt = 1 polegada)
-
-function buscarEtiquetasPendentes() {
-  return requisicaoSupabase(
-    "/solicitacoes_etiqueta?status=eq.pendente&order=criado_em.asc&limit=5&select=id,codigo_interno,nome",
-    "GET",
-  );
-}
-
-function marcarEtiquetaComoImpressa(id) {
-  return requisicaoSupabase(`/solicitacoes_etiqueta?id=eq.${id}`, "PATCH", {
-    status: "impresso",
-    impresso_em: new Date().toISOString(),
-  });
-}
-
-function marcarEtiquetaComoErro(id, mensagemErro) {
-  return requisicaoSupabase(`/solicitacoes_etiqueta?id=eq.${id}`, "PATCH", {
-    status: "erro",
-    erro: mensagemErro,
-  });
-}
-
-// Gera o PNG do código de barras (CODE128, com o número legível embaixo
-// das barras — mesma leitura que o leitor usa no PDV Eventos), já girado
-// 90° (sentido horário) pra ler no mesmo sentido do adesivo físico (pedido
-// do usuário, 2026-08-14). Usa a opção nativa `rotate` do bwip-js em vez
-// de girar "na mão" no PDF (a 1ª tentativa, girando no PDFKit, saiu
-// correta na rotação mas minúscula). Sem `width`/`height` aqui de
-// propósito (2ª tentativa, ainda pequena demais) — deixa o bwip-js gerar
-// no tamanho natural dele, com resolução alta (`scale`), e quem decide o
-// tamanho final impresso é `construirPdfEtiqueta`, calculando a escala
-// certa pra preencher a etiqueta de verdade (ver comentário lá).
-function gerarPngCodigoBarras(codigoInterno) {
-  return new Promise((resolve, reject) => {
-    bwipjs.toBuffer(
-      {
-        bcid: "code128",
-        text: codigoInterno,
-        includetext: true,
-        textxalign: "center",
-        scale: 8,
-        rotate: "R",
-      },
-      (erro, png) => (erro ? reject(erro) : resolve(png)),
-    );
-  });
-}
-
-function construirPdfEtiqueta(png) {
-  const larguraPt = ETIQUETA_LARGURA_MM * MM_PARA_PT;
-  const alturaPt = ETIQUETA_ALTURA_MM * MM_PARA_PT;
-
-  return new Promise((resolve, reject) => {
-    // Página 21x7mm (bate com o papel de etiqueta calibrado no driver
-    // Windows). Em vez de usar o `fit` do PDFKit (que em duas tentativas
-    // anteriores saiu menor do que devia — não dá pra confirmar sem
-    // testar se ele amplia imagem pequena ou só encolhe grande), mede o
-    // tamanho real do PNG (`doc.openImage`) e calcula a escala na mão,
-    // garantindo que amplia OU reduz o quanto for preciso pra preencher a
-    // etiqueta o máximo possível, sem distorcer (mesma razão
-    // largura/altura mantida).
-    const doc = new PDFDocument({ size: [larguraPt, alturaPt], margin: 0 });
-    const pedacos = [];
-    doc.on("data", (pedaco) => pedacos.push(pedaco));
-    doc.on("end", () => resolve(Buffer.concat(pedacos)));
-    doc.on("error", reject);
-
-    const imagem = doc.openImage(png);
-    const escala = Math.min(larguraPt / imagem.width, alturaPt / imagem.height);
-    const larguraFinal = imagem.width * escala;
-    const alturaFinal = imagem.height * escala;
-    doc.image(png, (larguraPt - larguraFinal) / 2, (alturaPt - alturaFinal) / 2, {
-      width: larguraFinal,
-      height: alturaFinal,
-    });
-
-    doc.end();
-  });
-}
-
-async function imprimirEtiqueta(codigoInterno) {
-  const png = await gerarPngCodigoBarras(codigoInterno);
-  const pdf = await construirPdfEtiqueta(png);
-
-  // Debug temporário (2026-08-17) — depois de um teste sair com várias
-  // etiquetas em branco (nenhuma impressa), salva sempre uma cópia fixa no
-  // Desktop pra dar pra abrir num leitor de PDF normal e ver se o
-  // problema é na geração do conteúdo (bwip-js/pdfkit) ou no envio pra
-  // impressora (pdf-to-printer/driver). Sobrescreve a cada tentativa —
-  // remover esse bloco depois que o problema for resolvido.
-  try {
-    fs.writeFileSync(path.join(os.homedir(), "Desktop", "etiqueta-debug.pdf"), pdf);
-  } catch {
-    // não deve impedir a impressão de verdade se essa gravação de debug falhar
-  }
-
-  const arquivoTemp = path.join(os.tmpdir(), `etiqueta-${Date.now()}.pdf`);
-  fs.writeFileSync(arquivoTemp, pdf);
-  try {
-    // scale: "noscale" — sem isso, o pdf-to-printer (via SumatraPDF) usa
-    // um ajuste de página padrão pensado pra impressora normal (A4/carta),
-    // que não faz sentido pra um PDF já do tamanho exato da etiqueta
-    // (21x7mm); é a opção que a própria lib recomenda pra impressora de
-    // etiqueta (achado de code review, 2026-08-17, depois de um teste
-    // sair com a etiqueta em branco apesar do PDF gerado estar correto —
-    // confirmado abrindo o etiqueta-debug.pdf salvo pelo bloco acima).
-    await imprimirArquivoNaImpressora(arquivoTemp, {
-      printer: IMPRESSORA_ETIQUETA,
-      silent: true,
-      scale: "noscale",
-    });
-  } finally {
-    fs.unlink(arquivoTemp, () => {}); // limpeza best-effort, não deve derrubar o fluxo se falhar
-  }
-}
-
-async function processarEtiquetasPendentes() {
-  let pendentes;
-  try {
-    pendentes = await buscarEtiquetasPendentes();
-  } catch (erro) {
-    console.error("Erro ao buscar etiquetas pendentes:", erro.message);
-    return;
-  }
-
-  for (const solicitacao of pendentes) {
-    try {
-      await imprimirEtiqueta(solicitacao.codigo_interno);
-      await marcarEtiquetaComoImpressa(solicitacao.id);
-      console.log(`Etiqueta impressa: solicitação ${solicitacao.id} (código ${solicitacao.codigo_interno})`);
-    } catch (erro) {
-      const mensagem = String((erro && erro.message) || erro);
-      console.error(`Erro ao imprimir etiqueta ${solicitacao.id}:`, mensagem);
-      try {
-        await marcarEtiquetaComoErro(solicitacao.id, mensagem);
-      } catch (erroAoMarcar) {
-        console.error(`Erro ao marcar etiqueta ${solicitacao.id} como erro:`, erroAoMarcar.message);
-      }
-    }
-  }
-}
-
 // Última rede de segurança — um processo que precisa ficar de pé 24h/dia
 // numa loja não pode morrer silenciosamente por uma exceção que escapou de
 // algum ponto do loop; loga e segue vivo em vez de derrubar o processo.
@@ -732,24 +546,11 @@ process.on("unhandledRejection", (erro) => {
 });
 
 async function loopPrincipal() {
-  // Em paralelo, não sequencial — cupom (ELGIN) e etiqueta (Argox) são
-  // filas/impressoras independentes; esperar uma terminar pra só então
-  // checar a outra atrasaria a confirmação de etiqueta sempre que o cupom
-  // estiver ocupado imprimindo várias vendas seguidas (achado de code
-  // review, 2026-08-14). Isolado com .catch pra um erro na etiqueta
-  // (recurso novo) nunca derrubar o polling do cupom (em produção há
-  // semanas) — e vice-versa.
-  await Promise.all([
-    processarPendentes().catch((erro) => console.error("Erro inesperado ao processar cupons:", erro)),
-    etiquetaDisponivel
-      ? processarEtiquetasPendentes().catch((erro) => console.error("Erro inesperado ao processar etiquetas:", erro))
-      : Promise.resolve(),
-  ]);
+  await processarPendentes();
   setTimeout(loopPrincipal, INTERVALO_POLLING_MS);
 }
 
 console.log(
-  `Print-agent Trolesi ERP rodando — checando solicitações a cada ${INTERVALO_POLLING_MS}ms (impressora: \\\\${MAQUINA}\\${COMPARTILHAMENTO_IMPRESSORA})` +
-    (etiquetaDisponivel ? ` + etiqueta (${IMPRESSORA_ETIQUETA})` : " (etiqueta desativada, ver aviso acima)"),
+  `Print-agent Trolesi ERP rodando — checando solicitações a cada ${INTERVALO_POLLING_MS}ms (impressora: \\\\${MAQUINA}\\${COMPARTILHAMENTO_IMPRESSORA})`,
 );
 loopPrincipal();
