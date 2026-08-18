@@ -88,6 +88,13 @@ describe("2026-07-24 — Importação GMax (implementado em SQL, sem teste de in
   it.todo("duas vendas com CPF em branco no mesmo lote criam dois clientes diferentes, nunca um só");
 });
 
+describe("PDV Eventos — criar_venda_evento (implementado em SQL, sem teste de integração)", () => {
+  it.todo("desconto não pode deixar o total negativo (validado em criar_venda_evento)");
+  it.todo("idempotency_key repetida devolve a mesma venda em vez de duplicar (mesmo padrão de criar_pedido)");
+  it.todo("baixa de estoque de produtos_evento acontece atomicamente junto com o insert da venda (for update trava a linha)");
+  it.todo("forma_pagamento fora da whitelist (dinheiro/pix/cartao_vista/cartao_parcelado) é rejeitada");
+});
+
 describe("Código Ventilador (investigado em 2026-07-21: sem evidência de uso real nos 44 produtos migrados do GMax — feature permanece não implementada)", () => {
   it.todo(
     "se uma evidência real de uso aparecer no futuro: código Ventilador nunca aparece em comprovante ou tela visível ao cliente, mesmo quando ativado por permissão",

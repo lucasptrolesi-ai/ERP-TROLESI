@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { mensagemErroExcluir, normalizarCampo } from "./erros";
+import { normalizarCampo } from "./erros";
 import type { FormaPagamentoEvento } from "@/lib/types";
 
 type ResultadoForm = { erro?: string } | undefined;
@@ -41,8 +41,14 @@ export async function salvarProdutoEvento(_prev: ResultadoForm, formData: FormDa
 
 export async function excluirProdutoEvento(id: string): Promise<{ erro?: string }> {
   const supabase = await createClient();
+  // vendas_evento_itens.produto_evento_id é "on delete set null" (não
+  // restrict) de propósito — excluir uma peça de evento nunca é bloqueado
+  // por venda vinculada, só desvincula o histórico. Por isso não usa
+  // mensagemErroExcluir aqui: o branch de FK dela (código 23503) nunca
+  // dispara pra essa tabela, e mencionar "vendas vinculadas" induziria a
+  // pensar que existe um bloqueio que não existe (achado de code review).
   const { error } = await supabase.from("produtos_evento").delete().eq("id", id);
-  if (error) return { erro: mensagemErroExcluir(error, "vendas do evento") };
+  if (error) return { erro: "Não foi possível excluir. Tente novamente." };
 
   revalidatePath("/pdv-eventos");
   return {};
