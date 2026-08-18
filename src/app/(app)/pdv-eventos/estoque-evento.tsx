@@ -1,10 +1,22 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import JsBarcode from "jsbarcode";
 import { formatarMoeda } from "@/lib/formatar-moeda";
+import { exportarEtiquetasExcel } from "@/lib/actions/etiquetas-excel";
 import { ProdutoEventoForm } from "./produto-evento-form";
 import type { ProdutoEvento } from "@/lib/types";
+
+function baixarArquivo(base64: string, nomeArquivo: string) {
+  const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
+  const blob = new Blob([bytes], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = nomeArquivo;
+  link.click();
+  URL.revokeObjectURL(url);
+}
 
 function statusEstoque(quantidade: number): { rotulo: string; classe: string } {
   if (quantidade <= 0) return { rotulo: "Sem estoque", classe: "bg-crit-bg text-crit" };
@@ -15,7 +27,24 @@ function statusEstoque(quantidade: number): { rotulo: string; classe: string } {
 export function EstoqueEvento({ produtosEvento }: { produtosEvento: ProdutoEvento[] }) {
   const [editando, setEditando] = useState<ProdutoEvento | null | undefined>(undefined);
   const [etiquetaAtiva, setEtiquetaAtiva] = useState<ProdutoEvento | null>(null);
+  const [erroExportacao, setErroExportacao] = useState<string | null>(null);
+  const [exportando, iniciarExportacao] = useTransition();
   const barcodeRef = useRef<SVGSVGElement>(null);
+
+  function handleExportarExcel() {
+    setErroExportacao(null);
+    iniciarExportacao(async () => {
+      const ativos = produtosEvento.filter((p) => p.ativo);
+      const resultado = await exportarEtiquetasExcel(
+        ativos.map((p) => ({ codigo: p.codigo_interno, preco: p.preco })),
+      );
+      if (resultado.erro || !resultado.base64) {
+        setErroExportacao(resultado.erro ?? "Não foi possível gerar a planilha.");
+        return;
+      }
+      baixarArquivo(resultado.base64, "etiquetas-pdv-eventos.xlsx");
+    });
+  }
 
   useEffect(() => {
     if (etiquetaAtiva && barcodeRef.current) {
@@ -60,13 +89,27 @@ export function EstoqueEvento({ produtosEvento }: { produtosEvento: ProdutoEvent
             <p className="text-sm font-semibold text-ink">Estoque do evento</p>
             <p className="text-xs text-text-soft">{produtosEvento.length} peça(s) cadastrada(s)</p>
           </div>
-          <button
-            onClick={() => setEditando(null)}
-            className="shrink-0 rounded-full bg-gradient-to-br from-gold-start to-gold-end px-4 py-2 text-sm font-semibold text-gold-ink"
-          >
-            + Nova peça
-          </button>
+          <div className="flex shrink-0 gap-2">
+            <button
+              onClick={handleExportarExcel}
+              disabled={exportando || produtosEvento.length === 0}
+              className="rounded-full border border-rose px-4 py-2 text-sm font-semibold text-rose-deep disabled:opacity-60"
+            >
+              {exportando ? "Gerando…" : "📊 Excel p/ etiquetas"}
+            </button>
+            <button
+              onClick={() => setEditando(null)}
+              className="rounded-full bg-gradient-to-br from-gold-start to-gold-end px-4 py-2 text-sm font-semibold text-gold-ink"
+            >
+              + Nova peça
+            </button>
+          </div>
         </div>
+        {erroExportacao && (
+          <p className="border-b border-line bg-crit-bg px-4 py-2 text-xs font-medium text-crit sm:px-5">
+            {erroExportacao}
+          </p>
+        )}
 
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
