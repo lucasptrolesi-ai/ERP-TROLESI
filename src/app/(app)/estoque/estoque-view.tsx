@@ -1,13 +1,25 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { ProdutoForm } from "@/components/produto-form";
 import { CotacaoDoDia } from "@/components/cotacao-do-dia";
 import { filtra } from "@/lib/filtra";
 import { formatarMoeda } from "@/lib/formatar-moeda";
 import { podeEditarProdutos } from "@/lib/permissoes";
+import { exportarEtiquetasExcel } from "@/lib/actions/etiquetas-excel";
 import type { CotacaoDiaria, Produto } from "@/lib/types";
+
+function baixarArquivo(base64: string, nomeArquivo: string) {
+  const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
+  const blob = new Blob([bytes], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = nomeArquivo;
+  link.click();
+  URL.revokeObjectURL(url);
+}
 
 function statusEstoque(produto: Produto): { rotulo: string; classe: string } {
   if (produto.quantidade_estoque <= 0) return { rotulo: "Sem estoque", classe: "bg-crit-bg text-crit" };
@@ -40,6 +52,8 @@ export function EstoqueView({
   );
 
   const podeEditar = podeEditarProdutos(papelAtual);
+  const [erroExportacao, setErroExportacao] = useState<string | null>(null);
+  const [exportando, iniciarExportacao] = useTransition();
 
   const categorias = useMemo(() => {
     // Categoria é texto livre (datalist só sugere, não obriga) — agrupa por
@@ -82,6 +96,21 @@ export function EstoqueView({
     );
   }, [produtos, categoriaAtiva, colecaoAtiva, busca]);
 
+  function handleExportarExcel() {
+    setErroExportacao(null);
+    iniciarExportacao(async () => {
+      const itens = filtrados
+        .filter((p) => p.ativo && p.codigo_interno)
+        .map((p) => ({ codigo: p.codigo_interno as string, preco: p.preco }));
+      const resultado = await exportarEtiquetasExcel(itens);
+      if (resultado.erro || !resultado.base64) {
+        setErroExportacao(resultado.erro ?? "Não foi possível gerar a planilha.");
+        return;
+      }
+      baixarArquivo(resultado.base64, "etiquetas-estoque.xlsx");
+    });
+  }
+
   return (
     <div className="flex flex-col gap-4">
       <CotacaoDoDia cotacoesHoje={cotacoesHoje} podeInformar={podeInformarCotacao} />
@@ -109,6 +138,13 @@ export function EstoqueView({
           ))}
           {podeEditar && (
             <>
+              <button
+                onClick={handleExportarExcel}
+                disabled={exportando || filtrados.length === 0}
+                className="shrink-0 rounded-full border border-rose px-4 py-2 text-sm font-semibold text-rose-deep disabled:opacity-60"
+              >
+                {exportando ? "Gerando…" : "📊 Excel p/ etiquetas"}
+              </button>
               <Link
                 href="/estoque/cadastro-ia"
                 className="shrink-0 rounded-full border border-rose px-4 py-2 text-sm font-semibold text-rose-deep"
@@ -125,6 +161,11 @@ export function EstoqueView({
           )}
         </div>
       </div>
+      {erroExportacao && (
+        <p className="border-b border-line bg-crit-bg px-4 py-2 text-xs font-medium text-crit sm:px-5">
+          {erroExportacao}
+        </p>
+      )}
 
       {colecoes.length > 0 && (
         <div className="flex flex-wrap items-center gap-2 border-b border-line px-4 py-3 sm:px-5">
