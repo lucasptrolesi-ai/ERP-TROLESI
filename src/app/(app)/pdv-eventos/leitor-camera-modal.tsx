@@ -1,7 +1,15 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { BrowserMultiFormatReader } from "@zxing/browser";
+import { BarcodeFormat, BrowserMultiFormatReader } from "@zxing/browser";
+import { DecodeHintType } from "@zxing/library";
+
+// O sistema só gera CODE128 (etiqueta em tela e a antiga etiqueta Argox
+// impressa) — restringir o formato evita ambiguidade e acelera o decode.
+const HINTS = new Map<DecodeHintType, BarcodeFormat[] | boolean>([
+  [DecodeHintType.POSSIBLE_FORMATS, [BarcodeFormat.CODE_128]],
+  [DecodeHintType.TRY_HARDER, true],
+]);
 
 type ResultadoLeitura = { sucesso: boolean; nomeProduto?: string };
 
@@ -36,7 +44,7 @@ export function LeitorCameraModal({
     // feedback — parece que "travou" pro usuário, sem erro nem como sair
     // além do botão Fechar.
     const TIMEOUT_MS = 10000;
-    const reader = new BrowserMultiFormatReader(undefined, { delayBetweenScanAttempts: 500 });
+    const reader = new BrowserMultiFormatReader(HINTS, { delayBetweenScanAttempts: 500 });
     let controls: { stop: () => void } | undefined;
     let cancelado = false;
     let expirou = false;
@@ -49,13 +57,14 @@ export function LeitorCameraModal({
     reader
       .decodeFromConstraints(
         {
-          // Resolução baixa de propósito: leitura de código de barras não
-          // precisa de imagem em alta, e resolução alta deixa o decode
-          // contínuo pesado (trava/esquenta em celular mais fraco).
+          // 1280x720: alto o bastante pra resolver as barras finas do
+          // código (baixo demais borra a leitura, visto na prática lendo
+          // um código de barras exibido em outra tela), mas ainda bem
+          // abaixo do que a câmera traseira ofereceria sem limite.
           video: {
             facingMode: { ideal: "environment" },
-            width: { ideal: 640 },
-            height: { ideal: 480 },
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
           },
         },
         videoRef.current!,
