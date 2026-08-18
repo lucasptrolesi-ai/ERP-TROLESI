@@ -6,6 +6,7 @@ import { parseMoeda } from "@/lib/parse-moeda";
 import { registrarVendaEvento } from "@/lib/actions/pdv-eventos";
 import { FORMA_LABEL_EVENTO, FORMAS_PAGAMENTO_EVENTO } from "@/lib/forma-pagamento-evento";
 import { CupomEventoView } from "./cupom-evento-view";
+import { LeitorCameraModal } from "./leitor-camera-modal";
 import type { VendaEventoParaCupom } from "@/lib/cupom-linhas-evento";
 import type { FormaPagamentoEvento, ItemCarrinhoEvento, ProdutoEvento } from "@/lib/types";
 
@@ -13,6 +14,7 @@ export function VenderEvento({ produtosEvento }: { produtosEvento: ProdutoEvento
   const [carrinho, setCarrinho] = useState<ItemCarrinhoEvento[]>([]);
   const [buscaCodigo, setBuscaCodigo] = useState("");
   const [codigoNaoEncontrado, setCodigoNaoEncontrado] = useState(false);
+  const [leitorCameraAberto, setLeitorCameraAberto] = useState(false);
   const [valorDesconto, setValorDesconto] = useState("0");
   const [formaPagamento, setFormaPagamento] = useState<FormaPagamentoEvento>("dinheiro");
   const [numeroParcelas, setNumeroParcelas] = useState(2);
@@ -61,19 +63,27 @@ export function VenderEvento({ produtosEvento }: { produtosEvento: ProdutoEvento
     });
   }
 
-  function handleKeyDownCodigo(e: React.KeyboardEvent<HTMLInputElement>) {
-    if (e.key !== "Enter") return;
-    e.preventDefault();
-    const codigo = buscaCodigo.trim().toLowerCase();
-    if (!codigo) return;
+  // Compartilhada entre o leitor USB (bipagem por teclado) e o leitor por
+  // câmera — os dois só precisam entregar o texto do código.
+  function processarCodigo(codigoBruto: string): { sucesso: boolean; nomeProduto?: string } {
+    const codigo = codigoBruto.trim().toLowerCase();
+    if (!codigo) return { sucesso: false };
     const produto = produtosPorCodigo.get(codigo);
     if (!produto) {
       setCodigoNaoEncontrado(true);
-      return;
+      return { sucesso: false };
     }
     setCodigoNaoEncontrado(false);
     adicionarAoCarrinho(produto);
-    setBuscaCodigo("");
+    return { sucesso: true, nomeProduto: produto.nome };
+  }
+
+  function handleKeyDownCodigo(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key !== "Enter") return;
+    e.preventDefault();
+    if (processarCodigo(buscaCodigo).sucesso) {
+      setBuscaCodigo("");
+    }
   }
 
   function alterarQuantidade(linhaId: string, delta: number) {
@@ -152,6 +162,13 @@ export function VenderEvento({ produtosEvento }: { produtosEvento: ProdutoEvento
             placeholder="Bipar código de barras ou digitar o código e apertar Enter"
             className="flex-1 border-none bg-transparent text-base text-ink outline-none"
           />
+          <button
+            type="button"
+            onClick={() => setLeitorCameraAberto(true)}
+            className="shrink-0 rounded-full bg-rose-soft px-3 py-1.5 text-xs font-semibold text-rose-deep"
+          >
+            📸 Câmera
+          </button>
         </div>
         {codigoNaoEncontrado && (
           <p className="text-xs font-semibold text-crit">Código não encontrado no estoque do evento.</p>
@@ -300,6 +317,10 @@ export function VenderEvento({ produtosEvento }: { produtosEvento: ProdutoEvento
           {enviando ? "Registrando…" : "Finalizar venda"}
         </button>
       </div>
+
+      {leitorCameraAberto && (
+        <LeitorCameraModal onCodigoLido={processarCodigo} onFechar={() => setLeitorCameraAberto(false)} />
+      )}
     </div>
   );
 }
