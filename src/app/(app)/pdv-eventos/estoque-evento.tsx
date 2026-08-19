@@ -84,7 +84,7 @@ export function EstoqueEvento({ produtosEvento }: { produtosEvento: ProdutoEvent
       )}
 
       <div className={etiquetaAtiva ? "print:hidden" : ""}>
-        <div className="flex items-center justify-between gap-2 border-b border-line px-4 py-4 sm:px-5">
+        <div className="flex flex-col gap-3 border-b border-line px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
           <div>
             <p className="text-sm font-semibold text-ink">Estoque do evento</p>
             <p className="text-xs text-text-soft">{produtosEvento.length} peça(s) cadastrada(s)</p>
@@ -93,15 +93,18 @@ export function EstoqueEvento({ produtosEvento }: { produtosEvento: ProdutoEvent
             <button
               onClick={handleExportarExcel}
               disabled={exportando || produtosEvento.length === 0}
-              className="rounded-full border border-rose px-4 py-2 text-sm font-semibold text-rose-deep disabled:opacity-60"
+              title="Excel p/ etiquetas"
+              className="rounded-full border border-rose px-3 py-2 text-sm font-semibold text-rose-deep disabled:opacity-60"
             >
-              {exportando ? "Gerando…" : "📊 Excel p/ etiquetas"}
+              {exportando ? "…" : "📊"}
+              <span className="hidden sm:inline">{exportando ? " Gerando…" : " Excel p/ etiquetas"}</span>
             </button>
             <button
               onClick={() => setEditando(null)}
-              className="rounded-full bg-gradient-to-br from-gold-start to-gold-end px-4 py-2 text-sm font-semibold text-gold-ink"
+              title="Nova peça"
+              className="rounded-full bg-gradient-to-br from-gold-start to-gold-end px-3 py-2 text-sm font-semibold text-gold-ink"
             >
-              + Nova peça
+              +<span className="hidden sm:inline"> Nova peça</span>
             </button>
           </div>
         </div>

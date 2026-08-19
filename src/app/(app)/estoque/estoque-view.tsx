@@ -115,51 +115,59 @@ export function EstoqueView({
     <div className="flex flex-col gap-4">
       <CotacaoDoDia cotacoesHoje={cotacoesHoje} podeInformar={podeInformarCotacao} />
       <div className="rounded-[14px] border border-line bg-surface shadow-sm">
-      <div className="flex flex-col gap-3 border-b border-line px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
-        <input
-          value={busca}
-          onChange={(e) => setBusca(e.target.value)}
-          placeholder="Buscar por nome, categoria ou código interno"
-          className="w-full rounded-full border border-line bg-cream px-4 py-2 text-sm text-ink outline-none focus:border-rose sm:max-w-xs"
-        />
-        <div className="flex flex-wrap items-center gap-2">
-          {categorias.map((c) => (
-            <button
-              key={c}
-              onClick={() => setCategoriaAtiva(categoriaAtiva === c ? null : c)}
-              className={`shrink-0 rounded-full border px-3 py-1.5 text-xs font-semibold ${
-                categoriaAtiva === c
-                  ? "border-rose bg-rose-soft text-rose-deep"
-                  : "border-line text-text-soft"
-              }`}
-            >
-              {c}
-            </button>
-          ))}
+      <div className="flex flex-col gap-3 border-b border-line px-4 py-4 sm:px-5">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <input
+            value={busca}
+            onChange={(e) => setBusca(e.target.value)}
+            placeholder="Buscar por nome, categoria ou código interno"
+            className="w-full rounded-full border border-line bg-cream px-4 py-2 text-sm text-ink outline-none focus:border-rose sm:max-w-xs"
+          />
           {podeEditar && (
-            <>
+            <div className="flex items-center gap-2">
               <button
                 onClick={handleExportarExcel}
                 disabled={exportando || filtrados.length === 0}
-                className="shrink-0 rounded-full border border-rose px-4 py-2 text-sm font-semibold text-rose-deep disabled:opacity-60"
+                title="Excel p/ etiquetas"
+                className="shrink-0 rounded-full border border-rose px-3 py-2 text-sm font-semibold text-rose-deep disabled:opacity-60"
               >
-                {exportando ? "Gerando…" : "📊 Excel p/ etiquetas"}
+                {exportando ? "…" : "📊"}
+                <span className="hidden sm:inline">{exportando ? " Gerando…" : " Excel p/ etiquetas"}</span>
               </button>
               <Link
                 href="/estoque/cadastro-ia"
-                className="shrink-0 rounded-full border border-rose px-4 py-2 text-sm font-semibold text-rose-deep"
+                title="Cadastrar com foto"
+                className="shrink-0 rounded-full border border-rose px-3 py-2 text-sm font-semibold text-rose-deep"
               >
-                Cadastrar com foto
+                📷<span className="hidden sm:inline"> Cadastrar com foto</span>
               </Link>
               <button
                 onClick={() => setProdutoEditando(null)}
-                className="shrink-0 rounded-full bg-gradient-to-br from-gold-start to-gold-end px-4 py-2 text-sm font-semibold text-gold-ink"
+                title="Novo produto"
+                className="shrink-0 rounded-full bg-gradient-to-br from-gold-start to-gold-end px-3 py-2 text-sm font-semibold text-gold-ink"
               >
-                + Novo produto
+                +<span className="hidden sm:inline"> Novo produto</span>
               </button>
-            </>
+            </div>
           )}
         </div>
+        {categorias.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2">
+            {categorias.map((c) => (
+              <button
+                key={c}
+                onClick={() => setCategoriaAtiva(categoriaAtiva === c ? null : c)}
+                className={`shrink-0 rounded-full border px-3 py-1.5 text-xs font-semibold ${
+                  categoriaAtiva === c
+                    ? "border-rose bg-rose-soft text-rose-deep"
+                    : "border-line text-text-soft"
+                }`}
+              >
+                {c}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
       {erroExportacao && (
         <p className="border-b border-line bg-crit-bg px-4 py-2 text-xs font-medium text-crit sm:px-5">
