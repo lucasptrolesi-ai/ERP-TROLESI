@@ -4,10 +4,13 @@ import { useEffect, useRef, useState } from "react";
 import { BarcodeFormat, BrowserMultiFormatReader } from "@zxing/browser";
 import { DecodeHintType } from "@zxing/library";
 
-// O sistema só gera CODE128 (etiqueta em tela e a antiga etiqueta Argox
-// impressa) — restringir o formato evita ambiguidade e acelera o decode.
+// A etiqueta em tela sempre foi CODE128, mas a etiqueta impressa pela
+// Niimbot passa pelo template do app oficial deles (não controlado por
+// este sistema) — pode sair em EAN-13, o padrão mais comum de etiqueta de
+// produto/varejo. Aceita as duas em vez de travar num formato só; ainda
+// restringe a formatos 1D pra manter o decode rápido.
 const HINTS = new Map<DecodeHintType, BarcodeFormat[] | boolean>([
-  [DecodeHintType.POSSIBLE_FORMATS, [BarcodeFormat.CODE_128]],
+  [DecodeHintType.POSSIBLE_FORMATS, [BarcodeFormat.CODE_128, BarcodeFormat.EAN_13]],
   [DecodeHintType.TRY_HARDER, true],
 ]);
 
