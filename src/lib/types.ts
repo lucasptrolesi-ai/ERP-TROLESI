@@ -507,6 +507,7 @@ export type ProdutoEvento = {
   quantidade_estoque: number;
   ativo: boolean;
   criado_em: string;
+  foto_url: string | null;
 };
 
 export type ItemCarrinhoEvento = {
@@ -516,6 +517,7 @@ export type ItemCarrinhoEvento = {
   preco_unitario: number;
   quantidade: number;
   estoqueDisponivel: number;
+  fotoUrl: string | null;
 };
 
 export type VendaEvento = {

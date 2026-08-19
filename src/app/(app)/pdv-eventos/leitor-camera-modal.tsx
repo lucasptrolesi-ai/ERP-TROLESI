@@ -11,7 +11,7 @@ const HINTS = new Map<DecodeHintType, BarcodeFormat[] | boolean>([
   [DecodeHintType.TRY_HARDER, true],
 ]);
 
-type ResultadoLeitura = { sucesso: boolean; nomeProduto?: string };
+type ResultadoLeitura = { sucesso: boolean; nomeProduto?: string; fotoUrl?: string | null };
 
 export function LeitorCameraModal({
   onCodigoLido,
@@ -26,7 +26,7 @@ export function LeitorCameraModal({
     semSuporte ? "Este navegador não dá acesso à câmera. Tente atualizar o app ou usar outro navegador." : null,
   );
   const [carregando, setCarregando] = useState(!semSuporte);
-  const [feedback, setFeedback] = useState<{ texto: string; ok: boolean } | null>(null);
+  const [feedback, setFeedback] = useState<{ texto: string; ok: boolean; fotoUrl?: string | null } | null>(null);
 
   const onCodigoLidoRef = useRef(onCodigoLido);
   const ultimoRef = useRef<{ codigo: string; em: number } | null>(null);
@@ -79,9 +79,13 @@ export function LeitorCameraModal({
           }
           ultimoRef.current = { codigo, em: agora };
 
-          const { sucesso, nomeProduto } = onCodigoLidoRef.current(codigo);
+          const { sucesso, nomeProduto, fotoUrl } = onCodigoLidoRef.current(codigo);
           if (navigator.vibrate) navigator.vibrate(sucesso ? 80 : [60, 60, 60]);
-          setFeedback({ texto: sucesso ? `✓ ${nomeProduto} adicionada` : "Código não encontrado", ok: sucesso });
+          setFeedback({
+            texto: sucesso ? `✓ ${nomeProduto} adicionada` : "Código não encontrado",
+            ok: sucesso,
+            fotoUrl,
+          });
           clearTimeout(feedbackTimeoutRef.current);
           feedbackTimeoutRef.current = setTimeout(() => setFeedback(null), 1800);
         },
@@ -142,10 +146,14 @@ export function LeitorCameraModal({
           )}
           {feedback && (
             <div
-              className={`absolute inset-x-0 bottom-0 px-3 py-2.5 text-center text-sm font-bold ${
+              className={`absolute inset-x-0 bottom-0 flex items-center justify-center gap-2 px-3 py-2.5 text-sm font-bold ${
                 feedback.ok ? "bg-ok text-white" : "bg-crit text-white"
               }`}
             >
+              {feedback.ok && feedback.fotoUrl && (
+                // eslint-disable-next-line @next/next/no-img-element -- foto do Storage, sem otimização por enquanto (mesmo padrão do grid de Estoque)
+                <img src={feedback.fotoUrl} alt="" className="h-8 w-8 rounded-full border-2 border-white object-cover" />
+              )}
               {feedback.texto}
             </div>
           )}

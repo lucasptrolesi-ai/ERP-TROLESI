@@ -115,6 +115,7 @@ export function EstoqueEvento({ produtosEvento }: { produtosEvento: ProdutoEvent
           <table className="w-full text-sm">
             <thead>
               <tr className="text-left text-xs font-bold uppercase tracking-wide text-text-soft">
+                <th className="px-5 py-2" />
                 <th className="px-5 py-2">Código</th>
                 <th className="px-5 py-2">Nome</th>
                 <th className="px-5 py-2">Preço</th>
@@ -127,6 +128,16 @@ export function EstoqueEvento({ produtosEvento }: { produtosEvento: ProdutoEvent
                 const status = statusEstoque(p.quantidade_estoque);
                 return (
                   <tr key={p.id} className={`border-t border-line ${p.ativo ? "" : "opacity-50"}`}>
+                    <td className="py-2 pl-5">
+                      {p.foto_url ? (
+                        // eslint-disable-next-line @next/next/no-img-element -- foto do Storage, sem otimização por enquanto (mesmo padrão do grid de Estoque)
+                        <img src={p.foto_url} alt="" className="h-10 w-10 rounded-lg border border-line object-cover" />
+                      ) : (
+                        <span className="flex h-10 w-10 items-center justify-center rounded-lg border border-dashed border-line text-[0.6rem] text-text-soft">
+                          sem foto
+                        </span>
+                      )}
+                    </td>
                     <td className="px-5 py-2.5 font-mono text-xs text-text-soft">#{p.codigo_interno}</td>
                     <td className="px-5 py-2.5">
                       <button onClick={() => setEditando(p)} className="text-left font-semibold hover:underline">
@@ -153,7 +164,7 @@ export function EstoqueEvento({ produtosEvento }: { produtosEvento: ProdutoEvent
               })}
               {produtosEvento.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="px-5 py-8 text-center text-sm text-text-soft">
+                  <td colSpan={6} className="px-5 py-8 text-center text-sm text-text-soft">
                     Nenhuma peça cadastrada ainda.
                   </td>
                 </tr>

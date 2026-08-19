@@ -58,14 +58,17 @@ export function VenderEvento({ produtosEvento }: { produtosEvento: ProdutoEvento
           preco_unitario: produto.preco,
           quantidade: 1,
           estoqueDisponivel: produto.quantidade_estoque,
+          fotoUrl: produto.foto_url,
         },
       ];
     });
   }
 
   // Compartilhada entre o leitor USB (bipagem por teclado) e o leitor por
-  // câmera — os dois só precisam entregar o texto do código.
-  function processarCodigo(codigoBruto: string): { sucesso: boolean; nomeProduto?: string } {
+  // câmera — os dois só precisam entregar o texto do código. Devolve a foto
+  // também: é o que confirma visualmente, na hora da leitura, que a peça
+  // escaneada é mesmo a que está sendo vendida.
+  function processarCodigo(codigoBruto: string): { sucesso: boolean; nomeProduto?: string; fotoUrl?: string | null } {
     const codigo = codigoBruto.trim().toLowerCase();
     if (!codigo) return { sucesso: false };
     const produto = produtosPorCodigo.get(codigo);
@@ -75,7 +78,7 @@ export function VenderEvento({ produtosEvento }: { produtosEvento: ProdutoEvento
     }
     setCodigoNaoEncontrado(false);
     adicionarAoCarrinho(produto);
-    return { sucesso: true, nomeProduto: produto.nome };
+    return { sucesso: true, nomeProduto: produto.nome, fotoUrl: produto.foto_url };
   }
 
   function handleKeyDownCodigo(e: React.KeyboardEvent<HTMLInputElement>) {
@@ -178,6 +181,7 @@ export function VenderEvento({ produtosEvento }: { produtosEvento: ProdutoEvento
           <table className="w-full text-sm">
             <thead>
               <tr className="text-left text-xs font-bold uppercase tracking-wide text-text-soft">
+                <th className="py-2 pl-4" />
                 <th className="px-4 py-2">Peça</th>
                 <th className="px-4 py-2 text-right">Qtd.</th>
                 <th className="px-4 py-2 text-right">Unit.</th>
@@ -188,6 +192,16 @@ export function VenderEvento({ produtosEvento }: { produtosEvento: ProdutoEvento
             <tbody>
               {carrinho.map((i) => (
                 <tr key={i.linha_id} className="border-t border-line align-middle">
+                  <td className="py-2 pl-4">
+                    {i.fotoUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element -- foto do Storage, sem otimização por enquanto (mesmo padrão do grid de Estoque)
+                      <img src={i.fotoUrl} alt="" className="h-10 w-10 rounded-lg border border-line object-cover" />
+                    ) : (
+                      <span className="flex h-10 w-10 items-center justify-center rounded-lg border border-dashed border-line text-[0.55rem] text-text-soft">
+                        sem foto
+                      </span>
+                    )}
+                  </td>
                   <td className="px-4 py-2.5">
                     <p className="font-semibold text-ink">{i.nome}</p>
                     {i.quantidade > i.estoqueDisponivel && (
@@ -228,7 +242,7 @@ export function VenderEvento({ produtosEvento }: { produtosEvento: ProdutoEvento
               ))}
               {carrinho.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="px-4 py-8 text-center text-sm text-text-soft">
+                  <td colSpan={6} className="px-4 py-8 text-center text-sm text-text-soft">
                     Nenhuma peça no carrinho ainda — bipe o código pra começar.
                   </td>
                 </tr>

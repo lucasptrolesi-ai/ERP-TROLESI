@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { normalizarCampo } from "./erros";
+import { fotoEscolhida, subirFotoProduto } from "./foto-produto";
 import type { FormaPagamentoEvento } from "@/lib/types";
 
 type ResultadoForm = { erro?: string } | undefined;
@@ -20,15 +21,24 @@ export async function salvarProdutoEvento(_prev: ResultadoForm, formData: FormDa
   const nome = normalizarCampo(formData.get("nome"), { caixaAlta: true });
   if (!nome) return { erro: "Nome é obrigatório." };
 
+  const supabase = await createClient();
+  const arquivoFoto = fotoEscolhida(formData);
+  let fotoUrl = normalizarCampo(formData.get("foto_url_atual"));
+  if (arquivoFoto) {
+    const resultado = await subirFotoProduto(supabase, arquivoFoto, "evento");
+    if (resultado.erro) return { erro: resultado.erro };
+    fotoUrl = resultado.url ?? fotoUrl;
+  }
+
   const id = normalizarCampo(formData.get("id"));
   const dados = {
     nome,
     preco: Math.max(0, numeroOuZero(formData.get("preco"))),
     quantidade_estoque: Math.max(0, Math.trunc(numeroOuZero(formData.get("quantidade_estoque")))),
     ativo: formData.get("ativo") === "on",
+    foto_url: fotoUrl,
   };
 
-  const supabase = await createClient();
   const { error } = id
     ? await supabase.from("produtos_evento").update(dados).eq("id", id)
     : await supabase.from("produtos_evento").insert(dados);

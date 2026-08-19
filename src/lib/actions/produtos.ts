@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { mensagemErroSalvar, mensagemErroExcluir, normalizarCampo } from "./erros";
+import { fotoEscolhida, subirFotoProduto } from "./foto-produto";
 
 type ResultadoForm = { erro?: string } | undefined;
 
@@ -23,13 +24,22 @@ export async function salvarProduto(_prev: ResultadoForm, formData: FormData): P
   if (!nome) return { erro: "Nome é obrigatório." };
   if (!categoria) return { erro: "Categoria é obrigatória." };
 
+  const supabase = await createClient();
+  const arquivoFoto = fotoEscolhida(formData);
+  let fotoUrl = normalizarCampo(formData.get("foto_url_atual"));
+  if (arquivoFoto) {
+    const resultado = await subirFotoProduto(supabase, arquivoFoto, "manual");
+    if (resultado.erro) return { erro: resultado.erro };
+    fotoUrl = resultado.url ?? fotoUrl;
+  }
+
   const id = normalizarCampo(formData.get("id"));
   const dados = {
     nome,
     categoria,
     subcategoria: normalizarCampo(formData.get("subcategoria"), { caixaAlta: true }),
     subsubcategoria: normalizarCampo(formData.get("subsubcategoria"), { caixaAlta: true }),
-    foto_url: normalizarCampo(formData.get("foto_url")),
+    foto_url: fotoUrl,
     codigo_interno: normalizarCampo(formData.get("codigo_interno"), { caixaAlta: true }),
     codigo_peca: Math.max(0, numeroOuZero(formData.get("codigo_peca"))),
     multiplicador: (() => {
@@ -74,7 +84,6 @@ export async function salvarProduto(_prev: ResultadoForm, formData: FormData): P
     origem_mercadoria: normalizarCampo(formData.get("origem_mercadoria")) ?? "0",
   };
 
-  const supabase = await createClient();
   const { error } = id
     ? await supabase.from("produtos").update(dados).eq("id", id)
     : await supabase.from("produtos").insert(dados);

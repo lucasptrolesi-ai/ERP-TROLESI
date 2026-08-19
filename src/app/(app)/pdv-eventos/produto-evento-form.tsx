@@ -3,6 +3,7 @@
 import { useActionState, useState, useTransition } from "react";
 import { Modal } from "@/components/modal";
 import { FormField } from "@/components/form-field";
+import { CampoFotoProduto } from "@/components/campo-foto-produto";
 import { salvarProdutoEvento, excluirProdutoEvento } from "@/lib/actions/pdv-eventos";
 import { useFecharAoSalvar } from "@/lib/use-fechar-ao-salvar";
 import type { ProdutoEvento } from "@/lib/types";
@@ -41,6 +42,7 @@ export function ProdutoEventoForm({
         {produtoEvento && <input type="hidden" name="id" value={produtoEvento.id} />}
 
         <FormField label="Nome" name="nome" defaultValue={produtoEvento?.nome} required />
+        <CampoFotoProduto fotoAtual={produtoEvento?.foto_url} />
         <div className="grid grid-cols-2 gap-3">
           <FormField
             label="Preço (R$)"
