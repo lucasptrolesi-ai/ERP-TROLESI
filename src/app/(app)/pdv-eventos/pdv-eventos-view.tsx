@@ -53,7 +53,7 @@ export function PdvEventosView({
 
         {aba === "vender" && <VenderEvento produtosEvento={produtosEvento} />}
         {aba === "estoque" && <EstoqueEvento produtosEvento={produtosEvento} />}
-        {aba === "resumo" && <ResumoEvento vendasEvento={vendasEvento} />}
+        {aba === "resumo" && <ResumoEvento vendasEvento={vendasEvento} produtosEvento={produtosEvento} />}
       </div>
     </div>
   );

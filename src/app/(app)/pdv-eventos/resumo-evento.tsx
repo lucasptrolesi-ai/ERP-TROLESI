@@ -4,9 +4,15 @@ import { useMemo } from "react";
 import { KpiCard } from "@/components/kpi-card";
 import { formatarMoeda } from "@/lib/formatar-moeda";
 import { FORMA_LABEL_EVENTO, FORMAS_PAGAMENTO_EVENTO } from "@/lib/forma-pagamento-evento";
-import type { VendaEvento } from "@/lib/types";
+import type { ProdutoEvento, VendaEvento } from "@/lib/types";
 
-export function ResumoEvento({ vendasEvento }: { vendasEvento: VendaEvento[] }) {
+export function ResumoEvento({
+  vendasEvento,
+  produtosEvento,
+}: {
+  vendasEvento: VendaEvento[];
+  produtosEvento: ProdutoEvento[];
+}) {
   const resumo = useMemo(() => {
     const totalVendido = vendasEvento.reduce((s, v) => s + v.total, 0);
     const pecasVendidas = vendasEvento.reduce(
@@ -18,15 +24,36 @@ export function ResumoEvento({ vendasEvento }: { vendasEvento: VendaEvento[] }) 
       total: vendasEvento.filter((v) => v.forma_pagamento === forma).reduce((s, v) => s + v.total, 0),
     }));
     const maiorValor = Math.max(1, ...porFormaPagamento.map((f) => f.total));
-    return { totalVendido, pecasVendidas, vendas: vendasEvento.length, porFormaPagamento, maiorValor };
-  }, [vendasEvento]);
+
+    // Só peças ativas — mesmo critério de venda (produtosPorCodigo em
+    // vender-evento.tsx) — peça inativa não está mais disponível pra vender,
+    // não faz sentido contar no valor "em estoque".
+    const ativos = produtosEvento.filter((p) => p.ativo);
+    const valorEmEstoque = ativos.reduce((s, p) => s + p.preco * p.quantidade_estoque, 0);
+    const pecasEmEstoque = ativos.reduce((s, p) => s + p.quantidade_estoque, 0);
+
+    return {
+      totalVendido,
+      pecasVendidas,
+      vendas: vendasEvento.length,
+      porFormaPagamento,
+      maiorValor,
+      valorEmEstoque,
+      pecasEmEstoque,
+    };
+  }, [vendasEvento, produtosEvento]);
 
   return (
     <div className="flex flex-col gap-4 p-4 sm:p-5">
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <KpiCard label="Total vendido" valor={formatarMoeda(resumo.totalVendido)} nota={`${resumo.vendas} venda(s)`} />
         <KpiCard label="Peças vendidas" valor={String(resumo.pecasVendidas)} nota="unidades no total" />
         <KpiCard label="Ticket médio" valor={formatarMoeda(resumo.vendas > 0 ? resumo.totalVendido / resumo.vendas : 0)} nota="por venda" />
+        <KpiCard
+          label="Valor em estoque"
+          valor={formatarMoeda(resumo.valorEmEstoque)}
+          nota={`${resumo.pecasEmEstoque} peça(s) ativa(s), a preço de venda`}
+        />
       </div>
 
       <div className="rounded-xl border border-line bg-surface p-4">
