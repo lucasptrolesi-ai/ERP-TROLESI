@@ -23,6 +23,7 @@ export function LeitorCameraModal({
   onCodigoLido: (codigo: string) => ResultadoLeitura;
   onFechar: () => void;
 }) {
+  const onFecharRef = useRef(onFechar);
   const videoRef = useRef<HTMLVideoElement>(null);
   const semSuporte = typeof navigator !== "undefined" && !navigator.mediaDevices?.getUserMedia;
   const [erro, setErro] = useState<string | null>(
@@ -37,7 +38,8 @@ export function LeitorCameraModal({
 
   useEffect(() => {
     onCodigoLidoRef.current = onCodigoLido;
-  }, [onCodigoLido]);
+    onFecharRef.current = onFechar;
+  }, [onCodigoLido, onFechar]);
 
   useEffect(() => {
     if (semSuporte) return;
@@ -90,7 +92,14 @@ export function LeitorCameraModal({
             fotoUrl,
           });
           clearTimeout(feedbackTimeoutRef.current);
-          feedbackTimeoutRef.current = setTimeout(() => setFeedback(null), 1800);
+          // Encontrou e adicionou: fecha sozinho depois de um instante — só
+          // o suficiente pra ver a confirmação (foto + nome) antes de
+          // sumir. Não encontrado: mantém aberto, pra dar pra tentar de
+          // novo sem reabrir a câmera.
+          feedbackTimeoutRef.current = setTimeout(
+            () => (sucesso ? onFecharRef.current() : setFeedback(null)),
+            sucesso ? 700 : 1800,
+          );
         },
       )
       .then((c) => {
