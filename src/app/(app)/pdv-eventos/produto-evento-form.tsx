@@ -4,6 +4,7 @@ import { useActionState, useState, useTransition } from "react";
 import { Modal } from "@/components/modal";
 import { FormField } from "@/components/form-field";
 import { CampoFotoProduto } from "@/components/campo-foto-produto";
+import { CampoCodigoProduto } from "@/components/campo-codigo-produto";
 import { salvarProdutoEvento, excluirProdutoEvento } from "@/lib/actions/pdv-eventos";
 import { useFecharAoSalvar } from "@/lib/use-fechar-ao-salvar";
 import type { ProdutoEvento } from "@/lib/types";
@@ -12,10 +13,12 @@ export function ProdutoEventoForm({
   aberto,
   onFechar,
   produtoEvento,
+  codigosExistentes,
 }: {
   aberto: boolean;
   onFechar: () => void;
   produtoEvento: ProdutoEvento | null;
+  codigosExistentes: string[];
 }) {
   const [state, formAction, pending] = useActionState(salvarProdutoEvento, undefined);
   const [erroExcluir, setErroExcluir] = useState<string | null>(null);
@@ -41,8 +44,12 @@ export function ProdutoEventoForm({
       <form action={formAction} className="flex flex-col gap-4">
         {produtoEvento && <input type="hidden" name="id" value={produtoEvento.id} />}
 
-        <FormField label="Nome" name="nome" defaultValue={produtoEvento?.nome} required />
         <CampoFotoProduto fotoAtual={produtoEvento?.foto_url} />
+        <CampoCodigoProduto
+          defaultValue={produtoEvento?.codigo_interno}
+          codigosExistentes={codigosExistentes}
+          dica="Deixe em branco pra numerar automaticamente."
+        />
         <div className="grid grid-cols-2 gap-3">
           <FormField
             label="Preço (R$)"
@@ -62,6 +69,7 @@ export function ProdutoEventoForm({
             defaultValue={produtoEvento?.quantidade_estoque ?? 0}
           />
         </div>
+        <FormField label="Nome" name="nome" defaultValue={produtoEvento?.nome} required />
 
         <label className="flex items-center gap-2 text-sm text-ink">
           <input

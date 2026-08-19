@@ -175,7 +175,12 @@ export function EstoqueEvento({ produtosEvento }: { produtosEvento: ProdutoEvent
       </div>
 
       {editando !== undefined && (
-        <ProdutoEventoForm aberto onFechar={() => setEditando(undefined)} produtoEvento={editando} />
+        <ProdutoEventoForm
+          aberto
+          onFechar={() => setEditando(undefined)}
+          produtoEvento={editando}
+          codigosExistentes={produtosEvento.map((p) => p.codigo_interno)}
+        />
       )}
     </div>
   );

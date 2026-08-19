@@ -25,7 +25,6 @@ export function CampoFotoProduto({ fotoAtual }: { fotoAtual: string | null | und
         type="file"
         name="foto"
         accept="image/*"
-        capture="environment"
         onChange={(e) => {
           const arquivo = e.target.files?.[0];
           setPreview(arquivo ? URL.createObjectURL(arquivo) : null);

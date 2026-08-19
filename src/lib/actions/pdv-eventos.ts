@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { normalizarCampo } from "./erros";
+import { mensagemErroSalvar, normalizarCampo } from "./erros";
 import { fotoEscolhida, subirFotoProduto } from "./foto-produto";
 import type { FormaPagamentoEvento } from "@/lib/types";
 
@@ -14,12 +14,14 @@ function numeroOuZero(valor: FormDataEntryValue | null): number {
 }
 
 /** Cadastro simples do estoque de evento — preço digitado direto, sem
- * código×multiplicador. codigo_interno fica de fora do payload de propósito:
- * o trigger definir_codigo_produto_evento (migration 20260813000001) atribui
- * o próximo número sequencial sozinho quando fica null. */
+ * código×multiplicador. codigo_interno agora é digitável (esquema do
+ * usuário: prefixo de letra por categoria + sequencial, ex: CA00, CP01) —
+ * em branco, o trigger definir_codigo_produto_evento (migration
+ * 20260813000001) ainda atribui o próximo número sequencial sozinho. */
 export async function salvarProdutoEvento(_prev: ResultadoForm, formData: FormData): Promise<ResultadoForm> {
   const nome = normalizarCampo(formData.get("nome"), { caixaAlta: true });
   if (!nome) return { erro: "Nome é obrigatório." };
+  const codigoInterno = normalizarCampo(formData.get("codigo_interno"), { caixaAlta: true });
 
   const supabase = await createClient();
   const arquivoFoto = fotoEscolhida(formData);
@@ -37,13 +39,18 @@ export async function salvarProdutoEvento(_prev: ResultadoForm, formData: FormDa
     quantidade_estoque: Math.max(0, Math.trunc(numeroOuZero(formData.get("quantidade_estoque")))),
     ativo: formData.get("ativo") === "on",
     foto_url: fotoUrl,
+    // Em branco numa peça NOVA vira null — o trigger gera o próximo número
+    // sozinho (codigo_interno é NOT NULL, sem trigger de update). Em branco
+    // numa EDIÇÃO não pode virar null (violaria a constraint), então
+    // simplesmente não entra no payload — mantém o código já salvo.
+    ...(codigoInterno || !id ? { codigo_interno: codigoInterno } : {}),
   };
 
   const { error } = id
     ? await supabase.from("produtos_evento").update(dados).eq("id", id)
     : await supabase.from("produtos_evento").insert(dados);
 
-  if (error) return { erro: "Não foi possível salvar. Tente novamente." };
+  if (error) return { erro: mensagemErroSalvar(error, "código") };
 
   revalidatePath("/pdv-eventos");
   return undefined;

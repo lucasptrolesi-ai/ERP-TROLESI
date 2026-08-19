@@ -252,6 +252,7 @@ export function EstoqueView({
           onFechar={() => setProdutoEditando(undefined)}
           produto={produtoEditando}
           categoriasExistentes={categorias}
+          codigosExistentes={produtos.map((p) => p.codigo_interno).filter((c): c is string => c !== null)}
         />
       )}
     </div>

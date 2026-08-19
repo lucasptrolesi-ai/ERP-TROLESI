@@ -4,6 +4,7 @@ import { useActionState, useState, useTransition } from "react";
 import { Modal } from "@/components/modal";
 import { FormField } from "@/components/form-field";
 import { CampoFotoProduto } from "@/components/campo-foto-produto";
+import { CampoCodigoProduto } from "@/components/campo-codigo-produto";
 import { salvarProduto, excluirProduto } from "@/lib/actions/produtos";
 import { useFecharAoSalvar } from "@/lib/use-fechar-ao-salvar";
 import { formatarMoeda } from "@/lib/formatar-moeda";
@@ -15,11 +16,13 @@ export function ProdutoForm({
   onFechar,
   produto,
   categoriasExistentes,
+  codigosExistentes,
 }: {
   aberto: boolean;
   onFechar: () => void;
   produto: Produto | null;
   categoriasExistentes: string[];
+  codigosExistentes: string[];
 }) {
   const [state, formAction, pending] = useActionState(salvarProduto, undefined);
   const [erroExcluir, setErroExcluir] = useState<string | null>(null);
@@ -47,14 +50,18 @@ export function ProdutoForm({
       <form action={formAction} className="flex flex-col gap-4">
         {produto && <input type="hidden" name="id" value={produto.id} />}
 
-        <div className="flex flex-col gap-1">
-          <FormField label="Código interno" name="codigo_interno" defaultValue={produto?.codigo_interno} />
-          {!produto && (
-            <p className="text-[0.7rem] text-text-soft">
-              Deixe em branco pra numerar automaticamente (1, 2, 3...) — só preencha se quiser um código específico.
-            </p>
-          )}
-        </div>
+        <CampoFotoProduto fotoAtual={produto?.foto_url} />
+        <CampoCodigoProduto
+          defaultValue={produto?.codigo_interno}
+          codigosExistentes={codigosExistentes}
+          dica="Deixe em branco pra numerar automaticamente (1, 2, 3...)."
+        />
+        <p className="-mt-3 text-[0.65rem] text-text-soft">
+          Esse é o código que vira o código de barras da peça (leitor/etiqueta) — diferente do &quot;Código de
+          barras&quot; abaixo, que é só o código do fornecedor, e do &quot;Código da peça&quot; mais abaixo, que é
+          a fórmula de preço.
+        </p>
+
         <FormField label="Nome" name="nome" defaultValue={produto?.nome} required />
         <FormField
           label="Categoria"
@@ -78,10 +85,8 @@ export function ProdutoForm({
           />
         </div>
 
-        <CampoFotoProduto fotoAtual={produto?.foto_url} />
-
         <div className="grid grid-cols-2 gap-3">
-          <FormField label="Código de barras" name="codigo_barras" defaultValue={produto?.codigo_barras} />
+          <FormField label="Código de barras (fornecedor)" name="codigo_barras" defaultValue={produto?.codigo_barras} />
           <FormField label="Referência" name="referencia" defaultValue={produto?.referencia} />
         </div>
         <FormField label="Descrição" name="descricao" defaultValue={produto?.descricao} />
