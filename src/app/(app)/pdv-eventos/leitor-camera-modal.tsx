@@ -156,16 +156,26 @@ export function LeitorCameraModal({
               Abrindo câmera… confirme a permissão se o navegador pedir.
             </div>
           )}
-          {feedback && (
+          {feedback && feedback.ok && feedback.fotoUrl && (
+            // Sucesso com foto: cobre o vídeo inteiro — o modal fecha em
+            // ~700ms, então a foto precisa ser grande o bastante pra dar
+            // pra reconhecer a peça de relance, não um ícone minúsculo.
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-ok/95 p-4 text-center">
+              {/* eslint-disable-next-line @next/next/no-img-element -- foto do Storage, sem otimização por enquanto (mesmo padrão do grid de Estoque) */}
+              <img
+                src={feedback.fotoUrl}
+                alt=""
+                className="h-36 w-36 rounded-xl border-4 border-white object-cover shadow-lg"
+              />
+              <p className="text-base font-bold text-white">{feedback.texto}</p>
+            </div>
+          )}
+          {feedback && !(feedback.ok && feedback.fotoUrl) && (
             <div
-              className={`absolute inset-x-0 bottom-0 flex items-center justify-center gap-2 px-3 py-2.5 text-sm font-bold ${
+              className={`absolute inset-x-0 bottom-0 px-3 py-2.5 text-center text-sm font-bold ${
                 feedback.ok ? "bg-ok text-white" : "bg-crit text-white"
               }`}
             >
-              {feedback.ok && feedback.fotoUrl && (
-                // eslint-disable-next-line @next/next/no-img-element -- foto do Storage, sem otimização por enquanto (mesmo padrão do grid de Estoque)
-                <img src={feedback.fotoUrl} alt="" className="h-8 w-8 rounded-full border-2 border-white object-cover" />
-              )}
               {feedback.texto}
             </div>
           )}

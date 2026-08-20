@@ -134,9 +134,9 @@ export function EstoqueEvento({ produtosEvento }: { produtosEvento: ProdutoEvent
                     <td className="py-2 pl-5">
                       {p.foto_url ? (
                         // eslint-disable-next-line @next/next/no-img-element -- foto do Storage, sem otimização por enquanto (mesmo padrão do grid de Estoque)
-                        <img src={p.foto_url} alt="" className="h-10 w-10 rounded-lg border border-line object-cover" />
+                        <img src={p.foto_url} alt="" className="h-16 w-16 rounded-lg border border-line object-cover" />
                       ) : (
-                        <span className="flex h-10 w-10 items-center justify-center rounded-lg border border-dashed border-line text-[0.6rem] text-text-soft">
+                        <span className="flex h-16 w-16 items-center justify-center rounded-lg border border-dashed border-line text-[0.6rem] text-text-soft">
                           sem foto
                         </span>
                       )}
