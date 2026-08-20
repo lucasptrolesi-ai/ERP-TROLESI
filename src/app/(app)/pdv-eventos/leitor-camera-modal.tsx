@@ -165,7 +165,7 @@ export function LeitorCameraModal({
               <img
                 src={feedback.fotoUrl}
                 alt=""
-                className="h-36 w-36 rounded-xl border-4 border-white object-cover shadow-lg"
+                className="h-56 w-56 rounded-xl border-4 border-white object-cover shadow-lg"
               />
               <p className="text-base font-bold text-white">{feedback.texto}</p>
             </div>
