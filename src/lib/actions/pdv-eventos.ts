@@ -77,6 +77,9 @@ export async function registrarVendaEvento(
   valorDesconto: number,
   numeroParcelas: number,
   idempotencyKey: string,
+  clienteNome: string | null,
+  clienteCpf: string | null,
+  clienteTelefone: string | null,
 ): Promise<{ erro?: string; venda?: { id: string; numero: number; criado_em: string } }> {
   if (itens.length === 0) return { erro: "Adicione pelo menos uma peça à venda." };
 
@@ -87,6 +90,9 @@ export async function registrarVendaEvento(
     p_valor_desconto: valorDesconto,
     p_numero_parcelas: numeroParcelas,
     p_idempotency_key: idempotencyKey,
+    p_cliente_nome: clienteNome,
+    p_cliente_cpf: clienteCpf,
+    p_cliente_telefone: clienteTelefone,
   });
 
   if (error) return { erro: error.message };

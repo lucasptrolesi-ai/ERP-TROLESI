@@ -14,6 +14,9 @@ export type VendaEventoParaCupom = {
   valor_desconto: number;
   total: number;
   itens: { nome: string; quantidade: number; preco_unitario: number }[];
+  cliente_nome: string | null;
+  cliente_cpf: string | null;
+  cliente_telefone: string | null;
 };
 
 // Mesmo formato de linhas do cupom do PDV real (cupom-linhas.ts) — reaproveita
@@ -34,6 +37,15 @@ export function construirLinhasCupomEvento(
   linhas.push({ tipo: "texto", texto: `Venda evento #${venda.numero}` });
   linhas.push({ tipo: "texto", texto: formatarDataHoraIso(venda.criado_em) });
   linhas.push({ tipo: "linha" });
+
+  // Cliente é opcional (venda de evento continua anônima por padrão) — só
+  // entra na notinha o que foi preenchido.
+  if (venda.cliente_nome || venda.cliente_cpf || venda.cliente_telefone) {
+    if (venda.cliente_nome) linhas.push({ tipo: "texto", texto: `Cliente: ${venda.cliente_nome}` });
+    if (venda.cliente_cpf) linhas.push({ tipo: "texto", texto: `CPF: ${venda.cliente_cpf}` });
+    if (venda.cliente_telefone) linhas.push({ tipo: "texto", texto: `Tel: ${venda.cliente_telefone}` });
+    linhas.push({ tipo: "linha" });
+  }
 
   linhas.push({ tipo: "colunas", esquerda: "Qtd Peça", direita: "Preço", negrito: true });
   for (const item of venda.itens) {

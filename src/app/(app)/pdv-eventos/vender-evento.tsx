@@ -17,6 +17,9 @@ export function VenderEvento({ produtosEvento }: { produtosEvento: ProdutoEvento
   const [codigoNaoEncontrado, setCodigoNaoEncontrado] = useState(false);
   const [leitorCameraAberto, setLeitorCameraAberto] = useState(false);
   const [valorDesconto, setValorDesconto] = useState("0");
+  const [clienteNome, setClienteNome] = useState("");
+  const [clienteCpf, setClienteCpf] = useState("");
+  const [clienteTelefone, setClienteTelefone] = useState("");
   const [formaPagamento, setFormaPagamento] = useState<FormaPagamentoEvento>("dinheiro");
   const [numeroParcelas, setNumeroParcelas] = useState(2);
   const [idempotencyKey, setIdempotencyKey] = useState(() => crypto.randomUUID());
@@ -120,6 +123,9 @@ export function VenderEvento({ produtosEvento }: { produtosEvento: ProdutoEvento
         descontoNum,
         formaPagamento === "cartao_parcelado" ? numeroParcelas : 1,
         idempotencyKey,
+        clienteNome.trim() || null,
+        clienteCpf.trim() || null,
+        clienteTelefone.trim() || null,
       );
       if (resultado.erro || !resultado.venda) {
         setErro(resultado.erro ?? "Não foi possível registrar a venda.");
@@ -134,12 +140,18 @@ export function VenderEvento({ produtosEvento }: { produtosEvento: ProdutoEvento
         valor_desconto: descontoNum,
         total,
         itens: carrinho.map((i) => ({ nome: i.nome, quantidade: i.quantidade, preco_unitario: i.preco_unitario })),
+        cliente_nome: clienteNome.trim() || null,
+        cliente_cpf: clienteCpf.trim() || null,
+        cliente_telefone: clienteTelefone.trim() || null,
       });
       setCarrinho([]);
       setValorDesconto("0");
       setFormaPagamento("dinheiro");
       setNumeroParcelas(2);
       setIdempotencyKey(crypto.randomUUID());
+      setClienteNome("");
+      setClienteCpf("");
+      setClienteTelefone("");
     });
   }
 
@@ -254,6 +266,38 @@ export function VenderEvento({ produtosEvento }: { produtosEvento: ProdutoEvento
 
       <div className="flex flex-col gap-4 rounded-xl border border-line bg-surface p-4">
         <h2 className="font-display text-lg font-semibold text-ink">Fechar venda</h2>
+
+        <div className="flex flex-col gap-3 rounded-lg border border-line bg-cream p-3">
+          <p className="text-xs font-bold uppercase tracking-wide text-text-soft">Dados do cliente (opcional)</p>
+          <label className="flex flex-col gap-1.5">
+            <span className="text-xs font-semibold text-text-soft">Nome completo</span>
+            <input
+              value={clienteNome}
+              onChange={(e) => setClienteNome(e.target.value)}
+              className="rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink outline-none focus:border-rose focus:ring-2 focus:ring-rose-soft"
+            />
+          </label>
+          <div className="grid grid-cols-2 gap-3">
+            <label className="flex flex-col gap-1.5">
+              <span className="text-xs font-semibold text-text-soft">CPF</span>
+              <input
+                value={clienteCpf}
+                onChange={(e) => setClienteCpf(e.target.value)}
+                inputMode="numeric"
+                className="rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink outline-none focus:border-rose focus:ring-2 focus:ring-rose-soft"
+              />
+            </label>
+            <label className="flex flex-col gap-1.5">
+              <span className="text-xs font-semibold text-text-soft">Telefone</span>
+              <input
+                value={clienteTelefone}
+                onChange={(e) => setClienteTelefone(e.target.value)}
+                inputMode="tel"
+                className="rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink outline-none focus:border-rose focus:ring-2 focus:ring-rose-soft"
+              />
+            </label>
+          </div>
+        </div>
 
         <label className="flex flex-col gap-1.5">
           <span className="text-xs font-semibold uppercase tracking-wide text-text-soft">Desconto (R$)</span>

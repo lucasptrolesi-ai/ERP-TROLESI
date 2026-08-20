@@ -144,6 +144,15 @@ export function CupomEventoView({ venda, onNovaVenda }: { venda: VendaEventoPara
         <p>Venda evento #{venda.numero}</p>
         <p>{formatarDataHoraIso(venda.criado_em)}</p>
 
+        {(venda.cliente_nome || venda.cliente_cpf || venda.cliente_telefone) && (
+          <>
+            <div className="my-1 border-t border-dashed border-black/50" />
+            {venda.cliente_nome && <p>Cliente: {venda.cliente_nome}</p>}
+            {venda.cliente_cpf && <p>CPF: {venda.cliente_cpf}</p>}
+            {venda.cliente_telefone && <p>Tel: {venda.cliente_telefone}</p>}
+          </>
+        )}
+
         <div className="my-1 border-t border-dashed border-black/50" />
 
         <div className="mb-0.5 flex justify-between gap-2 font-bold">
