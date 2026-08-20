@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import JsBarcode from "jsbarcode";
 import { formatarMoeda } from "@/lib/formatar-moeda";
 import { exportarEtiquetasExcel } from "@/lib/actions/etiquetas-excel";
+import { FotoComZoom } from "@/components/foto-com-zoom";
 import { ProdutoEventoForm } from "./produto-evento-form";
 import type { ProdutoEvento } from "@/lib/types";
 
@@ -133,8 +134,7 @@ export function EstoqueEvento({ produtosEvento }: { produtosEvento: ProdutoEvent
                   <tr key={p.id} className={`border-t border-line ${p.ativo ? "" : "opacity-50"}`}>
                     <td className="py-2 pl-5">
                       {p.foto_url ? (
-                        // eslint-disable-next-line @next/next/no-img-element -- foto do Storage, sem otimização por enquanto (mesmo padrão do grid de Estoque)
-                        <img src={p.foto_url} alt="" className="h-28 w-28 rounded-lg border border-line object-cover" />
+                        <FotoComZoom src={p.foto_url} tamanhoBase="h-28 w-28" />
                       ) : (
                         <span className="flex h-28 w-28 items-center justify-center rounded-lg border border-dashed border-line text-[0.6rem] text-text-soft">
                           sem foto

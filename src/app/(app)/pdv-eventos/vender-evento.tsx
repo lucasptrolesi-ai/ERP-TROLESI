@@ -7,6 +7,7 @@ import { registrarVendaEvento } from "@/lib/actions/pdv-eventos";
 import { FORMA_LABEL_EVENTO, FORMAS_PAGAMENTO_EVENTO } from "@/lib/forma-pagamento-evento";
 import { CupomEventoView } from "./cupom-evento-view";
 import { LeitorCameraModal } from "./leitor-camera-modal";
+import { FotoComZoom } from "@/components/foto-com-zoom";
 import type { VendaEventoParaCupom } from "@/lib/cupom-linhas-evento";
 import type { FormaPagamentoEvento, ItemCarrinhoEvento, ProdutoEvento } from "@/lib/types";
 
@@ -194,8 +195,7 @@ export function VenderEvento({ produtosEvento }: { produtosEvento: ProdutoEvento
                 <tr key={i.linha_id} className="border-t border-line align-middle">
                   <td className="py-2 pl-4">
                     {i.fotoUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element -- foto do Storage, sem otimização por enquanto (mesmo padrão do grid de Estoque)
-                      <img src={i.fotoUrl} alt="" className="h-28 w-28 rounded-lg border border-line object-cover" />
+                      <FotoComZoom src={i.fotoUrl} tamanhoBase="h-28 w-28" />
                     ) : (
                       <span className="flex h-28 w-28 items-center justify-center rounded-lg border border-dashed border-line text-[0.6rem] text-text-soft">
                         sem foto
