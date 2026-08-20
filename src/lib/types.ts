@@ -530,6 +530,9 @@ export type VendaEvento = {
   total: number;
   status: "faturado" | "cancelado";
   criado_em: string;
+  cliente_nome: string | null;
+  cliente_cpf: string | null;
+  cliente_telefone: string | null;
   vendas_evento_itens: {
     nome: string;
     quantidade: number;

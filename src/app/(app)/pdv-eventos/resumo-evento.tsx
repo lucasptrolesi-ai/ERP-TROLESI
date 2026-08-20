@@ -3,6 +3,7 @@
 import { useMemo } from "react";
 import { KpiCard } from "@/components/kpi-card";
 import { formatarMoeda } from "@/lib/formatar-moeda";
+import { formatarDataHoraIso } from "@/lib/datas";
 import { FORMA_LABEL_EVENTO, FORMAS_PAGAMENTO_EVENTO } from "@/lib/forma-pagamento-evento";
 import type { ProdutoEvento, VendaEvento } from "@/lib/types";
 
@@ -75,6 +76,31 @@ export function ResumoEvento({
           ))}
         </div>
         {resumo.vendas === 0 && <p className="mt-2 text-sm text-text-soft">Nenhuma venda registrada ainda.</p>}
+      </div>
+
+      <div className="rounded-xl border border-line bg-surface p-4">
+        <h2 className="font-display text-base font-semibold text-ink">Vendas realizadas</h2>
+        <div className="mt-3 flex flex-col gap-2">
+          {vendasEvento.map((v) => (
+            <div key={v.id} className="flex flex-col gap-1 rounded-lg border border-line p-3 sm:flex-row sm:items-start sm:justify-between">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                  <span className="text-sm font-bold text-ink">Venda #{v.numero}</span>
+                  <span className="text-xs text-text-soft">{formatarDataHoraIso(v.criado_em)}</span>
+                  {v.cliente_nome && <span className="text-xs font-semibold text-rose-deep">{v.cliente_nome}</span>}
+                </div>
+                <p className="mt-0.5 truncate text-xs text-text-soft">
+                  {v.vendas_evento_itens.map((i) => `${i.quantidade}x ${i.nome}`).join(", ")}
+                </p>
+              </div>
+              <div className="shrink-0 text-left sm:text-right">
+                <p className="text-xs text-text-soft">{FORMA_LABEL_EVENTO[v.forma_pagamento]}</p>
+                <p className="text-sm font-bold tabular-nums text-ink">{formatarMoeda(v.total)}</p>
+              </div>
+            </div>
+          ))}
+          {resumo.vendas === 0 && <p className="text-sm text-text-soft">Nenhuma venda registrada ainda.</p>}
+        </div>
       </div>
     </div>
   );
