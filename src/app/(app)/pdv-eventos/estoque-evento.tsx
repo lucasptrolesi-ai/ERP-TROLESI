@@ -1,12 +1,20 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import JsBarcode from "jsbarcode";
 import { formatarMoeda } from "@/lib/formatar-moeda";
+import { filtra } from "@/lib/filtra";
 import { exportarEtiquetasExcel } from "@/lib/actions/etiquetas-excel";
 import { FotoComZoom } from "@/components/foto-com-zoom";
 import { ProdutoEventoForm } from "./produto-evento-form";
 import type { ProdutoEvento } from "@/lib/types";
+
+// Prefixo de letras do código (esquema do usuário: PA, BL, BLF...) vira a
+// seção — é a mesma lógica de sugestão de próximo código
+// (campo-codigo-produto.tsx), só usada aqui pra agrupar em vez de sugerir.
+function prefixoCodigo(codigo: string): string {
+  return codigo.match(/^[A-Za-z]+/)?.[0]?.toUpperCase() ?? "Outros";
+}
 
 function baixarArquivo(base64: string, nomeArquivo: string) {
   const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
@@ -30,12 +38,40 @@ export function EstoqueEvento({ produtosEvento }: { produtosEvento: ProdutoEvent
   const [etiquetaAtiva, setEtiquetaAtiva] = useState<ProdutoEvento | null>(null);
   const [erroExportacao, setErroExportacao] = useState<string | null>(null);
   const [exportando, iniciarExportacao] = useTransition();
+  const [busca, setBusca] = useState("");
   const barcodeRef = useRef<SVGSVGElement>(null);
+
+  // Busca por nome (parcial) ou código (parcial/exato) — mesmo helper já
+  // usado no Estoque real, pra manter o mesmo comportamento nos dois lugares.
+  const filtrados = useMemo(
+    () => filtra(produtosEvento, busca, (p) => p.codigo_interno),
+    [produtosEvento, busca],
+  );
+
+  // Seções por prefixo do código (PA, BL, BLF...), ordem alfabética; dentro
+  // de cada seção, ordem natural do código (PA2 antes de PA10).
+  const secoes = useMemo(() => {
+    const grupos = new Map<string, ProdutoEvento[]>();
+    for (const p of filtrados) {
+      const prefixo = prefixoCodigo(p.codigo_interno);
+      const grupo = grupos.get(prefixo);
+      if (grupo) grupo.push(p);
+      else grupos.set(prefixo, [p]);
+    }
+    return Array.from(grupos.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([prefixo, itens]) => ({
+        prefixo,
+        itens: [...itens].sort((a, b) =>
+          a.codigo_interno.localeCompare(b.codigo_interno, undefined, { numeric: true }),
+        ),
+      }));
+  }, [filtrados]);
 
   function handleExportarExcel() {
     setErroExportacao(null);
     iniciarExportacao(async () => {
-      const ativos = produtosEvento.filter((p) => p.ativo);
+      const ativos = filtrados.filter((p) => p.ativo);
       const resultado = await exportarEtiquetasExcel(
         ativos.map((p) => ({ codigo: p.codigo_interno, preco: p.preco })),
       );
@@ -115,66 +151,78 @@ export function EstoqueEvento({ produtosEvento }: { produtosEvento: ProdutoEvent
           </p>
         )}
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-xs font-bold uppercase tracking-wide text-text-soft">
-                <th className="px-5 py-2" />
-                <th className="px-5 py-2">Código</th>
-                <th className="px-5 py-2">Nome</th>
-                <th className="px-5 py-2">Preço</th>
-                <th className="px-5 py-2">Estoque</th>
-                <th className="px-5 py-2" />
-              </tr>
-            </thead>
-            <tbody>
-              {produtosEvento.map((p) => {
-                const status = statusEstoque(p.quantidade_estoque);
-                return (
-                  <tr key={p.id} className={`border-t border-line ${p.ativo ? "" : "opacity-50"}`}>
-                    <td className="py-2 pl-5">
-                      {p.foto_url ? (
-                        <FotoComZoom src={p.foto_url} tamanhoBase="h-28 w-28" />
-                      ) : (
-                        <span className="flex h-28 w-28 items-center justify-center rounded-lg border border-dashed border-line text-[0.6rem] text-text-soft">
-                          sem foto
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-5 py-2.5 font-mono text-xs text-text-soft">#{p.codigo_interno}</td>
-                    <td className="px-5 py-2.5">
-                      <button onClick={() => setEditando(p)} className="text-left font-semibold hover:underline">
-                        {p.nome}
-                      </button>
-                      {!p.ativo && <span className="ml-2 text-[0.65rem] text-text-soft">(inativo)</span>}
-                    </td>
-                    <td className="px-5 py-2.5 tabular-nums">{formatarMoeda(p.preco)}</td>
-                    <td className="px-5 py-2.5">
-                      <span className={`w-fit rounded-full px-2 py-0.5 text-[0.7rem] font-bold ${status.classe}`}>
-                        {status.rotulo}
-                      </span>
-                    </td>
-                    <td className="px-5 py-2.5 text-right">
-                      <button
-                        onClick={() => setEtiquetaAtiva(p)}
-                        className="rounded-full border border-rose px-3 py-1.5 text-xs font-semibold text-rose-deep"
-                      >
-                        🏷️ Etiqueta
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-              {produtosEvento.length === 0 && (
-                <tr>
-                  <td colSpan={6} className="px-5 py-8 text-center text-sm text-text-soft">
-                    Nenhuma peça cadastrada ainda.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+        <div className="border-b border-line px-4 py-3 sm:px-5">
+          <input
+            value={busca}
+            onChange={(e) => setBusca(e.target.value)}
+            placeholder="Buscar por nome ou código"
+            className="w-full rounded-full border border-line bg-cream px-4 py-2 text-sm text-ink outline-none focus:border-rose sm:max-w-xs"
+          />
         </div>
+
+        {secoes.map(({ prefixo, itens }) => (
+          <div key={prefixo} className="overflow-x-auto">
+            <p className="bg-cream px-5 py-1.5 text-xs font-bold uppercase tracking-wide text-rose-deep">
+              {prefixo} <span className="font-normal text-text-soft">({itens.length})</span>
+            </p>
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-xs font-bold uppercase tracking-wide text-text-soft">
+                  <th className="px-5 py-2" />
+                  <th className="px-5 py-2">Código</th>
+                  <th className="px-5 py-2">Nome</th>
+                  <th className="px-5 py-2">Preço</th>
+                  <th className="px-5 py-2">Estoque</th>
+                  <th className="px-5 py-2" />
+                </tr>
+              </thead>
+              <tbody>
+                {itens.map((p) => {
+                  const status = statusEstoque(p.quantidade_estoque);
+                  return (
+                    <tr key={p.id} className={`border-t border-line ${p.ativo ? "" : "opacity-50"}`}>
+                      <td className="py-2 pl-5">
+                        {p.foto_url ? (
+                          <FotoComZoom src={p.foto_url} tamanhoBase="h-28 w-28" />
+                        ) : (
+                          <span className="flex h-28 w-28 items-center justify-center rounded-lg border border-dashed border-line text-[0.6rem] text-text-soft">
+                            sem foto
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-5 py-2.5 font-mono text-xs text-text-soft">#{p.codigo_interno}</td>
+                      <td className="px-5 py-2.5">
+                        <button onClick={() => setEditando(p)} className="text-left font-semibold hover:underline">
+                          {p.nome}
+                        </button>
+                        {!p.ativo && <span className="ml-2 text-[0.65rem] text-text-soft">(inativo)</span>}
+                      </td>
+                      <td className="px-5 py-2.5 tabular-nums">{formatarMoeda(p.preco)}</td>
+                      <td className="px-5 py-2.5">
+                        <span className={`w-fit rounded-full px-2 py-0.5 text-[0.7rem] font-bold ${status.classe}`}>
+                          {status.rotulo}
+                        </span>
+                      </td>
+                      <td className="px-5 py-2.5 text-right">
+                        <button
+                          onClick={() => setEtiquetaAtiva(p)}
+                          className="rounded-full border border-rose px-3 py-1.5 text-xs font-semibold text-rose-deep"
+                        >
+                          🏷️ Etiqueta
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        ))}
+        {secoes.length === 0 && (
+          <p className="px-5 py-8 text-center text-sm text-text-soft">
+            {busca ? "Nenhuma peça encontrada pra essa busca." : "Nenhuma peça cadastrada ainda."}
+          </p>
+        )}
       </div>
 
       {editando !== undefined && (
