@@ -46,7 +46,12 @@ export function ResumoEvento({
 
   return (
     <div className="flex flex-col gap-4 p-4 sm:p-5">
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+        <KpiCard
+          label="Peças cadastradas"
+          valor={String(produtosEvento.length)}
+          nota={`${resumo.pecasEmEstoque} unidade(s) ativa(s) em estoque`}
+        />
         <KpiCard label="Total vendido" valor={formatarMoeda(resumo.totalVendido)} nota={`${resumo.vendas} venda(s)`} />
         <KpiCard label="Peças vendidas" valor={String(resumo.pecasVendidas)} nota="unidades no total" />
         <KpiCard label="Ticket médio" valor={formatarMoeda(resumo.vendas > 0 ? resumo.totalVendido / resumo.vendas : 0)} nota="por venda" />
