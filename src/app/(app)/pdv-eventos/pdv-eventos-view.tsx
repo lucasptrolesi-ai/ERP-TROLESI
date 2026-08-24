@@ -4,16 +4,18 @@ import { useState } from "react";
 import { VenderEvento } from "./vender-evento";
 import { EstoqueEvento } from "./estoque-evento";
 import { ResumoEvento } from "./resumo-evento";
-import type { ProdutoEvento, VendaEvento } from "@/lib/types";
+import type { ProdutoEvento, ProdutoParaImportar, VendaEvento } from "@/lib/types";
 
 type Aba = "vender" | "estoque" | "resumo";
 
 export function PdvEventosView({
   produtosEvento,
   vendasEvento,
+  produtosReais,
 }: {
   produtosEvento: ProdutoEvento[];
   vendasEvento: VendaEvento[];
+  produtosReais: ProdutoParaImportar[];
 }) {
   const [aba, setAba] = useState<Aba>("vender");
 
@@ -52,7 +54,7 @@ export function PdvEventosView({
         </div>
 
         {aba === "vender" && <VenderEvento produtosEvento={produtosEvento} />}
-        {aba === "estoque" && <EstoqueEvento produtosEvento={produtosEvento} />}
+        {aba === "estoque" && <EstoqueEvento produtosEvento={produtosEvento} produtosReais={produtosReais} />}
         {aba === "resumo" && <ResumoEvento vendasEvento={vendasEvento} produtosEvento={produtosEvento} />}
       </div>
     </div>

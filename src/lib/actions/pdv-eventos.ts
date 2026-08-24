@@ -87,6 +87,50 @@ export async function excluirProdutoEvento(id: string): Promise<{ erro?: string 
   return {};
 }
 
+/** Importa peças do Estoque real pro PDV Eventos — só ajusta quantidade nos
+ * dois lados (nunca exclui nada); se a peça já foi importada antes, soma na
+ * mesma linha do evento (produto_origem_id) em vez de duplicar. Toda a
+ * lógica/trava de concorrência vive em importar_produto_evento (migration
+ * 20260824000001, SECURITY DEFINER) — mesmo motivo de criar_venda_evento
+ * não ser um insert direto: estoque real, estoque do evento e o registro de
+ * auditoria sempre precisam andar juntos. */
+export async function importarProdutoEstoque(
+  produtoId: string,
+  quantidade: number,
+  preco: number | null,
+): Promise<{ erro?: string }> {
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("importar_produto_evento", {
+    p_produto_id: produtoId,
+    p_quantidade: quantidade,
+    p_preco: preco,
+  });
+  if (error) return { erro: error.message };
+
+  revalidatePath("/pdv-eventos");
+  revalidatePath("/estoque");
+  return {};
+}
+
+/** Devolve peças do evento pro Estoque real — só peças com produto_origem_id
+ * (vieram de uma importação). Ver devolver_produto_evento (mesma migration)
+ * pra trava de concorrência e validação. */
+export async function devolverProdutoEstoque(
+  produtoEventoId: string,
+  quantidade: number,
+): Promise<{ erro?: string }> {
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("devolver_produto_evento", {
+    p_produto_evento_id: produtoEventoId,
+    p_quantidade: quantidade,
+  });
+  if (error) return { erro: error.message };
+
+  revalidatePath("/pdv-eventos");
+  revalidatePath("/estoque");
+  return {};
+}
+
 export async function registrarVendaEvento(
   itens: { produto_evento_id: string; nome: string; quantidade: number; preco_unitario: number }[],
   formaPagamento: FormaPagamentoEvento,

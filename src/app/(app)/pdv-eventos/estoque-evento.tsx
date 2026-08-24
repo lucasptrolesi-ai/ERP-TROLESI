@@ -7,7 +7,8 @@ import { filtra } from "@/lib/filtra";
 import { exportarEtiquetasExcel } from "@/lib/actions/etiquetas-excel";
 import { FotoComZoom } from "@/components/foto-com-zoom";
 import { ProdutoEventoForm } from "./produto-evento-form";
-import type { ProdutoEvento } from "@/lib/types";
+import { ImportarProdutoModal } from "./importar-produto-modal";
+import type { ProdutoEvento, ProdutoParaImportar } from "@/lib/types";
 
 // Prefixo de letras do código (esquema do usuário: PA, BL, BLF...) vira a
 // seção — é a mesma lógica de sugestão de próximo código
@@ -33,9 +34,16 @@ function statusEstoque(quantidade: number): { rotulo: string; classe: string } {
   return { rotulo: `${quantidade} un.`, classe: "bg-ok-bg text-ok" };
 }
 
-export function EstoqueEvento({ produtosEvento }: { produtosEvento: ProdutoEvento[] }) {
+export function EstoqueEvento({
+  produtosEvento,
+  produtosReais,
+}: {
+  produtosEvento: ProdutoEvento[];
+  produtosReais: ProdutoParaImportar[];
+}) {
   const [editando, setEditando] = useState<ProdutoEvento | null | undefined>(undefined);
   const [etiquetaAtiva, setEtiquetaAtiva] = useState<ProdutoEvento | null>(null);
+  const [importando, setImportando] = useState(false);
   const [erroExportacao, setErroExportacao] = useState<string | null>(null);
   const [exportando, iniciarExportacao] = useTransition();
   const [busca, setBusca] = useState("");
@@ -137,6 +145,13 @@ export function EstoqueEvento({ produtosEvento }: { produtosEvento: ProdutoEvent
               <span className="hidden sm:inline">{exportando ? " Gerando…" : " Excel p/ etiquetas"}</span>
             </button>
             <button
+              onClick={() => setImportando(true)}
+              title="Importar do Estoque"
+              className="rounded-full border border-rose px-3 py-2 text-sm font-semibold text-rose-deep"
+            >
+              📥<span className="hidden sm:inline"> Importar do Estoque</span>
+            </button>
+            <button
               onClick={() => setEditando(null)}
               title="Nova peça"
               className="rounded-full bg-gradient-to-br from-gold-start to-gold-end px-3 py-2 text-sm font-semibold text-gold-ink"
@@ -233,6 +248,8 @@ export function EstoqueEvento({ produtosEvento }: { produtosEvento: ProdutoEvent
           codigosExistentes={produtosEvento.map((p) => p.codigo_interno)}
         />
       )}
+
+      <ImportarProdutoModal aberto={importando} onFechar={() => setImportando(false)} produtosReais={produtosReais} />
     </div>
   );
 }

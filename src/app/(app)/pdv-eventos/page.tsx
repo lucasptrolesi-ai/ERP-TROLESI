@@ -3,7 +3,7 @@ import { getPerfilAtual } from "@/lib/supabase/auth";
 import { podeEditarPedidos } from "@/lib/permissoes";
 import { comoLista } from "@/lib/supabase-embed";
 import { PdvEventosView } from "./pdv-eventos-view";
-import type { VendaEvento } from "@/lib/types";
+import type { ProdutoParaImportar, VendaEvento } from "@/lib/types";
 
 export default async function PdvEventosPage() {
   const perfil = await getPerfilAtual();
@@ -21,19 +21,27 @@ export default async function PdvEventosPage() {
   }
 
   const supabase = await createClient();
-  const [{ data: produtosEvento }, { data: vendasEvento }] = await Promise.all([
+  const [{ data: produtosEvento }, { data: vendasEvento }, { data: produtosReais }] = await Promise.all([
     supabase.from("produtos_evento").select("*").order("criado_em", { ascending: false }),
     supabase
       .from("vendas_evento")
       .select("*, vendas_evento_itens(nome, quantidade, preco_unitario)")
       .eq("status", "faturado")
       .order("criado_em", { ascending: false }),
+    // Recorte leve pro modal "Importar do Estoque" — não precisa das ~40
+    // colunas comerciais de produtos, só o suficiente pra buscar e conferir
+    // estoque disponível.
+    supabase
+      .from("produtos")
+      .select("id, nome, codigo_interno, foto_url, preco, quantidade_estoque, ativo")
+      .order("nome"),
   ]);
 
   return (
     <PdvEventosView
       produtosEvento={produtosEvento ?? []}
       vendasEvento={comoLista<VendaEvento>(vendasEvento)}
+      produtosReais={(produtosReais ?? []) as ProdutoParaImportar[]}
     />
   );
 }

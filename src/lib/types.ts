@@ -508,6 +508,31 @@ export type ProdutoEvento = {
   ativo: boolean;
   criado_em: string;
   foto_url: string | null;
+  produto_origem_id: string | null;
+};
+
+/** Recorte leve de Produto usado só na busca do modal "Importar do Estoque"
+ * (PDV Eventos) — evita puxar as ~40 colunas comerciais de Produto pra uma
+ * lista de seleção. */
+export type ProdutoParaImportar = {
+  id: string;
+  nome: string;
+  codigo_interno: string | null;
+  foto_url: string | null;
+  preco: number;
+  quantidade_estoque: number;
+  ativo: boolean;
+};
+
+/** Peça do evento com vínculo ao estoque real (produto_origem_id != null) —
+ * usado no modal "Devolução" (Estoque real). */
+export type ProdutoEventoVinculado = {
+  id: string;
+  nome: string;
+  codigo_interno: string;
+  foto_url: string | null;
+  quantidade_estoque: number;
+  produto_origem_id: string;
 };
 
 export type ItemCarrinhoEvento = {

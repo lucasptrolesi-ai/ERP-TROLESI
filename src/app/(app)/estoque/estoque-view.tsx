@@ -4,11 +4,12 @@ import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { ProdutoForm } from "@/components/produto-form";
 import { CotacaoDoDia } from "@/components/cotacao-do-dia";
+import { DevolucaoModal } from "./devolucao-modal";
 import { filtra } from "@/lib/filtra";
 import { formatarMoeda } from "@/lib/formatar-moeda";
 import { podeEditarProdutos } from "@/lib/permissoes";
 import { exportarEtiquetasExcel } from "@/lib/actions/etiquetas-excel";
-import type { CotacaoDiaria, Produto } from "@/lib/types";
+import type { CotacaoDiaria, Produto, ProdutoEventoVinculado } from "@/lib/types";
 
 function baixarArquivo(base64: string, nomeArquivo: string) {
   const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
@@ -35,14 +36,17 @@ export function EstoqueView({
   cotacoesHoje,
   podeInformarCotacao,
   editarId,
+  produtosEventoVinculados,
 }: {
   papelAtual: string;
   produtos: Produto[];
   cotacoesHoje: CotacaoDiaria[];
   podeInformarCotacao: boolean;
   editarId?: string;
+  produtosEventoVinculados: ProdutoEventoVinculado[];
 }) {
   const [busca, setBusca] = useState("");
+  const [devolucaoAberta, setDevolucaoAberta] = useState(false);
   const [categoriaAtiva, setCategoriaAtiva] = useState<string | null>(null);
   const [colecaoAtiva, setColecaoAtiva] = useState<string | null>(null);
   // Suporte ao link "Atualizar estoque" do Vision AI (?editar=<id>): abre já
@@ -141,6 +145,14 @@ export function EstoqueView({
               >
                 📷<span className="hidden sm:inline"> Cadastrar com foto</span>
               </Link>
+              <button
+                onClick={() => setDevolucaoAberta(true)}
+                disabled={produtosEventoVinculados.length === 0}
+                title="Devolução do evento"
+                className="shrink-0 rounded-full border border-rose px-3 py-2 text-sm font-semibold text-rose-deep disabled:opacity-60"
+              >
+                🔄<span className="hidden sm:inline"> Devolução{produtosEventoVinculados.length > 0 ? ` (${produtosEventoVinculados.length})` : ""}</span>
+              </button>
               <button
                 onClick={() => setProdutoEditando(null)}
                 title="Novo produto"
@@ -263,6 +275,12 @@ export function EstoqueView({
           codigosExistentes={produtos.map((p) => p.codigo_interno).filter((c): c is string => c !== null)}
         />
       )}
+
+      <DevolucaoModal
+        aberto={devolucaoAberta}
+        onFechar={() => setDevolucaoAberta(false)}
+        produtosEventoVinculados={produtosEventoVinculados}
+      />
     </div>
   );
 }
