@@ -5,6 +5,7 @@ import { KpiCard } from "@/components/kpi-card";
 import { formatarMoeda } from "@/lib/formatar-moeda";
 import { formatarDataHoraIso } from "@/lib/datas";
 import { FORMA_LABEL_EVENTO, FORMAS_PAGAMENTO_EVENTO } from "@/lib/forma-pagamento-evento";
+import { PainelMetas } from "./painel-metas";
 import type { ProdutoEvento, VendaEvento } from "@/lib/types";
 
 export function ResumoEvento({
@@ -61,6 +62,8 @@ export function ResumoEvento({
 
   return (
     <div className="flex flex-col gap-4 p-4 sm:p-5">
+      <PainelMetas vendasEvento={vendasEvento} />
+
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <KpiCard
           label="Peças cadastradas"
