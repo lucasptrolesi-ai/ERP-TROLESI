@@ -33,6 +33,11 @@ export function ResumoEvento({
     const valorEmEstoque = ativos.reduce((s, p) => s + p.preco * p.quantidade_estoque, 0);
     const pecasEmEstoque = ativos.reduce((s, p) => s + p.quantidade_estoque, 0);
 
+    // Valor médio por PEÇA vendida (não confundir com o "Ticket médio", que
+    // é por VENDA/transação) — soma o que entrou em dinheiro dividido pela
+    // quantidade de peças, não pelo número de vendas.
+    const ticketMedioPeca = pecasVendidas > 0 ? totalVendido / pecasVendidas : 0;
+
     return {
       totalVendido,
       pecasVendidas,
@@ -41,12 +46,13 @@ export function ResumoEvento({
       maiorValor,
       valorEmEstoque,
       pecasEmEstoque,
+      ticketMedioPeca,
     };
   }, [vendasEvento, produtosEvento]);
 
   return (
     <div className="flex flex-col gap-4 p-4 sm:p-5">
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         <KpiCard
           label="Peças cadastradas"
           valor={String(produtosEvento.length)}
@@ -55,6 +61,7 @@ export function ResumoEvento({
         <KpiCard label="Total vendido" valor={formatarMoeda(resumo.totalVendido)} nota={`${resumo.vendas} venda(s)`} />
         <KpiCard label="Peças vendidas" valor={String(resumo.pecasVendidas)} nota="unidades no total" />
         <KpiCard label="Ticket médio" valor={formatarMoeda(resumo.vendas > 0 ? resumo.totalVendido / resumo.vendas : 0)} nota="por venda" />
+        <KpiCard label="Ticket médio da peça" valor={formatarMoeda(resumo.ticketMedioPeca)} nota="valor médio por peça vendida" />
         <KpiCard
           label="Valor em estoque"
           valor={formatarMoeda(resumo.valorEmEstoque)}
