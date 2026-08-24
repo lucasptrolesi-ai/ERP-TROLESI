@@ -38,6 +38,14 @@ export function ResumoEvento({
     // quantidade de peças, não pelo número de vendas.
     const ticketMedioPeca = pecasVendidas > 0 ? totalVendido / pecasVendidas : 0;
 
+    // Preço médio do CATÁLOGO — média do preço cadastrado em cada peça
+    // (todas, ativas ou não, mesmo universo do card "Peças cadastradas"),
+    // sem relação nenhuma com venda.
+    const precoMedioCadastrado =
+      produtosEvento.length > 0
+        ? produtosEvento.reduce((s, p) => s + p.preco, 0) / produtosEvento.length
+        : 0;
+
     return {
       totalVendido,
       pecasVendidas,
@@ -47,12 +55,13 @@ export function ResumoEvento({
       valorEmEstoque,
       pecasEmEstoque,
       ticketMedioPeca,
+      precoMedioCadastrado,
     };
   }, [vendasEvento, produtosEvento]);
 
   return (
     <div className="flex flex-col gap-4 p-4 sm:p-5">
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <KpiCard
           label="Peças cadastradas"
           valor={String(produtosEvento.length)}
@@ -62,6 +71,11 @@ export function ResumoEvento({
         <KpiCard label="Peças vendidas" valor={String(resumo.pecasVendidas)} nota="unidades no total" />
         <KpiCard label="Ticket médio" valor={formatarMoeda(resumo.vendas > 0 ? resumo.totalVendido / resumo.vendas : 0)} nota="por venda" />
         <KpiCard label="Ticket médio da peça" valor={formatarMoeda(resumo.ticketMedioPeca)} nota="valor médio por peça vendida" />
+        <KpiCard
+          label="Preço médio do catálogo"
+          valor={formatarMoeda(resumo.precoMedioCadastrado)}
+          nota="média entre todas as peças cadastradas"
+        />
         <KpiCard
           label="Valor em estoque"
           valor={formatarMoeda(resumo.valorEmEstoque)}
