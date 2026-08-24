@@ -68,6 +68,16 @@ export function realizadoAcumulado(vendas: VendaEvento[]): number {
   return realizado(vendasDoEvento(vendas));
 }
 
+/** Realizado acumulado do primeiro dia do evento até `dia` (inclusive) —
+ * pra coluna "Acumulado" da tabela dos 4 dias (spec §4.4), paralela a
+ * metaAcumuladaAte mas com dado real em vez de meta. */
+export function realizadoAcumuladoAte(vendas: VendaEvento[], dia: DiaEvento): number {
+  const indice = DIAS_EVENTO.findIndex((d) => d.data === dia.data);
+  if (indice === -1) return 0;
+  const diasAteAqui = new Set(DIAS_EVENTO.slice(0, indice + 1).map((d) => d.data));
+  return realizado(vendasDoEvento(vendas).filter((v) => diasAteAqui.has(dataLocalDoTimestamptz(v.criado_em))));
+}
+
 export function numeroDeVendas(vendas: VendaEvento[]): number {
   return vendas.length;
 }

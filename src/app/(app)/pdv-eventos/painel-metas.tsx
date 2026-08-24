@@ -1,8 +1,10 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import { hojeIso } from "@/lib/datas";
 import { formatarMoeda } from "@/lib/formatar-moeda";
-import { META_BRUTA_IDEAL, META_TRABALHO, PONTO_EQUILIBRIO, TICKET_ALVO } from "@/lib/metas-evento";
+import { buscarVendasEvento } from "@/lib/actions/pdv-eventos";
+import { DIAS_EVENTO, META_BRUTA_IDEAL, META_TRABALHO, PONTO_EQUILIBRIO, TICKET_ALVO } from "@/lib/metas-evento";
 import {
   diaEventoDe,
   lucroProjetado,
@@ -10,6 +12,7 @@ import {
   numeroDeVendas,
   pecasPorVenda,
   realizado,
+  realizadoAcumuladoAte,
   realizadoDoDia,
   semaforo,
   ticketMedio,
@@ -21,13 +24,13 @@ import {
 import type { VendaEvento } from "@/lib/types";
 
 // Painel de metas do Agroshow Itajubá 2026 (spec do usuário, 2026-08-24) —
-// só leitura, nunca altera venda/estoque/financeiro. Construído em fases
-// com checkpoint; este arquivo cresce na próxima (Fase 5: tabela dos 4
-// dias + auto-refresh + estado offline).
-//
-// Fundo escuro/dourado de propósito em todos os blocos — reaproveita o
+// só leitura, nunca altera venda/estoque/financeiro. 5 fases com
+// checkpoint, esta é a última (tabela dos 4 dias + auto-refresh + estado
+// offline). Fundo escuro/dourado em todos os blocos — reaproveita o
 // degradê café da sidebar (globals.css) em vez dos cards claros do resto
 // do Resumo, pro painel se destacar como "olhada de 3 segundos" (spec §4).
+
+const INTERVALO_ATUALIZACAO_MS = 60_000;
 
 const CLASSE_BARRA: Record<Semaforo, string> = {
   vermelho: "bg-crit",
@@ -58,17 +61,14 @@ function BlocoHoje({ vendasEvento, hoje }: { vendasEvento: VendaEvento[]; hoje: 
   const diaHoje = diaEventoDe(hoje);
 
   if (!diaHoje) {
-    // Fora do período do evento (spec §6: "mostra o consolidado final em
-    // vez do bloco Hoje") — o consolidado de verdade é a tabela dos 4
-    // dias, que só chega na Fase 5. Por ora, um aviso claro em vez de
-    // sumir sem explicação (importante pra testar antes do evento
-    // começar, já que hoje é 2026-08-24 e o evento é só em setembro).
+    // Fora do período do evento (spec §6) — a tabela dos 4 dias logo
+    // abaixo já é o "consolidado final"; evita duplicar o mesmo dado aqui,
+    // só aponta pra ela.
     return (
       <BlocoCard>
         <p className="text-center text-sm font-semibold text-sidebar-text">🎪 Painel de metas — Agroshow Itajubá</p>
         <p className="mt-1 text-center text-xs text-sidebar-text/70">
-          Fora do período do evento (03 a 06/09) — volta a mostrar o dia atual automaticamente quando a feira
-          começar.
+          Fora do período do evento (03 a 06/09) — veja o consolidado na tabela abaixo.
         </p>
       </BlocoCard>
     );
@@ -179,19 +179,125 @@ function BlocoTicketMedio({ vendasNoEvento }: { vendasNoEvento: VendaEvento[] })
   );
 }
 
-export function PainelMetas({ vendasEvento }: { vendasEvento: VendaEvento[] }) {
+function TabelaDias({ vendasEvento, hoje }: { vendasEvento: VendaEvento[]; hoje: string }) {
+  return (
+    <BlocoCard>
+      <p className="text-xs font-bold uppercase tracking-wide text-sidebar-text/70">Os 4 dias do evento</p>
+      <div className="mt-3 overflow-x-auto">
+        <table className="w-full text-xs">
+          <thead>
+            <tr className="text-left text-sidebar-text/60">
+              <th className="py-1 pr-2 font-semibold">Dia</th>
+              <th className="py-1 pr-2 text-right font-semibold">Meta</th>
+              <th className="py-1 pr-2 text-right font-semibold">Realizado</th>
+              <th className="py-1 pr-2 text-right font-semibold">%</th>
+              <th className="py-1 text-right font-semibold">Acumulado</th>
+            </tr>
+          </thead>
+          <tbody>
+            {DIAS_EVENTO.map((dia) => {
+              const ehHoje = dia.data === hoje;
+              const ehFuturo = dia.data > hoje;
+              const meta = metaDoDia(dia);
+              const realizadoDia = ehFuturo ? 0 : realizadoDoDia(vendasEvento, dia.data);
+              const pct = meta > 0 ? (realizadoDia / meta) * 100 : 0;
+              const acumuladoDia = realizadoAcumuladoAte(vendasEvento, dia);
+
+              return (
+                <tr
+                  key={dia.data}
+                  className={`border-t border-white/10 ${
+                    ehHoje ? "font-bold text-[#f3ded6]" : ehFuturo ? "text-sidebar-text/40" : "text-sidebar-text"
+                  }`}
+                >
+                  <td className="py-1.5 pr-2">{dia.dia}</td>
+                  <td className="py-1.5 pr-2 text-right tabular-nums">{formatarMoeda(meta)}</td>
+                  <td className="py-1.5 pr-2 text-right tabular-nums">
+                    {ehFuturo ? "—" : formatarMoeda(realizadoDia)}
+                  </td>
+                  <td className="py-1.5 pr-2 text-right tabular-nums">{ehFuturo ? "—" : `${pct.toFixed(0)}%`}</td>
+                  <td className="py-1.5 text-right tabular-nums">{formatarMoeda(acumuladoDia)}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </BlocoCard>
+  );
+}
+
+export function PainelMetas({ vendasEvento: vendasIniciais }: { vendasEvento: VendaEvento[] }) {
+  const [vendas, setVendas] = useState(vendasIniciais);
+  const [ultimaAtualizacao, setUltimaAtualizacao] = useState(() => Date.now());
+  const [comErro, setComErro] = useState(false);
+  const [atualizando, setAtualizando] = useState(false);
+  const [agora, setAgora] = useState(() => Date.now());
+  const emVooRef = useRef(false);
+
+  async function atualizar() {
+    if (emVooRef.current) return;
+    emVooRef.current = true;
+    setAtualizando(true);
+    try {
+      const resultado = await buscarVendasEvento();
+      if ("erro" in resultado) {
+        setComErro(true);
+      } else {
+        setVendas(resultado.vendas);
+        setUltimaAtualizacao(Date.now());
+        setComErro(false);
+      }
+    } catch {
+      // Internet ruim/instável (spec §6) — mantém o último valor em tela,
+      // nunca zera, só acende o aviso de desatualizado.
+      setComErro(true);
+    } finally {
+      setAgora(Date.now());
+      setAtualizando(false);
+      emVooRef.current = false;
+    }
+  }
+
+  useEffect(() => {
+    const intervalo = setInterval(atualizar, INTERVALO_ATUALIZACAO_MS);
+    return () => clearInterval(intervalo);
+  }, []);
+
   const hoje = hojeIso();
-  // Acumulado/Ticket médio olham pro evento inteiro (spec §5: só dados
-  // dentro de 03-06/09), não só pro dia de hoje — diferente do bloco Hoje.
-  const vendasNoEvento = vendasDoEvento(vendasEvento);
+  // Acumulado/Ticket médio/Tabela olham pro evento inteiro (spec §5: só
+  // dados dentro de 03-06/09), não só pro dia de hoje — diferente do bloco
+  // Hoje.
+  const vendasNoEvento = vendasDoEvento(vendas);
+  const minutosDesatualizado = Math.floor((agora - ultimaAtualizacao) / 60_000);
 
   return (
     <div className="flex flex-col gap-3">
-      <BlocoHoje vendasEvento={vendasEvento} hoje={hoje} />
+      <div className="flex items-center justify-between px-1">
+        {comErro ? (
+          <p className="text-xs font-semibold text-warn">
+            ⚠ Desatualizado há {minutosDesatualizado <= 0 ? "menos de 1 min" : `${minutosDesatualizado} min`} —
+            confira a internet
+          </p>
+        ) : (
+          <span />
+        )}
+        <button
+          type="button"
+          onClick={atualizar}
+          disabled={atualizando}
+          className="shrink-0 rounded-full border border-line px-3 py-1 text-xs font-semibold text-text-soft disabled:opacity-60"
+        >
+          {atualizando ? "Atualizando…" : "🔄 Atualizar"}
+        </button>
+      </div>
+
+      <BlocoHoje vendasEvento={vendas} hoje={hoje} />
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <BlocoAcumulado vendasNoEvento={vendasNoEvento} />
         <BlocoTicketMedio vendasNoEvento={vendasNoEvento} />
       </div>
+      <TabelaDias vendasEvento={vendas} hoje={hoje} />
     </div>
   );
 }

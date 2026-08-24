@@ -4,7 +4,8 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { mensagemErroSalvar, normalizarCampo } from "./erros";
 import { fotoEscolhida, subirFotoProduto } from "./foto-produto";
-import type { FormaPagamentoEvento } from "@/lib/types";
+import { comoLista } from "@/lib/supabase-embed";
+import type { FormaPagamentoEvento, VendaEvento } from "@/lib/types";
 
 type ResultadoForm = { erro?: string } | undefined;
 
@@ -54,6 +55,21 @@ export async function salvarProdutoEvento(_prev: ResultadoForm, formData: FormDa
 
   revalidatePath("/pdv-eventos");
   return undefined;
+}
+
+/** Só leitura — usada pelo painel de metas (painel-metas.tsx) pra atualizar
+ * sozinho a cada 60s sem depender de um F5. Mesma query/filtro de
+ * page.tsx — nunca altera nada, sem risco pro estoque/dados existentes. */
+export async function buscarVendasEvento(): Promise<{ vendas: VendaEvento[] } | { erro: string }> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("vendas_evento")
+    .select("*, vendas_evento_itens(nome, quantidade, preco_unitario)")
+    .eq("status", "faturado")
+    .order("criado_em", { ascending: false });
+
+  if (error) return { erro: error.message };
+  return { vendas: comoLista<VendaEvento>(data) };
 }
 
 export async function excluirProdutoEvento(id: string): Promise<{ erro?: string }> {

@@ -11,6 +11,7 @@ import {
   percentualAtingimento,
   realizado,
   realizadoAcumulado,
+  realizadoAcumuladoAte,
   realizadoDoDia,
   semaforo,
   ticketMedio,
@@ -112,6 +113,21 @@ describe("realizado / realizadoAcumulado / vendasDoEvento", () => {
   it("realizadoAcumulado ignora vendas fora do período do evento", () => {
     expect(vendasDoEvento(vendas)).toHaveLength(2);
     expect(realizadoAcumulado(vendas)).toBe(300);
+  });
+});
+
+describe("realizadoAcumuladoAte", () => {
+  const vendas = [
+    venda({ total: 100, criado_em: "2026-09-03T15:00:00Z" }), // quinta
+    venda({ total: 200, criado_em: "2026-09-04T15:00:00Z" }), // sexta
+    venda({ total: 400, criado_em: "2026-09-06T15:00:00Z" }), // domingo
+  ];
+
+  it("acumula só até o dia pedido, na ordem do calendário", () => {
+    expect(realizadoAcumuladoAte(vendas, quinta)).toBe(100);
+    expect(realizadoAcumuladoAte(vendas, sexta)).toBe(300);
+    expect(realizadoAcumuladoAte(vendas, sabado)).toBe(300); // sábado sem venda, mas soma quinta+sexta
+    expect(realizadoAcumuladoAte(vendas, domingo)).toBe(700);
   });
 });
 
