@@ -1,24 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import JsBarcode from "jsbarcode";
 import { formatarMoeda } from "@/lib/formatar-moeda";
 import { filtra } from "@/lib/filtra";
 import { exportarEtiquetasExcel } from "@/lib/actions/etiquetas-excel";
-import { buscarStatusEtiqueta, solicitarImpressaoEtiqueta } from "@/lib/actions/pdv-eventos";
 import { FotoComZoom } from "@/components/foto-com-zoom";
 import { ProdutoEventoForm } from "./produto-evento-form";
 import { ImportarProdutoModal } from "./importar-produto-modal";
 import type { ProdutoEvento, ProdutoParaImportar } from "@/lib/types";
-
-const INTERVALO_POLLING_MS = 1000;
-const TENTATIVAS_POLLING = 15;
-
-function aguardar(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-type EstadoImpressao = "idle" | "imprimindo" | "impresso" | "erro";
 
 // Prefixo de letras do código (esquema do usuário: PA, BL, BLF...) vira a
 // seção — é a mesma lógica de sugestão de próximo código
@@ -53,24 +43,11 @@ export function EstoqueEvento({
 }) {
   const [editando, setEditando] = useState<ProdutoEvento | null | undefined>(undefined);
   const [etiquetaAtiva, setEtiquetaAtiva] = useState<ProdutoEvento | null>(null);
-  const [estadoImpressao, setEstadoImpressao] = useState<EstadoImpressao>("idle");
-  const [erroImpressao, setErroImpressao] = useState<string | null>(null);
   const [importando, setImportando] = useState(false);
   const [erroExportacao, setErroExportacao] = useState<string | null>(null);
   const [exportando, iniciarExportacao] = useTransition();
   const [busca, setBusca] = useState("");
   const barcodeRef = useRef<SVGSVGElement>(null);
-  // Guarda o id da peça com o modal aberto no momento — sem isso, a
-  // impressão de A (ainda em polling) pode terminar depois do usuário já
-  // ter fechado e aberto a etiqueta de B, e sobrescrever o estado exibido
-  // de B com o resultado de A.
-  const etiquetaAtivaIdRef = useRef<string | null>(null);
-  // Trava síncrona contra duplo-clique — o `disabled` do botão só reflete
-  // o estado depois de um re-render, um clique duplo bem rápido ainda
-  // dispara imprimir() duas vezes sem isso. Por id (não um boolean único)
-  // pra não travar a peça B enquanto a impressão da peça A ainda está em
-  // polling.
-  const idsEmImpressaoRef = useRef<Set<string>>(new Set());
 
   // Busca por nome (parcial) ou código (parcial/exato) — mesmo helper já
   // usado no Estoque real, pra manter o mesmo comportamento nos dois lugares.
@@ -125,71 +102,6 @@ export function EstoqueEvento({
     }
   }, [etiquetaAtiva]);
 
-  // Grava o pedido de etiqueta e espera o print-agent do Windows (SERVIDOR,
-  // com a Argox instalada) confirmar, em vez de imprimir pela impressora
-  // padrão deste navegador (que quase nunca é a etiquetadora física).
-  const imprimir = useCallback(async (produto: ProdutoEvento) => {
-    const produtoId = produto.id;
-    if (idsEmImpressaoRef.current.has(produtoId)) return;
-    idsEmImpressaoRef.current.add(produtoId);
-    // Só atualiza a tela se o modal aberto ainda for desta mesma peça —
-    // evita o resultado de uma impressão antiga "vazar" pra outra peça
-    // aberta depois (ver comentário no useRef acima).
-    const aindaAtivo = () => etiquetaAtivaIdRef.current === produtoId;
-
-    if (aindaAtivo()) {
-      setEstadoImpressao("imprimindo");
-      setErroImpressao(null);
-    }
-
-    const solicitacao = await solicitarImpressaoEtiqueta(produto.codigo_interno, produto.nome, produto.preco);
-    if ("erro" in solicitacao) {
-      idsEmImpressaoRef.current.delete(produtoId);
-      if (aindaAtivo()) {
-        setEstadoImpressao("erro");
-        setErroImpressao(`Não foi possível registrar a impressão: ${solicitacao.erro}`);
-      }
-      return;
-    }
-
-    for (let tentativa = 0; tentativa < TENTATIVAS_POLLING; tentativa++) {
-      await aguardar(INTERVALO_POLLING_MS);
-      const status = await buscarStatusEtiqueta(solicitacao.id);
-      if (status.status === "impresso") {
-        idsEmImpressaoRef.current.delete(produtoId);
-        if (aindaAtivo()) setEstadoImpressao("impresso");
-        return;
-      }
-      if (status.status === "erro") {
-        idsEmImpressaoRef.current.delete(produtoId);
-        if (aindaAtivo()) {
-          setEstadoImpressao("erro");
-          setErroImpressao(status.mensagem ?? "A impressora relatou um erro ao imprimir.");
-        }
-        return;
-      }
-    }
-    idsEmImpressaoRef.current.delete(produtoId);
-    if (aindaAtivo()) {
-      setEstadoImpressao("erro");
-      setErroImpressao(
-        "Não foi possível confirmar a impressão em 15s — verifique se o computador da impressora (SERVIDOR) está ligado.",
-      );
-    }
-  }, []);
-
-  function abrirEtiqueta(produto: ProdutoEvento) {
-    etiquetaAtivaIdRef.current = produto.id;
-    setEtiquetaAtiva(produto);
-    setEstadoImpressao("idle");
-    setErroImpressao(null);
-  }
-
-  function fecharEtiqueta() {
-    etiquetaAtivaIdRef.current = null;
-    setEtiquetaAtiva(null);
-  }
-
   return (
     <div>
       {etiquetaAtiva && (
@@ -199,34 +111,15 @@ export function EstoqueEvento({
             <p className="mb-2 text-xs text-text-soft">#{etiquetaAtiva.codigo_interno}</p>
             <svg ref={barcodeRef} className="w-full" />
           </div>
-
-          {estadoImpressao === "impresso" && <p className="text-sm font-semibold text-ok">✓ Etiqueta impressa</p>}
-          {erroImpressao && <p className="max-w-xs text-center text-sm font-medium text-crit">{erroImpressao}</p>}
-
-          <div className="flex flex-wrap justify-center gap-3 print:hidden">
+          <div className="flex gap-3 print:hidden">
             <button
-              onClick={() => imprimir(etiquetaAtiva)}
-              disabled={estadoImpressao === "imprimindo"}
-              className="rounded-full bg-gradient-to-br from-gold-start to-gold-end px-5 py-2.5 text-sm font-semibold text-gold-ink disabled:opacity-60"
+              onClick={() => window.print()}
+              className="rounded-full bg-gradient-to-br from-gold-start to-gold-end px-5 py-2.5 text-sm font-semibold text-gold-ink"
             >
-              {estadoImpressao === "imprimindo"
-                ? "Imprimindo…"
-                : estadoImpressao === "impresso"
-                  ? "Imprimir de novo"
-                  : erroImpressao
-                    ? "Tentar novamente"
-                    : "Imprimir etiqueta"}
+              Imprimir etiqueta
             </button>
-            {erroImpressao && (
-              <button
-                onClick={() => window.print()}
-                className="rounded-full border border-line px-4 py-2.5 text-sm font-semibold text-ink"
-              >
-                Imprimir por aqui mesmo
-              </button>
-            )}
             <button
-              onClick={fecharEtiqueta}
+              onClick={() => setEtiquetaAtiva(null)}
               className="rounded-full border border-line px-4 py-2.5 text-sm font-semibold text-text hover:bg-cream"
             >
               Fechar
@@ -327,7 +220,7 @@ export function EstoqueEvento({
                       </td>
                       <td className="px-5 py-2.5 text-right">
                         <button
-                          onClick={() => abrirEtiqueta(p)}
+                          onClick={() => setEtiquetaAtiva(p)}
                           className="rounded-full border border-rose px-3 py-1.5 text-xs font-semibold text-rose-deep"
                         >
                           🏷️ Etiqueta
