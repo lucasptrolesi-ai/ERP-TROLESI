@@ -601,6 +601,25 @@ function formatarPreco(preco) {
   return `R$${Number(preco).toFixed(2).replace(".", ",")}`;
 }
 
+// Nome de peça no cadastro pode ter 30+ caracteres ("ANEL PRATA 925 CAVALO
+// ZIRCONIA") — numa etiqueta de 44mm dividindo espaço com código de barras
+// e preço, isso nunca coube (foi o que causou o erro real do sharp em
+// produção, 2026-08-25: o texto sem corte gerava uma imagem mais larga do
+// que o espaço disponível, e o sharp recusa compor uma imagem maior que a
+// base). Corta com reticências — mantém sempre código de barras e preço
+// completos e corretos, só o nome (menos crítico) é que abrevia.
+const NOME_MAX_CARACTERES = 20;
+function truncarNome(nome) {
+  const limpo = String(nome ?? "").trim();
+  return limpo.length > NOME_MAX_CARACTERES ? `${limpo.slice(0, NOME_MAX_CARACTERES - 1)}…` : limpo;
+}
+
+// Nome/preço vêm de cadastro livre — escapa pra nunca quebrar o XML do SVG
+// se algum nome tiver &, <, > etc.
+function escaparXml(texto) {
+  return String(texto).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
 // Compõe código de barras (bwip-js) + nome + preço (SVG via sharp) numa
 // imagem só, na orientação normal de leitura (larga e baixa) — a rotação
 // pro sentido físico da etiqueta acontece depois, na hora de montar o PDF
@@ -622,18 +641,26 @@ async function montarImagemEtiqueta(codigoInterno, nome, preco) {
     .toBuffer();
   const metaBarcode = await sharp(barcodeRedimensionado).metadata();
 
-  const larguraTexto = larguraPx - metaBarcode.width - 16;
+  const larguraTexto = Math.max(1, larguraPx - metaBarcode.width - 16);
   const textoSvg = `
     <svg width="${larguraTexto}" height="${alturaPx}" xmlns="http://www.w3.org/2000/svg">
-      <text x="0" y="${Math.round(alturaPx * 0.62)}" font-family="Courier New, monospace" font-weight="bold" font-size="${Math.round(alturaPx * 0.42)}">${nome}</text>
-      <text x="0" y="${alturaPx - 4}" font-family="Courier New, monospace" font-weight="bold" font-size="${Math.round(alturaPx * 0.26)}">${formatarPreco(preco)}</text>
+      <text x="0" y="${Math.round(alturaPx * 0.62)}" font-family="Courier New, monospace" font-weight="bold" font-size="${Math.round(alturaPx * 0.42)}">${escaparXml(truncarNome(nome))}</text>
+      <text x="0" y="${alturaPx - 4}" font-family="Courier New, monospace" font-weight="bold" font-size="${Math.round(alturaPx * 0.26)}">${escaparXml(formatarPreco(preco))}</text>
     </svg>`;
-  const textoPng = await sharp(Buffer.from(textoSvg)).png().toBuffer();
+  // Resize defensivo pós-SVG: texto que ainda assim ultrapassar a largura
+  // declarada (glifo mais largo que o estimado) é encolhido pra caber, em
+  // vez de deixar o composite() abaixo derrubar a impressão inteira com
+  // "Image to composite must have same dimensions or smaller".
+  const textoPng = await sharp(Buffer.from(textoSvg))
+    .resize({ width: larguraTexto, height: alturaPx, fit: "inside" })
+    .png()
+    .toBuffer();
+  const metaTexto = await sharp(textoPng).metadata();
 
   return sharp({ create: { width: larguraPx, height: alturaPx, channels: 3, background: "white" } })
     .composite([
       { input: barcodeRedimensionado, left: 4, top: Math.round((alturaPx - metaBarcode.height) / 2) },
-      { input: textoPng, left: metaBarcode.width + 12, top: 0 },
+      { input: textoPng, left: Math.min(metaBarcode.width + 12, larguraPx - metaTexto.width), top: 0 },
     ])
     .rotate(90)
     .png()
