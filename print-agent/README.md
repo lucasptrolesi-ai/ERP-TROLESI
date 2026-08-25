@@ -64,6 +64,36 @@ Só existe UM agente rodando (nesta máquina, onde a impressora está
 fisicamente ligada) — não precisa (nem deve) rodar em cada computador da
 loja.
 
+## Etiqueta — código de barras + nome + preço (2026-08-25)
+
+O PDV Eventos também manda pedidos de etiqueta pra este mesmo agente
+(fila `solicitacoes_etiqueta`, mesmo padrão de polling do cupom). A
+etiqueta combina código de barras + nome da peça + preço numa peça só,
+impressa na Argox OS-214TT ligada nesta máquina.
+
+**Por que passa pelo driver Windows (Seagull) em vez de comando cru:**
+tentativa de montar o comando PPLA/EPL2 na mão (sem passar pelo driver)
+não se mostrou confiável — nem no Mac (múltiplas tentativas, sempre com
+algum problema: campos que vazam pra etiqueta vizinha, imagem que
+trunca/sai em branco) nem historicamente aqui. O driver oficial já sabe
+compor tudo certo; este agente só monta um PDF do tamanho exato da
+etiqueta e manda pra impressora pelo nome, deixando o driver cuidar do
+resto.
+
+**Instalação específica da etiqueta:**
+1. `npm install` nesta pasta (`bwip-js`, `sharp`, `pdfkit`,
+   `pdf-to-printer` — se não instalar, a etiqueta fica desativada
+   sozinha e o cupom continua funcionando normal, ver aviso no console).
+2. Confirmar que o driver oficial da Argox (Seagull) está instalado e a
+   impressora aparece em Dispositivos e Impressoras do Windows.
+3. Anotar o **nome exato** da impressora ali e ajustar
+   `IMPRESSORA_ETIQUETA` no `.env` se for diferente de
+   `Argox OS-214TT PPLA`.
+4. Confirmar no driver (Preferências de impressão → Papel/Etiqueta) que
+   o tamanho configurado bate com `ETIQUETA_LARGURA_MM`/`ETIQUETA_ALTURA_MM`
+   em `agent.js` (44×7mm, medido com régua em 2026-08-25 — se trocar o
+   rolo de etiqueta, meça de novo e ajuste os dois lugares).
+
 ## Instalação
 
 1. Copiar a pasta `print-agent/` (se ainda não estiver aqui).

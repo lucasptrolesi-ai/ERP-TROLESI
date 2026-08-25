@@ -1,0 +1,16 @@
+{
+  "name": "trolesi-print-agent",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Print-agent local do ERP Trolesi (cupom térmico + etiqueta de código de barras + nome + preço). Ver README.md.",
+  "main": "agent.js",
+  "scripts": {
+    "start": "node agent.js"
+  },
+  "dependencies": {
+    "bwip-js": "^4.11.2",
+    "sharp": "^0.34.4",
+    "pdfkit": "^0.19.1",
+    "pdf-to-printer": "^5.8.0"
+  }
+}
