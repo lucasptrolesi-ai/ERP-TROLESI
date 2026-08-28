@@ -171,3 +171,16 @@ export async function registrarVendaEvento(
   revalidatePath("/pdv-eventos");
   return { venda };
 }
+
+/** Extorna uma venda do evento — devolve a quantidade de cada item pro
+ * estoque do evento e marca como 'cancelado' (para de aparecer no Resumo,
+ * que só lista 'faturado'). Toda a lógica/trava de concorrência vive em
+ * extornar_venda_evento (migration 20260828000001, SECURITY DEFINER). */
+export async function extornarVendaEvento(vendaId: string): Promise<{ erro?: string }> {
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("extornar_venda_evento", { p_venda_id: vendaId });
+  if (error) return { erro: error.message };
+
+  revalidatePath("/pdv-eventos");
+  return {};
+}

@@ -1,10 +1,12 @@
 "use client";
 
+import { useRef, useState, useTransition } from "react";
 import { useMemo } from "react";
 import { KpiCard } from "@/components/kpi-card";
 import { formatarMoeda } from "@/lib/formatar-moeda";
 import { formatarDataHoraIso } from "@/lib/datas";
 import { FORMA_LABEL_EVENTO, FORMAS_PAGAMENTO_EVENTO } from "@/lib/forma-pagamento-evento";
+import { extornarVendaEvento } from "@/lib/actions/pdv-eventos";
 import { PainelMetas } from "./painel-metas";
 import type { ProdutoEvento, VendaEvento } from "@/lib/types";
 
@@ -15,6 +17,34 @@ export function ResumoEvento({
   vendasEvento: VendaEvento[];
   produtosEvento: ProdutoEvento[];
 }) {
+  const [erroExtorno, setErroExtorno] = useState<string | null>(null);
+  const [, iniciarExtorno] = useTransition();
+  // Trava síncrona contra duplo-clique, mesmo padrão já usado em
+  // estoque-evento.tsx pra impressão de etiqueta — o `disabled` só reflete
+  // o estado depois de um re-render.
+  const idsEmExtornoRef = useRef<Set<string>>(new Set());
+  const [pendentes, setPendentes] = useState<Set<string>>(new Set());
+
+  function handleExtornar(venda: VendaEvento) {
+    if (idsEmExtornoRef.current.has(venda.id)) return;
+    if (!confirm(`Extornar a venda #${venda.numero}? As peças voltam pro estoque do evento — não pode ser desfeito.`)) {
+      return;
+    }
+    idsEmExtornoRef.current.add(venda.id);
+    setPendentes((atual) => new Set(atual).add(venda.id));
+    setErroExtorno(null);
+    iniciarExtorno(async () => {
+      const resultado = await extornarVendaEvento(venda.id);
+      idsEmExtornoRef.current.delete(venda.id);
+      setPendentes((atual) => {
+        const novo = new Set(atual);
+        novo.delete(venda.id);
+        return novo;
+      });
+      if (resultado.erro) setErroExtorno(resultado.erro);
+    });
+  }
+
   const resumo = useMemo(() => {
     const totalVendido = vendasEvento.reduce((s, v) => s + v.total, 0);
     const pecasVendidas = vendasEvento.reduce(
@@ -109,6 +139,11 @@ export function ResumoEvento({
 
       <div className="rounded-xl border border-line bg-surface p-4">
         <h2 className="font-display text-base font-semibold text-ink">Vendas realizadas</h2>
+        {erroExtorno && (
+          <p role="alert" className="mt-2 rounded-lg bg-crit-bg px-3 py-2 text-sm font-medium text-crit">
+            {erroExtorno}
+          </p>
+        )}
         <div className="mt-3 flex flex-col gap-2">
           {vendasEvento.map((v) => (
             <div key={v.id} className="flex flex-col gap-1 rounded-lg border border-line p-3 sm:flex-row sm:items-start sm:justify-between">
@@ -122,9 +157,18 @@ export function ResumoEvento({
                   {v.vendas_evento_itens.map((i) => `${i.quantidade}x ${i.nome}`).join(", ")}
                 </p>
               </div>
-              <div className="shrink-0 text-left sm:text-right">
-                <p className="text-xs text-text-soft">{FORMA_LABEL_EVENTO[v.forma_pagamento]}</p>
-                <p className="text-sm font-bold tabular-nums text-ink">{formatarMoeda(v.total)}</p>
+              <div className="flex shrink-0 items-center gap-3">
+                <div className="text-left sm:text-right">
+                  <p className="text-xs text-text-soft">{FORMA_LABEL_EVENTO[v.forma_pagamento]}</p>
+                  <p className="text-sm font-bold tabular-nums text-ink">{formatarMoeda(v.total)}</p>
+                </div>
+                <button
+                  onClick={() => handleExtornar(v)}
+                  disabled={pendentes.has(v.id)}
+                  className="shrink-0 rounded-full border border-line px-3 py-1.5 text-xs font-semibold text-crit disabled:opacity-60"
+                >
+                  {pendentes.has(v.id) ? "Extornando…" : "Extornar"}
+                </button>
               </div>
             </div>
           ))}
