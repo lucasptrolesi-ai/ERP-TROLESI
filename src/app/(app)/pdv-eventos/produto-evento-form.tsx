@@ -14,11 +14,16 @@ export function ProdutoEventoForm({
   onFechar,
   produtoEvento,
   codigosExistentes,
+  codigoInicial,
 }: {
   aberto: boolean;
   onFechar: () => void;
   produtoEvento: ProdutoEvento | null;
   codigosExistentes: string[];
+  // Preenche o campo Código numa peça NOVA (produtoEvento null) — usado
+  // pelo fluxo "ler código pra cadastrar" (leitor USB/câmera): o código já
+  // bipado vem pronto, só falta completar nome/preço/foto.
+  codigoInicial?: string;
 }) {
   const [state, formAction, pending] = useActionState(salvarProdutoEvento, undefined);
   const [erroExcluir, setErroExcluir] = useState<string | null>(null);
@@ -46,7 +51,7 @@ export function ProdutoEventoForm({
 
         <CampoFotoProduto fotoAtual={produtoEvento?.foto_url} />
         <CampoCodigoProduto
-          defaultValue={produtoEvento?.codigo_interno}
+          defaultValue={produtoEvento?.codigo_interno ?? codigoInicial}
           codigosExistentes={codigosExistentes}
           dica="Deixe em branco pra numerar automaticamente."
         />

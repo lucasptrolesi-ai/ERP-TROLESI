@@ -17,12 +17,17 @@ export function ProdutoForm({
   produto,
   categoriasExistentes,
   codigosExistentes,
+  codigoInicial,
 }: {
   aberto: boolean;
   onFechar: () => void;
   produto: Produto | null;
   categoriasExistentes: string[];
   codigosExistentes: string[];
+  // Preenche o campo Código num produto NOVO (produto null) — usado pelo
+  // fluxo "ler código pra cadastrar" (leitor USB/câmera): o código já
+  // bipado vem pronto, só falta completar o resto do cadastro.
+  codigoInicial?: string;
 }) {
   const [state, formAction, pending] = useActionState(salvarProduto, undefined);
   const [erroExcluir, setErroExcluir] = useState<string | null>(null);
@@ -52,7 +57,7 @@ export function ProdutoForm({
 
         <CampoFotoProduto fotoAtual={produto?.foto_url} />
         <CampoCodigoProduto
-          defaultValue={produto?.codigo_interno}
+          defaultValue={produto?.codigo_interno ?? codigoInicial}
           codigosExistentes={codigosExistentes}
           dica="Deixe em branco pra numerar automaticamente (1, 2, 3...)."
         />

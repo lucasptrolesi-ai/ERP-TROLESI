@@ -6,6 +6,7 @@ import { formatarMoeda } from "@/lib/formatar-moeda";
 import { filtra } from "@/lib/filtra";
 import { exportarEtiquetasExcel } from "@/lib/actions/etiquetas-excel";
 import { FotoComZoom } from "@/components/foto-com-zoom";
+import { LeitorCodigoModal } from "@/components/leitor-codigo-modal";
 import { ProdutoEventoForm } from "./produto-evento-form";
 import { ImportarProdutoModal } from "./importar-produto-modal";
 import type { ProdutoEvento, ProdutoParaImportar } from "@/lib/types";
@@ -44,6 +45,8 @@ export function EstoqueEvento({
   const [editando, setEditando] = useState<ProdutoEvento | null | undefined>(undefined);
   const [etiquetaAtiva, setEtiquetaAtiva] = useState<ProdutoEvento | null>(null);
   const [importando, setImportando] = useState(false);
+  const [lendoCodigo, setLendoCodigo] = useState(false);
+  const [codigoParaNovaPeca, setCodigoParaNovaPeca] = useState<string | undefined>(undefined);
   const [erroExportacao, setErroExportacao] = useState<string | null>(null);
   const [exportando, iniciarExportacao] = useTransition();
   const [busca, setBusca] = useState("");
@@ -55,6 +58,22 @@ export function EstoqueEvento({
     () => filtra(produtosEvento, busca, (p) => p.codigo_interno),
     [produtosEvento, busca],
   );
+
+  // Peça já usa esse código, cadastrada pelo Niimbot antes de existir no
+  // sistema (fluxo "ler código pra cadastrar", 2026-08-25): bipar o código
+  // já impresso abre a peça existente pra edição, ou o cadastro novo já
+  // com o código preenchido, se ainda não existir.
+  function handleCodigoLido(codigo: string) {
+    setLendoCodigo(false);
+    const encontrado = produtosEvento.find((p) => p.codigo_interno.trim().toLowerCase() === codigo.trim().toLowerCase());
+    if (encontrado) {
+      setCodigoParaNovaPeca(undefined);
+      setEditando(encontrado);
+    } else {
+      setCodigoParaNovaPeca(codigo.trim().toUpperCase());
+      setEditando(null);
+    }
+  }
 
   // Seções por prefixo do código (PA, BL, BLF...), ordem alfabética; dentro
   // de cada seção, ordem natural do código (PA2 antes de PA10).
@@ -152,7 +171,17 @@ export function EstoqueEvento({
               📥<span className="hidden sm:inline"> Importar do Estoque</span>
             </button>
             <button
-              onClick={() => setEditando(null)}
+              onClick={() => setLendoCodigo(true)}
+              title="Ler código pra cadastrar"
+              className="rounded-full border border-rose px-3 py-2 text-sm font-semibold text-rose-deep"
+            >
+              🔫<span className="hidden sm:inline"> Ler código</span>
+            </button>
+            <button
+              onClick={() => {
+                setCodigoParaNovaPeca(undefined);
+                setEditando(null);
+              }}
               title="Nova peça"
               className="rounded-full bg-gradient-to-br from-gold-start to-gold-end px-3 py-2 text-sm font-semibold text-gold-ink"
             >
@@ -242,14 +271,26 @@ export function EstoqueEvento({
 
       {editando !== undefined && (
         <ProdutoEventoForm
+          key={editando?.id ?? codigoParaNovaPeca ?? "novo"}
           aberto
-          onFechar={() => setEditando(undefined)}
+          onFechar={() => {
+            setEditando(undefined);
+            setCodigoParaNovaPeca(undefined);
+          }}
           produtoEvento={editando}
           codigosExistentes={produtosEvento.map((p) => p.codigo_interno)}
+          codigoInicial={codigoParaNovaPeca}
         />
       )}
 
       <ImportarProdutoModal aberto={importando} onFechar={() => setImportando(false)} produtosReais={produtosReais} />
+
+      <LeitorCodigoModal
+        aberto={lendoCodigo}
+        onFechar={() => setLendoCodigo(false)}
+        onCodigo={handleCodigoLido}
+        titulo="Ler código pra cadastrar"
+      />
     </div>
   );
 }

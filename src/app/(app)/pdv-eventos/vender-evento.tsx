@@ -6,7 +6,7 @@ import { parseMoeda } from "@/lib/parse-moeda";
 import { registrarVendaEvento } from "@/lib/actions/pdv-eventos";
 import { FORMA_LABEL_EVENTO, FORMAS_PAGAMENTO_EVENTO } from "@/lib/forma-pagamento-evento";
 import { CupomEventoView } from "./cupom-evento-view";
-import { LeitorCameraModal } from "./leitor-camera-modal";
+import { LeitorCameraModal } from "@/components/leitor-camera-modal";
 import { FotoComZoom } from "@/components/foto-com-zoom";
 import type { VendaEventoParaCupom } from "@/lib/cupom-linhas-evento";
 import type { FormaPagamentoEvento, ItemCarrinhoEvento, ProdutoEvento } from "@/lib/types";

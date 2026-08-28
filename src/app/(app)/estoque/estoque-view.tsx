@@ -4,6 +4,7 @@ import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { ProdutoForm } from "@/components/produto-form";
 import { CotacaoDoDia } from "@/components/cotacao-do-dia";
+import { LeitorCodigoModal } from "@/components/leitor-codigo-modal";
 import { DevolucaoModal } from "./devolucao-modal";
 import { filtra } from "@/lib/filtra";
 import { formatarMoeda } from "@/lib/formatar-moeda";
@@ -47,6 +48,8 @@ export function EstoqueView({
 }) {
   const [busca, setBusca] = useState("");
   const [devolucaoAberta, setDevolucaoAberta] = useState(false);
+  const [lendoCodigo, setLendoCodigo] = useState(false);
+  const [codigoParaNovoProduto, setCodigoParaNovoProduto] = useState<string | undefined>(undefined);
   const [categoriaAtiva, setCategoriaAtiva] = useState<string | null>(null);
   const [colecaoAtiva, setColecaoAtiva] = useState<string | null>(null);
   // Suporte ao link "Atualizar estoque" do Vision AI (?editar=<id>): abre já
@@ -99,6 +102,24 @@ export function EstoqueView({
         `${p.categoria} ${p.subcategoria ?? ""} ${p.subsubcategoria ?? ""} ${p.codigo_interno ?? ""} ${p.colecao ?? ""}`,
     );
   }, [produtos, categoriaAtiva, colecaoAtiva, busca]);
+
+  // Peça já cadastrada pelo Niimbot antes de existir no sistema (fluxo "ler
+  // código pra cadastrar", 2026-08-25): bipar o código já impresso abre o
+  // produto existente pra edição, ou o cadastro novo já com o código
+  // preenchido, se ainda não existir.
+  function handleCodigoLido(codigo: string) {
+    setLendoCodigo(false);
+    const encontrado = produtos.find(
+      (p) => (p.codigo_interno ?? "").trim().toLowerCase() === codigo.trim().toLowerCase(),
+    );
+    if (encontrado) {
+      setCodigoParaNovoProduto(undefined);
+      setProdutoEditando(encontrado);
+    } else {
+      setCodigoParaNovoProduto(codigo.trim().toUpperCase());
+      setProdutoEditando(null);
+    }
+  }
 
   function handleExportarExcel() {
     setErroExportacao(null);
@@ -154,7 +175,17 @@ export function EstoqueView({
                 🔄<span className="hidden sm:inline"> Devolução{produtosEventoVinculados.length > 0 ? ` (${produtosEventoVinculados.length})` : ""}</span>
               </button>
               <button
-                onClick={() => setProdutoEditando(null)}
+                onClick={() => setLendoCodigo(true)}
+                title="Ler código pra cadastrar"
+                className="shrink-0 rounded-full border border-rose px-3 py-2 text-sm font-semibold text-rose-deep"
+              >
+                🔫<span className="hidden sm:inline"> Ler código</span>
+              </button>
+              <button
+                onClick={() => {
+                  setCodigoParaNovoProduto(undefined);
+                  setProdutoEditando(null);
+                }}
                 title="Novo produto"
                 className="shrink-0 rounded-full bg-gradient-to-br from-gold-start to-gold-end px-3 py-2 text-sm font-semibold text-gold-ink"
               >
@@ -267,12 +298,16 @@ export function EstoqueView({
 
       {produtoEditando !== undefined && (
         <ProdutoForm
-          key={produtoEditando?.id ?? "novo-produto"}
+          key={produtoEditando?.id ?? codigoParaNovoProduto ?? "novo-produto"}
           aberto
-          onFechar={() => setProdutoEditando(undefined)}
+          onFechar={() => {
+            setProdutoEditando(undefined);
+            setCodigoParaNovoProduto(undefined);
+          }}
           produto={produtoEditando}
           categoriasExistentes={categorias}
           codigosExistentes={produtos.map((p) => p.codigo_interno).filter((c): c is string => c !== null)}
+          codigoInicial={codigoParaNovoProduto}
         />
       )}
 
@@ -280,6 +315,13 @@ export function EstoqueView({
         aberto={devolucaoAberta}
         onFechar={() => setDevolucaoAberta(false)}
         produtosEventoVinculados={produtosEventoVinculados}
+      />
+
+      <LeitorCodigoModal
+        aberto={lendoCodigo}
+        onFechar={() => setLendoCodigo(false)}
+        onCodigo={handleCodigoLido}
+        titulo="Ler código pra cadastrar"
       />
     </div>
   );
