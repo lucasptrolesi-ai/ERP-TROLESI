@@ -35,6 +35,35 @@ const { URL } = require("url");
 
 carregarEnvLocal();
 
+// Cupom térmico entrega os bytes ESC/POS de dois jeitos possíveis,
+// dependendo de onde a Elgin i8 está fisicamente ligada (2026-08-31):
+// "rede" (padrão, histórico) — máquina Windows com a impressora
+// compartilhada, `copy /b` direto pro spooler. "usb" — impressora ligada
+// direto nesta máquina (testado no Mac): escreve o buffer direto na porta
+// USB via libusb, sem passar por spooler/driver nenhum. Só carrega o
+// pacote `usb` se o modo pedido for "usb", pra manter o modo "rede" (o
+// mais comum) sem nenhuma dependência de npm, como sempre foi.
+const MODO_IMPRESSAO_CUPOM = (process.env.MODO_IMPRESSAO_CUPOM || "rede").toLowerCase();
+let usbLib;
+if (MODO_IMPRESSAO_CUPOM === "usb") {
+  try {
+    usbLib = require("usb");
+  } catch (erro) {
+    console.error(
+      `MODO_IMPRESSAO_CUPOM=usb exige o pacote 'usb' — rode 'npm install' na pasta print-agent. Detalhe: ${erro.message}`,
+    );
+    process.exit(1);
+  }
+}
+const CUPOM_VENDOR_ID = Number(process.env.IMPRESSORA_CUPOM_VENDOR_ID);
+const CUPOM_PRODUCT_ID = Number(process.env.IMPRESSORA_CUPOM_PRODUCT_ID);
+if (MODO_IMPRESSAO_CUPOM === "usb" && (!CUPOM_VENDOR_ID || !CUPOM_PRODUCT_ID)) {
+  console.error(
+    "MODO_IMPRESSAO_CUPOM=usb exige IMPRESSORA_CUPOM_VENDOR_ID e IMPRESSORA_CUPOM_PRODUCT_ID no .env (ver README.md).",
+  );
+  process.exit(1);
+}
+
 const COMPARTILHAMENTO_IMPRESSORA = process.env.IMPRESSORA_COMPARTILHAMENTO || "ELGIN i8";
 const MAQUINA = os.hostname();
 const COLUNAS = 48; // confirmado na prática pra Elgin i8 58mm (48mm úteis)
@@ -337,6 +366,13 @@ function construirPdf(linhasEstruturadas) {
 }
 
 function enviarParaImpressora(buffer) {
+  return MODO_IMPRESSAO_CUPOM === "usb" ? enviarParaImpressoraUsb(buffer) : enviarParaImpressoraRede(buffer);
+}
+
+// Modo "rede" (padrão, Windows) — copia em modo binário direto pro
+// compartilhamento da impressora, entregando os bytes crus (RAW) pro
+// spooler sem reprocessar.
+function enviarParaImpressoraRede(buffer) {
   return new Promise((resolve, reject) => {
     const arquivoTemp = path.join(os.tmpdir(), `cupom_erp_trolesi_${Date.now()}.prn`);
     fs.writeFile(arquivoTemp, buffer, (erroEscrita) => {
@@ -347,6 +383,46 @@ function enviarParaImpressora(buffer) {
         if (erroExec) return reject(erroExec);
         resolve();
       });
+    });
+  });
+}
+
+// Modo "usb" (Mac ou qualquer máquina com a impressora ligada direto nela)
+// — escreve o buffer ESC/POS direto no endpoint USB, sem CUPS/driver no
+// meio (testado fisicamente em 2026-08-31 — ver DECISIONS.md). Abre,
+// reivindica a interface, escreve, libera e fecha a cada cupom — não
+// mantém o dispositivo aberto entre impressões, pra nunca travar o acesso
+// se outra coisa (ex: um teste manual) precisar da porta no meio do caminho.
+function enviarParaImpressoraUsb(buffer) {
+  return new Promise((resolve, reject) => {
+    const device = usbLib.findByIds(CUPOM_VENDOR_ID, CUPOM_PRODUCT_ID);
+    if (!device) return reject(new Error("Impressora USB não encontrada — verifique se está conectada."));
+
+    try {
+      device.open();
+    } catch (erro) {
+      return reject(erro);
+    }
+
+    const iface = device.interfaces[0];
+    try {
+      iface.claim();
+    } catch (erro) {
+      device.close();
+      return reject(erro);
+    }
+
+    const epOut = iface.endpoints.find((e) => e.direction === "out");
+    if (!epOut) {
+      iface.release(true, () => device.close());
+      return reject(new Error("Endpoint de saída não encontrado na impressora USB."));
+    }
+    epOut.timeout = 8000;
+
+    epOut.transfer(buffer, (erro) => {
+      iface.release(true, () => device.close());
+      if (erro) return reject(erro);
+      resolve();
     });
   });
 }
@@ -550,7 +626,11 @@ async function loopPrincipal() {
   setTimeout(loopPrincipal, INTERVALO_POLLING_MS);
 }
 
+const descricaoImpressora =
+  MODO_IMPRESSAO_CUPOM === "usb"
+    ? `USB direto, vendor=0x${CUPOM_VENDOR_ID.toString(16)} product=0x${CUPOM_PRODUCT_ID.toString(16)}`
+    : `\\\\${MAQUINA}\\${COMPARTILHAMENTO_IMPRESSORA}`;
 console.log(
-  `Print-agent Trolesi ERP rodando — checando solicitações a cada ${INTERVALO_POLLING_MS}ms (impressora: \\\\${MAQUINA}\\${COMPARTILHAMENTO_IMPRESSORA})`,
+  `Print-agent Trolesi ERP rodando — checando solicitações a cada ${INTERVALO_POLLING_MS}ms (impressora: ${descricaoImpressora})`,
 );
 loopPrincipal();

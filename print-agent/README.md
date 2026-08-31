@@ -27,10 +27,16 @@ em vez disso:
 1. O ERP (rodando em qualquer navegador) grava o conteúdo do cupom numa
    tabela do Supabase (`solicitacoes_impressao`, status `pendente`).
 2. Este agente fica checando essa tabela a cada ~2s (`INTERVALO_POLLING_MS`).
-3. Ao achar uma pendente, monta os comandos ESC/POS e copia (`copy /b`) pro
-   compartilhamento de rede da impressora já configurado no Windows
-   (`\\SERVIDOR\ELGIN i8`), depois marca a linha como `impresso` (ou `erro`,
-   com a mensagem, se algo falhar).
+3. Ao achar uma pendente, monta os comandos ESC/POS e entrega pra impressora
+   de um dos dois jeitos, conforme `MODO_IMPRESSAO_CUPOM` (2026-08-31):
+   - `rede` (padrão, Windows/SERVIDOR): copia (`copy /b`) pro compartilhamento
+     de rede já configurado (`\\SERVIDOR\ELGIN i8`).
+   - `usb` (impressora ligada direto nesta máquina, testado no Mac): escreve
+     o buffer direto na porta USB via `usb` (libusb), sem CUPS/driver no
+     meio — mesmo espírito do modo rede (bytes crus, sem rasterização).
+
+   Depois marca a linha como `impresso` (ou `erro`, com a mensagem, se algo
+   falhar).
 4. O navegador que pediu a impressão fica de olho nessa mesma linha
    (polling também, do lado do app) e segue o fluxo (pergunta via cliente,
    etc.) assim que vê `impresso`. Se não confirmar em ~15s, mostra um aviso
@@ -64,7 +70,7 @@ Só existe UM agente rodando (nesta máquina, onde a impressora está
 fisicamente ligada) — não precisa (nem deve) rodar em cada computador da
 loja.
 
-## Instalação
+## Instalação (Windows, modo `rede`)
 
 1. Copiar a pasta `print-agent/` (se ainda não estiver aqui).
 2. `cp .env.example .env` e preencher com os valores reais (mesmos do
@@ -83,6 +89,29 @@ loja.
    `iniciar_agente_oculto.vbs`, que roda o `iniciar_agente.bat` sem abrir
    janela de terminal.
 
+## Instalação (Mac, modo `usb` — testado 2026-08-31)
+
+1. Copiar a pasta `print-agent/` (se ainda não estiver aqui) e rodar
+   `npm install` (única dependência: `usb`, tem binário pré-compilado,
+   não precisa de nada instalado no sistema).
+2. `cp .env.example .env`, preencher `NEXT_PUBLIC_SUPABASE_URL` e
+   `SUPABASE_SERVICE_ROLE_KEY` (mesmo de cima) e definir
+   `MODO_IMPRESSAO_CUPOM=usb`.
+3. Com a impressora conectada via USB, descobrir o vendor/product ID:
+   `ioreg -p IOUSB -l -w 0 | grep -A2 idVendor` (procurar pelo nome da
+   impressora perto do resultado). Preencher `IMPRESSORA_CUPOM_VENDOR_ID`
+   e `IMPRESSORA_CUPOM_PRODUCT_ID` no `.env` (aceita decimal ou hex
+   `0x...`). Elgin i8 testada: vendor `0x1fc9`, product `0x2016`.
+4. Testar manualmente: `node agent.js` — deve logar "impressora: USB
+   direto, vendor=... product=...".
+5. Rodar sozinho no login: criar
+   `~/Library/LaunchAgents/com.trolesi.print-agent.plist` apontando pro
+   node (caminho completo — launchd não usa o PATH do shell/nvm) e pro
+   `agent.js`, com `RunAtLoad`/`KeepAlive` true, saída redirecionada pra
+   `print-agent/agente.log` (gitignored). Carregar com
+   `launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.trolesi.print-agent.plist`.
+   Pra parar/desabilitar: `launchctl bootout gui/$(id -u)/com.trolesi.print-agent`.
+
 ## Limitações conhecidas
 
 - **Sem acento**: os caracteres acentuados (ç, ã, é...) saem sem acento de
@@ -97,9 +126,13 @@ loja.
   Não é instantâneo como seria um fetch direto, mas funciona de qualquer
   aparelho da loja.
 - Só um agente deve rodar por vez (senão duas máquinas tentariam imprimir a
-  mesma solicitação). Se a loja crescer pra ter impressora em mais de um
-  caixa, a fila precisaria de uma coluna extra (ex: `impressora_id`) pra
-  cada agente só pegar as solicitações da sua própria impressora — não
+  mesma solicitação). Com a Elgin i8 movida pro Mac (2026-08-31, modo
+  `usb`), o agente do SERVIDOR (Windows, modo `rede`) não deve continuar
+  rodando ao mesmo tempo — se um dia ela voltar pro SERVIDOR, desativa o
+  LaunchAgent do Mac (`launchctl bootout ...`) antes de religar o do
+  Windows. Se a loja crescer pra ter impressora em mais de um caixa, a
+  fila precisaria de uma coluna extra (ex: `impressora_id`) pra cada
+  agente só pegar as solicitações da sua própria impressora — não
   implementado ainda, não é o caso de uso atual.
 - **Comprovante em PDF não sai automaticamente pro WhatsApp** — fica só
   salvo na pasta (`PASTA_COMPROVANTES`, default `Comprovante` na área de

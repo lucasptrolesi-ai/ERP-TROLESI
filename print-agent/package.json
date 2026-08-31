@@ -1,0 +1,13 @@
+{
+  "name": "trolesi-print-agent",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Print-agent local do ERP Trolesi (cupom térmico). Ver README.md.",
+  "main": "agent.js",
+  "scripts": {
+    "start": "node agent.js"
+  },
+  "dependencies": {
+    "usb": "^2.18.0"
+  }
+}
