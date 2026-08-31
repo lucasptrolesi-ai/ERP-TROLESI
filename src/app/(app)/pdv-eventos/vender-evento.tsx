@@ -3,6 +3,7 @@
 import { useMemo, useRef, useState, useTransition } from "react";
 import { formatarMoeda } from "@/lib/formatar-moeda";
 import { parseMoeda } from "@/lib/parse-moeda";
+import { filtra } from "@/lib/filtra";
 import { registrarVendaEvento } from "@/lib/actions/pdv-eventos";
 import { FORMA_LABEL_EVENTO, FORMAS_PAGAMENTO_EVENTO } from "@/lib/forma-pagamento-evento";
 import { CupomEventoView } from "./cupom-evento-view";
@@ -39,6 +40,26 @@ export function VenderEvento({ produtosEvento }: { produtosEvento: ProdutoEvento
     }
     return mapa;
   }, [produtosEvento]);
+
+  // Busca por nome/descrição além do código — nem sempre o leitor está à
+  // mão, ou a peça não tem código de barras físico (pedido do usuário,
+  // 2026-08-31). Mesmo helper de busca já usado no resto do sistema; só
+  // aparece com pelo menos 2 caracteres pra não listar tudo à toa, e não
+  // atrapalha o bipe do leitor USB (que dispara pelo Enter, independente
+  // da lista estar aberta ou não).
+  const sugestoes = useMemo(() => {
+    const termo = buscaCodigo.trim();
+    if (termo.length < 2) return [];
+    const ativos = produtosEvento.filter((p) => p.ativo);
+    return filtra(ativos, termo, (p) => p.codigo_interno).slice(0, 8);
+  }, [produtosEvento, buscaCodigo]);
+
+  function selecionarSugestao(produto: ProdutoEvento) {
+    adicionarAoCarrinho(produto);
+    setBuscaCodigo("");
+    setCodigoNaoEncontrado(false);
+    inputRef.current?.focus();
+  }
 
   const subtotal = carrinho.reduce((soma, i) => soma + i.quantidade * i.preco_unitario, 0);
   const descontoNum = Math.max(0, parseMoeda(valorDesconto));
@@ -162,29 +183,59 @@ export function VenderEvento({ produtosEvento }: { produtosEvento: ProdutoEvento
   return (
     <div className="grid grid-cols-1 gap-4 p-4 sm:p-5 lg:grid-cols-[1.15fr_0.85fr] lg:items-start">
       <div className="flex flex-col gap-3">
-        <div className="flex items-center gap-2 rounded-xl border border-rose-deep bg-cream px-4 py-3">
-          <span className="text-xl" aria-hidden>
-            📷
-          </span>
-          <input
-            ref={inputRef}
-            autoFocus
-            value={buscaCodigo}
-            onChange={(e) => {
-              setBuscaCodigo(e.target.value);
-              setCodigoNaoEncontrado(false);
-            }}
-            onKeyDown={handleKeyDownCodigo}
-            placeholder="Bipar código de barras ou digitar o código e apertar Enter"
-            className="flex-1 border-none bg-transparent text-base text-ink outline-none"
-          />
-          <button
-            type="button"
-            onClick={() => setLeitorCameraAberto(true)}
-            className="shrink-0 rounded-full bg-rose-soft px-3 py-1.5 text-xs font-semibold text-rose-deep"
-          >
-            📸 Câmera
-          </button>
+        <div className="relative">
+          <div className="flex items-center gap-2 rounded-xl border border-rose-deep bg-cream px-4 py-3">
+            <span className="text-xl" aria-hidden>
+              📷
+            </span>
+            <input
+              ref={inputRef}
+              autoFocus
+              value={buscaCodigo}
+              onChange={(e) => {
+                setBuscaCodigo(e.target.value);
+                setCodigoNaoEncontrado(false);
+              }}
+              onKeyDown={handleKeyDownCodigo}
+              placeholder="Bipar código, ou digitar nome/código pra buscar"
+              autoComplete="off"
+              className="flex-1 border-none bg-transparent text-base text-ink outline-none"
+            />
+            <button
+              type="button"
+              onClick={() => setLeitorCameraAberto(true)}
+              className="shrink-0 rounded-full bg-rose-soft px-3 py-1.5 text-xs font-semibold text-rose-deep"
+            >
+              📸 Câmera
+            </button>
+          </div>
+
+          {sugestoes.length > 0 && (
+            <div className="absolute inset-x-0 top-full z-10 mt-1 flex max-h-72 flex-col divide-y divide-line overflow-y-auto rounded-xl border border-line bg-surface shadow-lg">
+              {sugestoes.map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => selecionarSugestao(p)}
+                  className="flex items-center gap-3 px-3 py-2.5 text-left hover:bg-cream"
+                >
+                  {p.foto_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element -- foto vem do Storage, sem otimização
+                    <img src={p.foto_url} alt="" className="h-10 w-10 shrink-0 rounded-lg object-cover" />
+                  ) : (
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-dashed border-line text-[0.55rem] text-text-soft">
+                      sem foto
+                    </span>
+                  )}
+                  <span className="flex min-w-0 flex-1 flex-col">
+                    <span className="truncate text-sm font-semibold text-ink">{p.nome}</span>
+                    <span className="text-xs text-text-soft">#{p.codigo_interno}</span>
+                  </span>
+                  <span className="shrink-0 text-sm font-semibold text-rose-deep">{formatarMoeda(p.preco)}</span>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
         {codigoNaoEncontrado && (
           <p className="text-xs font-semibold text-crit">Código não encontrado no estoque do evento.</p>
