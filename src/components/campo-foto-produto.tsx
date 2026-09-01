@@ -1,15 +1,25 @@
 "use client";
 
 import { useState } from "react";
+import { PareamentoCameraCelular } from "@/components/pareamento-camera-celular";
 
 // Compartilhado entre ProdutoForm (Estoque real) e ProdutoEventoForm (PDV
 // Eventos) — os dois sobem pro mesmo bucket produtos-fotos (Storage), só o
-// server action de cada um muda o caminho/tabela. Sem foto nova escolhida,
-// o server action mantém a foto atual (campo oculto carrega a URL existente
-// pra não se perder na submissão).
-export function CampoFotoProduto({ fotoAtual }: { fotoAtual: string | null | undefined }) {
-  const [preview, setPreview] = useState<string | null>(null);
-  const exibida = preview ?? fotoAtual;
+// server action de cada um muda o caminho/tabela. Sem foto nova escolhida
+// (arquivo local nem foto do celular), o server action mantém a foto atual
+// (campo oculto carrega a URL existente pra não se perder na submissão).
+export function CampoFotoProduto({
+  fotoAtual,
+  prefixoCelular,
+}: {
+  fotoAtual: string | null | undefined;
+  prefixoCelular: "manual" | "evento";
+}) {
+  const [previewLocal, setPreviewLocal] = useState<string | null>(null);
+  const [fotoCelular, setFotoCelular] = useState<string | null>(null);
+
+  const fotoParaManter = fotoCelular ?? fotoAtual ?? null;
+  const exibida = previewLocal ?? fotoParaManter;
 
   return (
     <div className="flex flex-col gap-1.5">
@@ -27,11 +37,18 @@ export function CampoFotoProduto({ fotoAtual }: { fotoAtual: string | null | und
         accept="image/*"
         onChange={(e) => {
           const arquivo = e.target.files?.[0];
-          setPreview(arquivo ? URL.createObjectURL(arquivo) : null);
+          setPreviewLocal(arquivo ? URL.createObjectURL(arquivo) : null);
         }}
         className="text-sm text-ink file:mr-3 file:rounded-full file:border-0 file:bg-rose-soft file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-rose-deep"
       />
-      {fotoAtual && <input type="hidden" name="foto_url_atual" value={fotoAtual} />}
+      <PareamentoCameraCelular
+        prefixo={prefixoCelular}
+        onFoto={(url) => {
+          setFotoCelular(url);
+          setPreviewLocal(null);
+        }}
+      />
+      {fotoParaManter && <input type="hidden" name="foto_url_atual" value={fotoParaManter} />}
     </div>
   );
 }

@@ -49,7 +49,7 @@ export function ProdutoEventoForm({
       <form action={formAction} className="flex flex-col gap-4">
         {produtoEvento && <input type="hidden" name="id" value={produtoEvento.id} />}
 
-        <CampoFotoProduto fotoAtual={produtoEvento?.foto_url} />
+        <CampoFotoProduto fotoAtual={produtoEvento?.foto_url} prefixoCelular="evento" />
         <CampoCodigoProduto
           defaultValue={produtoEvento?.codigo_interno ?? codigoInicial}
           codigosExistentes={codigosExistentes}

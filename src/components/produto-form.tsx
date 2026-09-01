@@ -55,7 +55,7 @@ export function ProdutoForm({
       <form action={formAction} className="flex flex-col gap-4">
         {produto && <input type="hidden" name="id" value={produto.id} />}
 
-        <CampoFotoProduto fotoAtual={produto?.foto_url} />
+        <CampoFotoProduto fotoAtual={produto?.foto_url} prefixoCelular="manual" />
         <CampoCodigoProduto
           defaultValue={produto?.codigo_interno ?? codigoInicial}
           codigosExistentes={codigosExistentes}
