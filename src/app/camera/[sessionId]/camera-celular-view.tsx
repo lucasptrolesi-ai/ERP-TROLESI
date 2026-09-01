@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
 import { subirFotoProduto } from "@/lib/actions/foto-produto";
@@ -10,11 +10,15 @@ import { subirFotoProduto } from "@/lib/actions/foto-produto";
  * direto pro Storage a partir daqui (o celular já está logado no ERP, as
  * mesmas policies de storage.objects valem) e o link com o Mac é só o
  * aviso "a foto X está pronta", via Realtime Broadcast — o próprio arquivo
- * nunca passa pelo canal. O canal é aberto uma vez só e mantido pro resto
- * da sessão (não um por foto): broadcast não guarda mensagem nenhuma, se o
- * outro lado não estiver com o canal já "SUBSCRIBED" no momento do send, a
- * mensagem se perde — reabrir o canal a cada foto só criava uma corrida
- * desnecessária entre conectar e enviar. */
+ * nunca passa pelo canal.
+ *
+ * O canal fica aberto pro resto da sessão (não um por foto). Mas abrir a
+ * câmera nativa (o `capture="environment"` do input) tira o Safari de
+ * primeiro plano por alguns segundos, e o iOS pode derrubar o WebSocket
+ * nesse meio tempo sem avisar — por isso reconecta sozinho quando a aba
+ * volta a ficar visível, e a foto já enviada pro Storage nunca se perde
+ * mesmo se o aviso pro formulário falhar (fica pendente com botão de
+ * tentar de novo, sem precisar tirar a foto outra vez). */
 export function CameraCelularView({
   sessionId,
   prefixo,
@@ -24,25 +28,74 @@ export function CameraCelularView({
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const canalRef = useRef<RealtimeChannel | null>(null);
+  const prontoRef = useRef(false);
   const [pronto, setPronto] = useState(false);
   const [enviando, setEnviando] = useState(false);
   const [ultimaFoto, setUltimaFoto] = useState<string | null>(null);
   const [contagem, setContagem] = useState(0);
   const [erro, setErro] = useState<string | null>(null);
+  const [pendente, setPendente] = useState<string | null>(null);
 
-  useEffect(() => {
+  const conectar = useCallback(() => {
     const supabase = createClient();
+    if (canalRef.current) supabase.removeChannel(canalRef.current);
+    prontoRef.current = false;
+
     const canal = supabase.channel(`camera-${sessionId}`);
     canalRef.current = canal;
     canal.subscribe((status) => {
-      if (status === "SUBSCRIBED") setPronto(true);
+      const conectado = status === "SUBSCRIBED";
+      prontoRef.current = conectado;
+      setPronto(conectado);
     });
+  }, [sessionId]);
+
+  useEffect(() => {
+    conectar();
+
+    function aoMudarVisibilidade() {
+      if (document.visibilityState === "visible" && !prontoRef.current) conectar();
+    }
+    document.addEventListener("visibilitychange", aoMudarVisibilidade);
 
     return () => {
+      document.removeEventListener("visibilitychange", aoMudarVisibilidade);
+      if (canalRef.current) createClient().removeChannel(canalRef.current);
       canalRef.current = null;
-      supabase.removeChannel(canal);
     };
-  }, [sessionId]);
+  }, [conectar]);
+
+  async function aguardarConexao(prazoMs: number): Promise<boolean> {
+    const passo = 250;
+    for (let decorrido = 0; decorrido < prazoMs && !prontoRef.current; decorrido += passo) {
+      await new Promise((resolve) => setTimeout(resolve, passo));
+    }
+    return prontoRef.current;
+  }
+
+  async function avisarFormulario(url: string): Promise<boolean> {
+    if (!(await aguardarConexao(2000))) conectar();
+    if (!(await aguardarConexao(3000))) return false;
+
+    const resposta = await canalRef.current?.send({ type: "broadcast", event: "foto", payload: { url } });
+    return resposta === "ok";
+  }
+
+  async function tentarReenviar() {
+    if (!pendente) return;
+    setEnviando(true);
+    setErro(null);
+    const ok = await avisarFormulario(pendente);
+    setEnviando(false);
+
+    if (!ok) {
+      setErro("Ainda sem conexão com o formulário. Verifique a internet e tente de novo.");
+      return;
+    }
+    setUltimaFoto(pendente);
+    setContagem((n) => n + 1);
+    setPendente(null);
+  }
 
   async function aoEscolherArquivo(e: React.ChangeEvent<HTMLInputElement>) {
     const arquivo = e.target.files?.[0];
@@ -51,22 +104,22 @@ export function CameraCelularView({
 
     setEnviando(true);
     setErro(null);
+    setPendente(null);
     const supabase = createClient();
     const resultado = await subirFotoProduto(supabase, arquivo, prefixo);
-    setEnviando(false);
 
     if (resultado.erro || !resultado.url) {
+      setEnviando(false);
       setErro(resultado.erro ?? "Não foi possível enviar a foto.");
       return;
     }
 
-    const resposta = await canalRef.current?.send({
-      type: "broadcast",
-      event: "foto",
-      payload: { url: resultado.url },
-    });
-    if (resposta !== "ok") {
-      setErro("Foto enviada, mas a conexão com o formulário caiu — abra o QR de novo pra reconectar.");
+    const ok = await avisarFormulario(resultado.url);
+    setEnviando(false);
+
+    if (!ok) {
+      setPendente(resultado.url);
+      setErro('Foto salva, mas o aviso pro formulário falhou. Toque em "Tentar de novo".');
       return;
     }
 
@@ -98,14 +151,31 @@ export function CameraCelularView({
       />
       <button
         type="button"
-        disabled={enviando || !pronto}
+        disabled={enviando}
         onClick={() => inputRef.current?.click()}
         className="rounded-full bg-gradient-to-br from-gold-start to-gold-end px-8 py-4 text-base font-semibold text-gold-ink shadow-lg transition disabled:opacity-60"
       >
-        {enviando ? "Enviando…" : pronto ? "📸 Tirar foto" : "Conectando…"}
+        {enviando ? "Enviando…" : "📸 Tirar foto"}
       </button>
+      {!pronto && !enviando && (
+        <p className="text-xs text-text-soft">Conectando ao formulário… (pode tirar a foto normalmente)</p>
+      )}
 
-      {erro && <p className="text-sm font-medium text-crit">{erro}</p>}
+      {erro && (
+        <div className="flex flex-col items-center gap-2">
+          <p className="text-sm font-medium text-crit">{erro}</p>
+          {pendente && (
+            <button
+              type="button"
+              onClick={tentarReenviar}
+              disabled={enviando}
+              className="rounded-full border border-rose-soft px-4 py-1.5 text-xs font-semibold text-rose-deep disabled:opacity-60"
+            >
+              🔄 Tentar de novo
+            </button>
+          )}
+        </div>
+      )}
       {contagem > 0 && !erro && (
         <p className="text-sm text-text-soft">
           {contagem} foto{contagem > 1 ? "s" : ""} enviada{contagem > 1 ? "s" : ""} — pode continuar
