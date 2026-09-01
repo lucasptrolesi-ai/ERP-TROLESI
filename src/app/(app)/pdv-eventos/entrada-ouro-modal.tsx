@@ -142,7 +142,7 @@ export function EntradaOuroModal({
           )}
         </div>
 
-        {!encontrado && codigoNormalizado && (
+        {codigoNormalizado && !encontrado && (
           <div className="flex flex-col gap-1.5">
             <label htmlFor="nome-ouro" className={CLASSE_LABEL}>
               Nome da peça
@@ -156,44 +156,54 @@ export function EntradaOuroModal({
           </div>
         )}
 
-        <div className="grid grid-cols-2 gap-3">
-          <div className="flex flex-col gap-1.5">
-            <label htmlFor="peso-ouro" className={CLASSE_LABEL}>
-              Peso (g)
-            </label>
-            <input
-              id="peso-ouro"
-              value={pesoExibido}
-              onChange={(e) => setPeso(e.target.value)}
-              inputMode="decimal"
-              className={CLASSE_INPUT}
-            />
+        {/* Peça já cadastrada: peso já está embutido na peça (salvo na
+            primeira entrada) — não pergunta de novo, só confirma quantidade.
+            Código novo: ainda não tem peso salvo em lugar nenhum, então
+            precisa perguntar uma única vez. */}
+        {codigoNormalizado && (
+          <div className={encontrado ? "" : "grid grid-cols-2 gap-3"}>
+            {!encontrado && (
+              <div className="flex flex-col gap-1.5">
+                <label htmlFor="peso-ouro" className={CLASSE_LABEL}>
+                  Peso (g)
+                </label>
+                <input
+                  id="peso-ouro"
+                  value={pesoExibido}
+                  onChange={(e) => setPeso(e.target.value)}
+                  inputMode="decimal"
+                  className={CLASSE_INPUT}
+                />
+              </div>
+            )}
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="quantidade-ouro" className={CLASSE_LABEL}>
+                Quantidade
+              </label>
+              <input
+                id="quantidade-ouro"
+                value={quantidade}
+                onChange={(e) => setQuantidade(e.target.value)}
+                inputMode="numeric"
+                className={CLASSE_INPUT}
+              />
+            </div>
           </div>
-          <div className="flex flex-col gap-1.5">
-            <label htmlFor="quantidade-ouro" className={CLASSE_LABEL}>
-              Quantidade
-            </label>
-            <input
-              id="quantidade-ouro"
-              value={quantidade}
-              onChange={(e) => setQuantidade(e.target.value)}
-              inputMode="numeric"
-              className={CLASSE_INPUT}
-            />
-          </div>
-        </div>
+        )}
 
-        <div className="rounded-xl border border-line bg-cream p-3 text-center">
-          <p className="text-xs font-semibold uppercase tracking-wide text-text-soft">Preço calculado</p>
-          <p className="font-display text-2xl font-semibold text-rose-deep">
-            {precoCalculado != null ? formatarMoeda(precoCalculado) : "—"}
-          </p>
-          {cotacaoOuroHoje != null && (
-            <p className="text-xs text-text-soft">
-              {pesoExibido || "0"}g × {formatarMoeda(cotacaoOuroHoje)} × 1,30
+        {codigoNormalizado && (
+          <div className="rounded-xl border border-line bg-cream p-3 text-center">
+            <p className="text-xs font-semibold uppercase tracking-wide text-text-soft">Preço calculado</p>
+            <p className="font-display text-2xl font-semibold text-rose-deep">
+              {precoCalculado != null ? formatarMoeda(precoCalculado) : "—"}
             </p>
-          )}
-        </div>
+            {cotacaoOuroHoje != null && (
+              <p className="text-xs text-text-soft">
+                {pesoExibido || "0"}g × {formatarMoeda(cotacaoOuroHoje)} × 1,30
+              </p>
+            )}
+          </div>
+        )}
 
         {erro && <p role="alert" className="rounded-lg bg-crit-bg px-3 py-2 text-sm font-medium text-crit">{erro}</p>}
 
