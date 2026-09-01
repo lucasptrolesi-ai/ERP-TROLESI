@@ -1,6 +1,7 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import type { RealtimeChannel } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
 import { subirFotoProduto } from "@/lib/actions/foto-produto";
 
@@ -9,7 +10,11 @@ import { subirFotoProduto } from "@/lib/actions/foto-produto";
  * direto pro Storage a partir daqui (o celular já está logado no ERP, as
  * mesmas policies de storage.objects valem) e o link com o Mac é só o
  * aviso "a foto X está pronta", via Realtime Broadcast — o próprio arquivo
- * nunca passa pelo canal. */
+ * nunca passa pelo canal. O canal é aberto uma vez só e mantido pro resto
+ * da sessão (não um por foto): broadcast não guarda mensagem nenhuma, se o
+ * outro lado não estiver com o canal já "SUBSCRIBED" no momento do send, a
+ * mensagem se perde — reabrir o canal a cada foto só criava uma corrida
+ * desnecessária entre conectar e enviar. */
 export function CameraCelularView({
   sessionId,
   prefixo,
@@ -18,10 +23,26 @@ export function CameraCelularView({
   prefixo: "manual" | "evento";
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const canalRef = useRef<RealtimeChannel | null>(null);
+  const [pronto, setPronto] = useState(false);
   const [enviando, setEnviando] = useState(false);
   const [ultimaFoto, setUltimaFoto] = useState<string | null>(null);
   const [contagem, setContagem] = useState(0);
   const [erro, setErro] = useState<string | null>(null);
+
+  useEffect(() => {
+    const supabase = createClient();
+    const canal = supabase.channel(`camera-${sessionId}`);
+    canalRef.current = canal;
+    canal.subscribe((status) => {
+      if (status === "SUBSCRIBED") setPronto(true);
+    });
+
+    return () => {
+      canalRef.current = null;
+      supabase.removeChannel(canal);
+    };
+  }, [sessionId]);
 
   async function aoEscolherArquivo(e: React.ChangeEvent<HTMLInputElement>) {
     const arquivo = e.target.files?.[0];
@@ -39,13 +60,15 @@ export function CameraCelularView({
       return;
     }
 
-    const canal = supabase.channel(`camera-${sessionId}`);
-    canal.subscribe((status) => {
-      if (status === "SUBSCRIBED") {
-        canal.send({ type: "broadcast", event: "foto", payload: { url: resultado.url } });
-        setTimeout(() => supabase.removeChannel(canal), 500);
-      }
+    const resposta = await canalRef.current?.send({
+      type: "broadcast",
+      event: "foto",
+      payload: { url: resultado.url },
     });
+    if (resposta !== "ok") {
+      setErro("Foto enviada, mas a conexão com o formulário caiu — abra o QR de novo pra reconectar.");
+      return;
+    }
 
     setUltimaFoto(resultado.url);
     setContagem((n) => n + 1);
@@ -75,11 +98,11 @@ export function CameraCelularView({
       />
       <button
         type="button"
-        disabled={enviando}
+        disabled={enviando || !pronto}
         onClick={() => inputRef.current?.click()}
         className="rounded-full bg-gradient-to-br from-gold-start to-gold-end px-8 py-4 text-base font-semibold text-gold-ink shadow-lg transition disabled:opacity-60"
       >
-        {enviando ? "Enviando…" : "📸 Tirar foto"}
+        {enviando ? "Enviando…" : pronto ? "📸 Tirar foto" : "Conectando…"}
       </button>
 
       {erro && <p className="text-sm font-medium text-crit">{erro}</p>}
