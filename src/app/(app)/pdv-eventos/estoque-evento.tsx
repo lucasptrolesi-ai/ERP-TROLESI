@@ -9,6 +9,7 @@ import { FotoComZoom } from "@/components/foto-com-zoom";
 import { LeitorCodigoModal } from "@/components/leitor-codigo-modal";
 import { ProdutoEventoForm } from "./produto-evento-form";
 import { ImportarProdutoModal } from "./importar-produto-modal";
+import { EntradaOuroModal } from "./entrada-ouro-modal";
 import type { ProdutoEvento, ProdutoParaImportar } from "@/lib/types";
 
 // Prefixo de letras do código (esquema do usuário: PA, BL, BLF...) vira a
@@ -38,13 +39,16 @@ function statusEstoque(quantidade: number): { rotulo: string; classe: string } {
 export function EstoqueEvento({
   produtosEvento,
   produtosReais,
+  cotacaoOuroHoje,
 }: {
   produtosEvento: ProdutoEvento[];
   produtosReais: ProdutoParaImportar[];
+  cotacaoOuroHoje: number | null;
 }) {
   const [editando, setEditando] = useState<ProdutoEvento | null | undefined>(undefined);
   const [etiquetaAtiva, setEtiquetaAtiva] = useState<ProdutoEvento | null>(null);
   const [importando, setImportando] = useState(false);
+  const [entradaOuroAberta, setEntradaOuroAberta] = useState(false);
   const [lendoCodigo, setLendoCodigo] = useState(false);
   const [codigoParaNovaPeca, setCodigoParaNovaPeca] = useState<string | undefined>(undefined);
   const [erroExportacao, setErroExportacao] = useState<string | null>(null);
@@ -171,6 +175,13 @@ export function EstoqueEvento({
               📥<span className="hidden sm:inline"> Importar do Estoque</span>
             </button>
             <button
+              onClick={() => setEntradaOuroAberta(true)}
+              title="Entrada de ouro"
+              className="rounded-full border border-rose px-3 py-2 text-sm font-semibold text-rose-deep"
+            >
+              🟡<span className="hidden sm:inline"> Ouro</span>
+            </button>
+            <button
               onClick={() => setLendoCodigo(true)}
               title="Ler código pra cadastrar"
               className="rounded-full border border-rose px-3 py-2 text-sm font-semibold text-rose-deep"
@@ -284,6 +295,13 @@ export function EstoqueEvento({
       )}
 
       <ImportarProdutoModal aberto={importando} onFechar={() => setImportando(false)} produtosReais={produtosReais} />
+
+      <EntradaOuroModal
+        aberto={entradaOuroAberta}
+        onFechar={() => setEntradaOuroAberta(false)}
+        produtosEvento={produtosEvento}
+        cotacaoOuroHoje={cotacaoOuroHoje}
+      />
 
       <LeitorCodigoModal
         aberto={lendoCodigo}

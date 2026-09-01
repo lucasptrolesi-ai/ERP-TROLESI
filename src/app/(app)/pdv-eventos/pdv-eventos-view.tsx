@@ -12,10 +12,12 @@ export function PdvEventosView({
   produtosEvento,
   vendasEvento,
   produtosReais,
+  cotacaoOuroHoje,
 }: {
   produtosEvento: ProdutoEvento[];
   vendasEvento: VendaEvento[];
   produtosReais: ProdutoParaImportar[];
+  cotacaoOuroHoje: number | null;
 }) {
   const [aba, setAba] = useState<Aba>("vender");
 
@@ -54,7 +56,9 @@ export function PdvEventosView({
         </div>
 
         {aba === "vender" && <VenderEvento produtosEvento={produtosEvento} />}
-        {aba === "estoque" && <EstoqueEvento produtosEvento={produtosEvento} produtosReais={produtosReais} />}
+        {aba === "estoque" && (
+          <EstoqueEvento produtosEvento={produtosEvento} produtosReais={produtosReais} cotacaoOuroHoje={cotacaoOuroHoje} />
+        )}
         {aba === "resumo" && <ResumoEvento vendasEvento={vendasEvento} produtosEvento={produtosEvento} />}
       </div>
     </div>

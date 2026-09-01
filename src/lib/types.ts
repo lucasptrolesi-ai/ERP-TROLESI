@@ -509,6 +509,9 @@ export type ProdutoEvento = {
   criado_em: string;
   foto_url: string | null;
   produto_origem_id: string | null;
+  peso: number | null;
+  material: string | null;
+  usa_cotacao_diaria: boolean;
 };
 
 /** Recorte leve de Produto usado só na busca do modal "Importar do Estoque"

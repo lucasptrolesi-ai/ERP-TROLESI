@@ -131,6 +131,33 @@ export async function devolverProdutoEstoque(
   return {};
 }
 
+/** Entrada de peça de ouro (pedido direto do usuário, 2026-09-01): digita o
+ * código, o preço sai sozinho (peso × cotação do dia × 1,30 — mesma
+ * cotação usada no Estoque real, ver tela "Cotação"). Código já existente
+ * reaproveita o peso salvo (ignora p_peso); código novo exige nome+peso.
+ * Toda a lógica/trava de concorrência vive em entrada_ouro_evento
+ * (migration 20260901000002, SECURITY DEFINER). */
+export async function entradaOuroEvento(
+  codigoInterno: string,
+  quantidade: number,
+  data: string,
+  nome: string | null,
+  peso: number | null,
+): Promise<{ erro?: string }> {
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("entrada_ouro_evento", {
+    p_codigo_interno: codigoInterno,
+    p_quantidade: quantidade,
+    p_data: data,
+    p_nome: nome,
+    p_peso: peso,
+  });
+  if (error) return { erro: error.message };
+
+  revalidatePath("/pdv-eventos");
+  return {};
+}
+
 export async function registrarVendaEvento(
   itens: { produto_evento_id: string; nome: string; quantidade: number; preco_unitario: number }[],
   formaPagamento: FormaPagamentoEvento,
