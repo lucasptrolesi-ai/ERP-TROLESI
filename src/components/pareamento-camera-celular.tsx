@@ -4,6 +4,8 @@ import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "
 import QRCode from "qrcode";
 import { createClient } from "@/lib/supabase/client";
 
+const INTERVALO_POLLING_MS = 1500;
+
 function chaveSessao(prefixo: string) {
   return `camera-celular-sessao:${prefixo}`;
 }
@@ -14,13 +16,16 @@ function chaveConfirmado(prefixo: string) {
 /** Pareia o formulário atual com a câmera do celular (2026-09-01): o
  * celular abre um link (via QR) uma única vez e fica com uma página aberta
  * o dia inteiro tirando fotos — cada foto sobe direto pro Storage a partir
- * do próprio celular e chega aqui via um canal Realtime Broadcast (efêmero,
- * sem tabela), sem precisar ler QR de novo a cada peça cadastrada. Fonte de
- * verdade é o sessionStorage (pareamento e confirmação, por aba do
- * navegador, um por contexto manual/evento já que cada um sobe pra uma
- * subpasta diferente do bucket) — lido via useSyncExternalStore pra não
- * piscar server/client e não violar a regra de não fazer setState direto
- * dentro de um efeito. */
+ * do próprio celular, e o aviso de "tem foto nova" chega aqui por polling
+ * em fotos_celular_pendentes (mesmo raciocínio do print-agent: um lado
+ * grava, o outro fica checando — ver migration 20260901000001). Trocado de
+ * Realtime Broadcast pra isso depois de um CHANNEL_ERROR em produção sem
+ * causa raiz clara — polling é mais lento (~1.5s) mas nunca perde a foto.
+ * Fonte de verdade do pareamento é o sessionStorage (por aba do navegador,
+ * um por contexto manual/evento já que cada um sobe pra uma subpasta
+ * diferente do bucket) — lido via useSyncExternalStore pra não piscar
+ * server/client e não violar a regra de não fazer setState direto dentro
+ * de um efeito. */
 export function PareamentoCameraCelular({
   prefixo,
   onFoto,
@@ -51,29 +56,41 @@ export function PareamentoCameraCelular({
   );
 
   const [qrEstado, setQrEstado] = useState<{ sessionId: string; dataUrl: string } | null>(null);
-  const [statusCanal, setStatusCanal] = useState<string | null>(null);
-  const [tentativa, setTentativa] = useState(0);
 
   useEffect(() => {
     if (!sessionId) return;
 
     const supabase = createClient();
-    const canal = supabase.channel(`camera-${sessionId}`);
-    canal
-      .on("broadcast", { event: "foto" }, ({ payload }) => {
-        if (typeof payload?.url === "string") {
-          sessionStorage.setItem(chaveConfirmado(prefixo), "1");
-          avisar();
-          onFoto(payload.url);
-        }
-      })
-      .subscribe((status) => setStatusCanal(status));
+    let cancelado = false;
+
+    async function checar() {
+      const { data } = await supabase
+        .from("fotos_celular_pendentes")
+        .select("id, foto_url")
+        .eq("session_id", sessionId)
+        .order("criado_em", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+
+      if (cancelado || !data) return;
+
+      await supabase.from("fotos_celular_pendentes").delete().eq("id", data.id);
+      if (cancelado) return;
+
+      sessionStorage.setItem(chaveConfirmado(prefixo), "1");
+      avisar();
+      onFoto(data.foto_url);
+    }
+
+    checar();
+    const intervalo = setInterval(checar, INTERVALO_POLLING_MS);
 
     return () => {
-      supabase.removeChannel(canal);
+      cancelado = true;
+      clearInterval(intervalo);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- onFoto muda a cada render (closure do estado do form); reassinar o canal por causa disso derrubaria a conexão sem motivo
-  }, [sessionId, prefixo, avisar, tentativa]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- onFoto muda a cada render (closure do estado do form); reiniciar o polling por causa disso reabriria a corrida que a gente quer evitar
+  }, [sessionId, prefixo, avisar]);
 
   useEffect(() => {
     if (!sessionId || confirmado) return;
@@ -118,7 +135,6 @@ export function PareamentoCameraCelular({
   }
 
   const qrDataUrl = qrEstado?.sessionId === sessionId ? qrEstado.dataUrl : null;
-  const comProblema = statusCanal === "CHANNEL_ERROR" || statusCanal === "TIMED_OUT" || statusCanal === "CLOSED";
 
   return (
     <div className="flex flex-col items-start gap-2 rounded-lg border border-line bg-cream/50 p-3">
@@ -129,23 +145,7 @@ export function PareamentoCameraCelular({
         // eslint-disable-next-line @next/next/no-img-element -- QR gerado localmente em data URL, sem otimização de imagem cabível
         <img src={qrDataUrl} alt="QR code para parear a câmera do celular" className="h-40 w-40" />
       )}
-      {comProblema ? (
-        <div className="flex items-center gap-2">
-          <p className="text-xs font-medium text-crit">Sem conexão em tempo real ({statusCanal}).</p>
-          <button
-            type="button"
-            onClick={() => setTentativa((n) => n + 1)}
-            className="text-xs font-semibold text-rose-deep hover:underline"
-          >
-            Tentar de novo
-          </button>
-        </div>
-      ) : (
-        <p className="text-xs text-text-soft">
-          Aguardando a primeira foto do celular…{" "}
-          {statusCanal !== "SUBSCRIBED" && <span className="text-text-soft/70">(conectando…)</span>}
-        </p>
-      )}
+      <p className="text-xs text-text-soft">Aguardando a primeira foto do celular…</p>
     </div>
   );
 }
