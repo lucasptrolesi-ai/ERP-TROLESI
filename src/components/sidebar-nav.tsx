@@ -14,6 +14,7 @@ const ITENS = [
   { href: "/pdv-eventos", label: "PDV Eventos", icone: "🎪" },
   { href: "/cadastros", label: "Cadastros", icone: "👥" },
   { href: "/estoque", label: "Produtos & Estoque", icone: "💍" },
+  { href: "/cotacao", label: "Cotação", icone: "🟡" },
   { href: "/financeiro", label: "Financeiro", icone: "💰" },
   { href: "/abatimentos", label: "Abatimentos", icone: "♻️" },
   { href: "/garantias", label: "Garantias", icone: "🛡️" },

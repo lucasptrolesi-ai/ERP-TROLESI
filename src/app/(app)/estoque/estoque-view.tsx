@@ -3,14 +3,13 @@
 import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { ProdutoForm } from "@/components/produto-form";
-import { CotacaoDoDia } from "@/components/cotacao-do-dia";
 import { LeitorCodigoModal } from "@/components/leitor-codigo-modal";
 import { DevolucaoModal } from "./devolucao-modal";
 import { filtra } from "@/lib/filtra";
 import { formatarMoeda } from "@/lib/formatar-moeda";
 import { podeEditarProdutos } from "@/lib/permissoes";
 import { exportarEtiquetasExcel } from "@/lib/actions/etiquetas-excel";
-import type { CotacaoDiaria, Produto, ProdutoEventoVinculado } from "@/lib/types";
+import type { Produto, ProdutoEventoVinculado } from "@/lib/types";
 
 function baixarArquivo(base64: string, nomeArquivo: string) {
   const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
@@ -34,15 +33,11 @@ function statusEstoque(produto: Produto): { rotulo: string; classe: string } {
 export function EstoqueView({
   papelAtual,
   produtos,
-  cotacoesHoje,
-  podeInformarCotacao,
   editarId,
   produtosEventoVinculados,
 }: {
   papelAtual: string;
   produtos: Produto[];
-  cotacoesHoje: CotacaoDiaria[];
-  podeInformarCotacao: boolean;
   editarId?: string;
   produtosEventoVinculados: ProdutoEventoVinculado[];
 }) {
@@ -138,7 +133,6 @@ export function EstoqueView({
 
   return (
     <div className="flex flex-col gap-4">
-      <CotacaoDoDia cotacoesHoje={cotacoesHoje} podeInformar={podeInformarCotacao} />
       <div className="rounded-[14px] border border-line bg-surface shadow-sm">
       <div className="flex flex-col gap-3 border-b border-line px-4 py-4 sm:px-5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
