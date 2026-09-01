@@ -51,6 +51,8 @@ export function PareamentoCameraCelular({
   );
 
   const [qrEstado, setQrEstado] = useState<{ sessionId: string; dataUrl: string } | null>(null);
+  const [statusCanal, setStatusCanal] = useState<string | null>(null);
+  const [tentativa, setTentativa] = useState(0);
 
   useEffect(() => {
     if (!sessionId) return;
@@ -65,13 +67,13 @@ export function PareamentoCameraCelular({
           onFoto(payload.url);
         }
       })
-      .subscribe();
+      .subscribe((status) => setStatusCanal(status));
 
     return () => {
       supabase.removeChannel(canal);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- onFoto muda a cada render (closure do estado do form); reassinar o canal por causa disso derrubaria a conexão sem motivo
-  }, [sessionId, prefixo, avisar]);
+  }, [sessionId, prefixo, avisar, tentativa]);
 
   useEffect(() => {
     if (!sessionId || confirmado) return;
@@ -116,6 +118,7 @@ export function PareamentoCameraCelular({
   }
 
   const qrDataUrl = qrEstado?.sessionId === sessionId ? qrEstado.dataUrl : null;
+  const comProblema = statusCanal === "CHANNEL_ERROR" || statusCanal === "TIMED_OUT" || statusCanal === "CLOSED";
 
   return (
     <div className="flex flex-col items-start gap-2 rounded-lg border border-line bg-cream/50 p-3">
@@ -126,7 +129,23 @@ export function PareamentoCameraCelular({
         // eslint-disable-next-line @next/next/no-img-element -- QR gerado localmente em data URL, sem otimização de imagem cabível
         <img src={qrDataUrl} alt="QR code para parear a câmera do celular" className="h-40 w-40" />
       )}
-      <p className="text-xs text-text-soft">Aguardando a primeira foto do celular…</p>
+      {comProblema ? (
+        <div className="flex items-center gap-2">
+          <p className="text-xs font-medium text-crit">Sem conexão em tempo real ({statusCanal}).</p>
+          <button
+            type="button"
+            onClick={() => setTentativa((n) => n + 1)}
+            className="text-xs font-semibold text-rose-deep hover:underline"
+          >
+            Tentar de novo
+          </button>
+        </div>
+      ) : (
+        <p className="text-xs text-text-soft">
+          Aguardando a primeira foto do celular…{" "}
+          {statusCanal !== "SUBSCRIBED" && <span className="text-text-soft/70">(conectando…)</span>}
+        </p>
+      )}
     </div>
   );
 }
