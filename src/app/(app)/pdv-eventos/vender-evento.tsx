@@ -78,7 +78,24 @@ export function VenderEvento({
   const descontoNum = cupomAplicado
     ? calcularDescontoCupom(cupomAplicado.tipo, cupomAplicado.valor, subtotal)
     : Math.max(0, parseMoeda(valorDesconto));
-  const total = Math.max(0, subtotal - descontoNum);
+  // Valor "de tabela" — nunca muda por causa do ajuste manual, fica sempre
+  // visível ao lado do valor final (pedido do usuário, 2026-09-03: "o valor
+  // real da compra não pode ser alterado, aparece os dois").
+  const totalCalculado = Math.max(0, subtotal - descontoNum);
+  // Total final editável direto: "fechar em R$X" é mais natural numa
+  // negociação de balcão do que reverter pra desconto em %/R$ — funciona
+  // igual pra qualquer forma de pagamento, inclusive parcelado (a
+  // quantidade de parcelas já usa este valor). null = segue o valor de
+  // tabela; string = valor travado que o vendedor digitou, até limpar o
+  // campo de novo.
+  const [totalManual, setTotalManual] = useState<string | null>(null);
+  const total = totalManual !== null ? Math.max(0, parseMoeda(totalManual)) : totalCalculado;
+  // O banco só grava um total + um desconto (sem coluna própria pra "ajuste
+  // de negociação") — esse é o desconto que de fato fecha a conta
+  // registrada (subtotal − desconto = total), incluindo o ajuste manual se
+  // houver. A linha "Desconto" na tela continua mostrando só o
+  // cupom/desconto formal (descontoNum), sem misturar os dois.
+  const descontoParaEnvio = Math.max(0, Math.round((subtotal - total) * 100) / 100);
   const itensAcimaDoEstoque = carrinho.filter((i) => i.quantidade > i.estoqueDisponivel);
 
   function aplicarCupom() {
@@ -178,7 +195,7 @@ export function VenderEvento({
           preco_unitario: i.preco_unitario,
         })),
         formaPagamento,
-        descontoNum,
+        descontoParaEnvio,
         formaPagamento === "cartao_parcelado" ? numeroParcelas : 1,
         idempotencyKey,
         clienteNome.trim() || null,
@@ -195,7 +212,7 @@ export function VenderEvento({
         forma_pagamento: formaPagamento,
         numero_parcelas: formaPagamento === "cartao_parcelado" ? numeroParcelas : 1,
         subtotal,
-        valor_desconto: descontoNum,
+        valor_desconto: descontoParaEnvio,
         total,
         itens: carrinho.map((i) => ({ nome: i.nome, quantidade: i.quantidade, preco_unitario: i.preco_unitario })),
         cliente_nome: clienteNome.trim() || null,
@@ -204,6 +221,7 @@ export function VenderEvento({
       });
       setCarrinho([]);
       setValorDesconto("0");
+      setTotalManual(null);
       removerCupom();
       setFormaPagamento("dinheiro");
       setNumeroParcelas(2);
@@ -478,10 +496,30 @@ export function VenderEvento({
             <span className="text-text-soft">Desconto</span>
             <span className="tabular-nums">− {formatarMoeda(descontoNum)}</span>
           </div>
-          <div className="flex justify-between text-xl font-bold text-ink">
-            <span>Total</span>
-            <span className="tabular-nums">{formatarMoeda(total)}</span>
+          <div className="flex justify-between text-base font-bold text-ink">
+            <span>Total calculado</span>
+            <span className="tabular-nums">{formatarMoeda(totalCalculado)}</span>
           </div>
+          <div className="flex items-center justify-between text-xl font-bold text-ink">
+            <span>Valor final da venda</span>
+            <div className="flex items-center gap-1">
+              <span className="text-sm font-normal text-text-soft">R$</span>
+              <input
+                value={totalManual ?? total.toFixed(2).replace(".", ",")}
+                onChange={(e) => setTotalManual(e.target.value === "" ? null : e.target.value)}
+                inputMode="decimal"
+                className="w-28 rounded-lg border border-line bg-cream px-2 py-1 text-right text-xl font-bold tabular-nums text-ink outline-none focus:border-rose focus:ring-2 focus:ring-rose-soft"
+              />
+            </div>
+          </div>
+          {totalManual !== null && (
+            <p className="text-right text-xs text-text-soft">
+              Ajustado na mão, diferente do calculado —{" "}
+              <button type="button" onClick={() => setTotalManual(null)} className="font-semibold text-rose-deep hover:underline">
+                voltar ao calculado
+              </button>
+            </p>
+          )}
         </div>
 
         {itensAcimaDoEstoque.length > 0 && (
