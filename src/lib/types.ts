@@ -520,6 +520,7 @@ export type MovimentoCaixaEvento = {
   valor: number;
   motivo: string;
   criado_em: string;
+  profiles: { nome: string } | null;
 };
 
 export type AberturaCaixaEvento = {
@@ -527,6 +528,7 @@ export type AberturaCaixaEvento = {
   data: string;
   valor: number;
   criado_em: string;
+  profiles: { nome: string } | null;
 };
 
 export type FechamentoCaixaEvento = {
@@ -541,7 +543,10 @@ export type FechamentoCaixaEvento = {
   total_entradas: number;
   total_retiradas: number;
   saldo_dinheiro: number;
+  valor_contado: number | null;
+  diferenca: number | null;
   criado_em: string;
+  profiles: { nome: string } | null;
 };
 
 export type CupomEvento = {

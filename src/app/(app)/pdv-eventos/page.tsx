@@ -4,7 +4,7 @@ import { podeEditarPedidos } from "@/lib/permissoes";
 import { comoLista } from "@/lib/supabase-embed";
 import { hojeIso } from "@/lib/datas";
 import { PdvEventosView } from "./pdv-eventos-view";
-import type { CupomEvento, MovimentoCaixaEvento, ProdutoParaImportar, VendaEvento } from "@/lib/types";
+import type { CupomEvento, FechamentoCaixaEvento, MovimentoCaixaEvento, ProdutoParaImportar, VendaEvento } from "@/lib/types";
 
 export default async function PdvEventosPage() {
   const perfil = await getPerfilAtual();
@@ -31,6 +31,7 @@ export default async function PdvEventosPage() {
     { data: cupons },
     { data: movimentos },
     { data: aberturas },
+    { data: historicoFechamentos },
   ] = await Promise.all([
     supabase.from("produtos_evento").select("*").order("criado_em", { ascending: false }),
     supabase
@@ -51,11 +52,16 @@ export default async function PdvEventosPage() {
     supabase.from("cupons_evento").select("*").order("criado_em", { ascending: false }),
     // Todos os movimentos (não só hoje) — mesmo padrão de vendasEvento,
     // filtra por dia dentro do componente (CaixaEvento); volume baixo,
-    // evento de poucos dias.
-    supabase.from("movimentos_caixa_evento").select("*").order("criado_em", { ascending: true }),
+    // evento de poucos dias. profiles(nome) — pedido do usuário, mostrar
+    // quem fez cada lançamento (vendedor só enxerga o próprio nome via RLS
+    // de profiles, admin enxerga todos — mesma regra de sempre).
+    supabase.from("movimentos_caixa_evento").select("*, profiles(nome)").order("criado_em", { ascending: true }),
     // Só a abertura de HOJE, a mais recente (se abriu 2x por engano, usa a
     // última) — diferente de movimentos, aqui não tem porque trazer tudo.
     supabase.from("aberturas_caixa_evento").select("valor").eq("data", hoje).order("criado_em", { ascending: false }).limit(1),
+    // Histórico de fechamentos — pedido do usuário, revisar dias
+    // anteriores do evento sem precisar de SQL direto.
+    supabase.from("fechamentos_caixa_evento").select("*, profiles(nome)").order("criado_em", { ascending: false }),
   ]);
 
   return (
@@ -67,6 +73,8 @@ export default async function PdvEventosPage() {
       cupons={(cupons ?? []) as CupomEvento[]}
       movimentos={(movimentos ?? []) as MovimentoCaixaEvento[]}
       valorAberturaHoje={aberturas?.[0]?.valor ?? null}
+      historicoFechamentos={(historicoFechamentos ?? []) as FechamentoCaixaEvento[]}
+      nomeUsuarioAtual={perfil.nome}
     />
   );
 }

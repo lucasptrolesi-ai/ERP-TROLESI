@@ -6,7 +6,14 @@ import { EstoqueEvento } from "./estoque-evento";
 import { ResumoEvento } from "./resumo-evento";
 import { CuponsEvento } from "./cupons-evento";
 import { CaixaEvento } from "./caixa-evento";
-import type { CupomEvento, MovimentoCaixaEvento, ProdutoEvento, ProdutoParaImportar, VendaEvento } from "@/lib/types";
+import type {
+  CupomEvento,
+  FechamentoCaixaEvento,
+  MovimentoCaixaEvento,
+  ProdutoEvento,
+  ProdutoParaImportar,
+  VendaEvento,
+} from "@/lib/types";
 
 type Aba = "vender" | "estoque" | "resumo" | "cupons" | "caixa";
 
@@ -18,6 +25,8 @@ export function PdvEventosView({
   cupons,
   movimentos,
   valorAberturaHoje,
+  historicoFechamentos,
+  nomeUsuarioAtual,
 }: {
   produtosEvento: ProdutoEvento[];
   vendasEvento: VendaEvento[];
@@ -26,6 +35,8 @@ export function PdvEventosView({
   cupons: CupomEvento[];
   movimentos: MovimentoCaixaEvento[];
   valorAberturaHoje: number | null;
+  historicoFechamentos: FechamentoCaixaEvento[];
+  nomeUsuarioAtual: string;
 }) {
   const [aba, setAba] = useState<Aba>("vender");
 
@@ -86,7 +97,13 @@ export function PdvEventosView({
         {aba === "resumo" && <ResumoEvento vendasEvento={vendasEvento} produtosEvento={produtosEvento} />}
         {aba === "cupons" && <CuponsEvento cupons={cupons} />}
         {aba === "caixa" && (
-          <CaixaEvento vendasEvento={vendasEvento} movimentos={movimentos} valorAberturaHoje={valorAberturaHoje} />
+          <CaixaEvento
+            vendasEvento={vendasEvento}
+            movimentos={movimentos}
+            valorAberturaHoje={valorAberturaHoje}
+            historicoFechamentos={historicoFechamentos}
+            nomeUsuarioAtual={nomeUsuarioAtual}
+          />
         )}
       </div>
     </div>

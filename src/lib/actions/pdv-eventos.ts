@@ -220,14 +220,16 @@ export async function registrarAberturaCaixaEvento(valor: number): Promise<{ err
 /** Fecha o caixa de HOJE (pedido do usuário, 2026-09-03): recalcula o
  * resumo no servidor a partir das vendas faturadas, movimentos e abertura
  * do dia (não confia em soma feita no cliente) e grava uma linha de
- * histórico. A impressão em si é uma solicitação separada
+ * histórico. `valorContado` é a contagem física da gaveta (opcional — null
+ * pula a conferência) — a diferença fica gravada junto, não só calculada
+ * na hora de exibir. A impressão em si é uma solicitação separada
  * (solicitarImpressaoCupom, construirLinhasFechamentoCaixa) — esta action
  * só garante o número certo gravado, chamada de novo a cada "Fechar caixa"
  * (sem trava de uma vez por dia: evento ao vivo, mais seguro poder refazer
  * que travar). */
-export async function fecharCaixaEvento(): Promise<
-  { fechamento: FechamentoCaixaEvento; movimentos: MovimentoCaixaEvento[] } | { erro: string }
-> {
+export async function fecharCaixaEvento(
+  valorContado: number | null,
+): Promise<{ fechamento: FechamentoCaixaEvento; movimentos: MovimentoCaixaEvento[] } | { erro: string }> {
   const supabase = await createClient();
   const hoje = hojeIso();
 
@@ -237,7 +239,7 @@ export async function fecharCaixaEvento(): Promise<
     { data: aberturas, error: erroAberturas },
   ] = await Promise.all([
     supabase.from("vendas_evento").select("forma_pagamento, total, valor_desconto, criado_em").eq("status", "faturado"),
-    supabase.from("movimentos_caixa_evento").select("*").order("criado_em", { ascending: true }),
+    supabase.from("movimentos_caixa_evento").select("*, profiles(nome)").order("criado_em", { ascending: true }),
     supabase.from("aberturas_caixa_evento").select("valor, criado_em").eq("data", hoje).order("criado_em", { ascending: false }),
   ]);
   if (erroVendas) return { erro: erroVendas.message };
@@ -250,6 +252,7 @@ export async function fecharCaixaEvento(): Promise<
   );
   const valorAbertura = aberturas?.[0]?.valor ?? 0;
   const resumo = calcularResumoFechamentoCaixa(vendasHoje, movimentosHoje, valorAbertura);
+  const diferenca = valorContado != null ? Math.round((valorContado - resumo.saldoDinheiro) * 100) / 100 : null;
 
   const { data: fechamento, error: erroInsert } = await supabase
     .from("fechamentos_caixa_evento")
@@ -264,8 +267,10 @@ export async function fecharCaixaEvento(): Promise<
       total_entradas: resumo.totalEntradas,
       total_retiradas: resumo.totalRetiradas,
       saldo_dinheiro: resumo.saldoDinheiro,
+      valor_contado: valorContado,
+      diferenca,
     })
-    .select("*")
+    .select("*, profiles(nome)")
     .single();
   if (erroInsert || !fechamento) return { erro: erroInsert?.message ?? "Não foi possível fechar o caixa." };
 

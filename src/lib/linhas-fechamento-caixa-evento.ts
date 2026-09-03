@@ -15,6 +15,8 @@ export function construirLinhasFechamentoCaixa(
   dataIso: string,
   resumo: ResumoFechamentoCaixa,
   movimentos: MovimentoCaixaEvento[],
+  valorContado: number | null,
+  diferenca: number | null,
 ): LinhaImpressao[] {
   const linhas: LinhaImpressao[] = [];
 
@@ -62,10 +64,22 @@ export function construirLinhasFechamentoCaixa(
 
   linhas.push({
     tipo: "colunas",
-    esquerda: "SALDO EM DINHEIRO",
+    esquerda: "SALDO ESPERADO",
     direita: formatarMoeda(resumo.saldoDinheiro),
     negrito: true,
   });
+
+  if (valorContado != null) {
+    linhas.push({ tipo: "linha" });
+    linhas.push({ tipo: "colunas", esquerda: "Contado na gaveta", direita: formatarMoeda(valorContado) });
+    const rotuloDiferenca = diferenca != null && diferenca < 0 ? "FALTA" : "SOBRA";
+    linhas.push({
+      tipo: "colunas",
+      esquerda: rotuloDiferenca,
+      direita: formatarMoeda(Math.abs(diferenca ?? 0)),
+      negrito: true,
+    });
+  }
 
   return linhas;
 }
