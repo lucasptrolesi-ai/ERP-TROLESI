@@ -5,9 +5,10 @@ import { VenderEvento } from "./vender-evento";
 import { EstoqueEvento } from "./estoque-evento";
 import { ResumoEvento } from "./resumo-evento";
 import { CuponsEvento } from "./cupons-evento";
-import type { CupomEvento, ProdutoEvento, ProdutoParaImportar, VendaEvento } from "@/lib/types";
+import { CaixaEvento } from "./caixa-evento";
+import type { CupomEvento, MovimentoCaixaEvento, ProdutoEvento, ProdutoParaImportar, VendaEvento } from "@/lib/types";
 
-type Aba = "vender" | "estoque" | "resumo" | "cupons";
+type Aba = "vender" | "estoque" | "resumo" | "cupons" | "caixa";
 
 export function PdvEventosView({
   produtosEvento,
@@ -15,12 +16,16 @@ export function PdvEventosView({
   produtosReais,
   cotacaoOuroHoje,
   cupons,
+  movimentos,
+  valorAberturaHoje,
 }: {
   produtosEvento: ProdutoEvento[];
   vendasEvento: VendaEvento[];
   produtosReais: ProdutoParaImportar[];
   cotacaoOuroHoje: number | null;
   cupons: CupomEvento[];
+  movimentos: MovimentoCaixaEvento[];
+  valorAberturaHoje: number | null;
 }) {
   const [aba, setAba] = useState<Aba>("vender");
 
@@ -31,10 +36,10 @@ export function PdvEventosView({
       </div>
 
       <div className="rounded-[14px] border border-line bg-surface shadow-sm">
-        <div className="flex gap-6 border-b border-line px-4 sm:px-5">
+        <div className="flex gap-6 overflow-x-auto border-b border-line px-4 sm:px-5">
           <button
             onClick={() => setAba("vender")}
-            className={`border-b-2 py-3 text-sm font-semibold ${
+            className={`shrink-0 border-b-2 py-3 text-sm font-semibold ${
               aba === "vender" ? "border-rose text-rose-deep" : "border-transparent text-text-soft"
             }`}
           >
@@ -42,7 +47,7 @@ export function PdvEventosView({
           </button>
           <button
             onClick={() => setAba("estoque")}
-            className={`border-b-2 py-3 text-sm font-semibold ${
+            className={`shrink-0 border-b-2 py-3 text-sm font-semibold ${
               aba === "estoque" ? "border-rose text-rose-deep" : "border-transparent text-text-soft"
             }`}
           >
@@ -50,7 +55,7 @@ export function PdvEventosView({
           </button>
           <button
             onClick={() => setAba("resumo")}
-            className={`border-b-2 py-3 text-sm font-semibold ${
+            className={`shrink-0 border-b-2 py-3 text-sm font-semibold ${
               aba === "resumo" ? "border-rose text-rose-deep" : "border-transparent text-text-soft"
             }`}
           >
@@ -58,11 +63,19 @@ export function PdvEventosView({
           </button>
           <button
             onClick={() => setAba("cupons")}
-            className={`border-b-2 py-3 text-sm font-semibold ${
+            className={`shrink-0 border-b-2 py-3 text-sm font-semibold ${
               aba === "cupons" ? "border-rose text-rose-deep" : "border-transparent text-text-soft"
             }`}
           >
             Cupons
+          </button>
+          <button
+            onClick={() => setAba("caixa")}
+            className={`shrink-0 border-b-2 py-3 text-sm font-semibold ${
+              aba === "caixa" ? "border-rose text-rose-deep" : "border-transparent text-text-soft"
+            }`}
+          >
+            Caixa
           </button>
         </div>
 
@@ -72,6 +85,9 @@ export function PdvEventosView({
         )}
         {aba === "resumo" && <ResumoEvento vendasEvento={vendasEvento} produtosEvento={produtosEvento} />}
         {aba === "cupons" && <CuponsEvento cupons={cupons} />}
+        {aba === "caixa" && (
+          <CaixaEvento vendasEvento={vendasEvento} movimentos={movimentos} valorAberturaHoje={valorAberturaHoje} />
+        )}
       </div>
     </div>
   );

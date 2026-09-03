@@ -514,6 +514,36 @@ export type ProdutoEvento = {
   usa_cotacao_diaria: boolean;
 };
 
+export type MovimentoCaixaEvento = {
+  id: string;
+  tipo: "entrada" | "retirada";
+  valor: number;
+  motivo: string;
+  criado_em: string;
+};
+
+export type AberturaCaixaEvento = {
+  id: string;
+  data: string;
+  valor: number;
+  criado_em: string;
+};
+
+export type FechamentoCaixaEvento = {
+  id: string;
+  data: string;
+  valor_abertura: number;
+  total_dinheiro: number;
+  total_pix: number;
+  total_cartao_vista: number;
+  total_cartao_parcelado: number;
+  total_descontos: number;
+  total_entradas: number;
+  total_retiradas: number;
+  saldo_dinheiro: number;
+  criado_em: string;
+};
+
 export type CupomEvento = {
   id: string;
   codigo: string;

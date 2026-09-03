@@ -5,7 +5,9 @@ import { createClient } from "@/lib/supabase/server";
 import { mensagemErroSalvar, normalizarCampo } from "./erros";
 import { fotoEscolhida, subirFotoProduto } from "./foto-produto";
 import { comoLista } from "@/lib/supabase-embed";
-import type { FormaPagamentoEvento, VendaEvento } from "@/lib/types";
+import { dataLocalDoTimestamptz, hojeIso } from "@/lib/datas";
+import { calcularResumoFechamentoCaixa } from "@/lib/fechamento-caixa-evento";
+import type { FechamentoCaixaEvento, FormaPagamentoEvento, MovimentoCaixaEvento, VendaEvento } from "@/lib/types";
 
 type ResultadoForm = { erro?: string } | undefined;
 
@@ -181,6 +183,94 @@ export async function entradaOuroEvento(
 
   revalidatePath("/pdv-eventos");
   return {};
+}
+
+/** Entrada ou retirada de dinheiro do caixa (pedido do usuário, 2026-09-03)
+ * — só insert, mesmo espírito de movimentacoes_estoque_evento: registro de
+ * auditoria, não um valor editável livremente depois. */
+export async function registrarMovimentoCaixaEvento(
+  tipo: "entrada" | "retirada",
+  valor: number,
+  motivo: string,
+): Promise<{ erro?: string }> {
+  if (!Number.isFinite(valor) || valor <= 0) return { erro: "Valor precisa ser maior que zero." };
+  if (!motivo.trim()) return { erro: `Informe o motivo da ${tipo === "entrada" ? "entrada" : "retirada"}.` };
+
+  const supabase = await createClient();
+  const { error } = await supabase.from("movimentos_caixa_evento").insert({ tipo, valor, motivo: motivo.trim() });
+  if (error) return { erro: error.message };
+
+  revalidatePath("/pdv-eventos");
+  return {};
+}
+
+/** Valor com que o caixa abriu hoje (troco inicial) — chamada de novo
+ * corrige (sempre usa a mais recente do dia, ver fecharCaixaEvento). */
+export async function registrarAberturaCaixaEvento(valor: number): Promise<{ erro?: string }> {
+  if (!Number.isFinite(valor) || valor < 0) return { erro: "Valor precisa ser zero ou maior." };
+
+  const supabase = await createClient();
+  const { error } = await supabase.from("aberturas_caixa_evento").insert({ data: hojeIso(), valor });
+  if (error) return { erro: error.message };
+
+  revalidatePath("/pdv-eventos");
+  return {};
+}
+
+/** Fecha o caixa de HOJE (pedido do usuário, 2026-09-03): recalcula o
+ * resumo no servidor a partir das vendas faturadas, movimentos e abertura
+ * do dia (não confia em soma feita no cliente) e grava uma linha de
+ * histórico. A impressão em si é uma solicitação separada
+ * (solicitarImpressaoCupom, construirLinhasFechamentoCaixa) — esta action
+ * só garante o número certo gravado, chamada de novo a cada "Fechar caixa"
+ * (sem trava de uma vez por dia: evento ao vivo, mais seguro poder refazer
+ * que travar). */
+export async function fecharCaixaEvento(): Promise<
+  { fechamento: FechamentoCaixaEvento; movimentos: MovimentoCaixaEvento[] } | { erro: string }
+> {
+  const supabase = await createClient();
+  const hoje = hojeIso();
+
+  const [
+    { data: vendas, error: erroVendas },
+    { data: movimentos, error: erroMovimentos },
+    { data: aberturas, error: erroAberturas },
+  ] = await Promise.all([
+    supabase.from("vendas_evento").select("forma_pagamento, total, valor_desconto, criado_em").eq("status", "faturado"),
+    supabase.from("movimentos_caixa_evento").select("*").order("criado_em", { ascending: true }),
+    supabase.from("aberturas_caixa_evento").select("valor, criado_em").eq("data", hoje).order("criado_em", { ascending: false }),
+  ]);
+  if (erroVendas) return { erro: erroVendas.message };
+  if (erroMovimentos) return { erro: erroMovimentos.message };
+  if (erroAberturas) return { erro: erroAberturas.message };
+
+  const vendasHoje = (vendas ?? []).filter((v) => dataLocalDoTimestamptz(v.criado_em) === hoje);
+  const movimentosHoje = ((movimentos ?? []) as MovimentoCaixaEvento[]).filter(
+    (m) => dataLocalDoTimestamptz(m.criado_em) === hoje,
+  );
+  const valorAbertura = aberturas?.[0]?.valor ?? 0;
+  const resumo = calcularResumoFechamentoCaixa(vendasHoje, movimentosHoje, valorAbertura);
+
+  const { data: fechamento, error: erroInsert } = await supabase
+    .from("fechamentos_caixa_evento")
+    .insert({
+      data: hoje,
+      valor_abertura: resumo.valorAbertura,
+      total_dinheiro: resumo.porFormaPagamento.dinheiro,
+      total_pix: resumo.porFormaPagamento.pix,
+      total_cartao_vista: resumo.porFormaPagamento.cartao_vista,
+      total_cartao_parcelado: resumo.porFormaPagamento.cartao_parcelado,
+      total_descontos: resumo.totalDescontos,
+      total_entradas: resumo.totalEntradas,
+      total_retiradas: resumo.totalRetiradas,
+      saldo_dinheiro: resumo.saldoDinheiro,
+    })
+    .select("*")
+    .single();
+  if (erroInsert || !fechamento) return { erro: erroInsert?.message ?? "Não foi possível fechar o caixa." };
+
+  revalidatePath("/pdv-eventos");
+  return { fechamento, movimentos: movimentosHoje };
 }
 
 export async function registrarVendaEvento(
