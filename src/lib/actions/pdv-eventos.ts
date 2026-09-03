@@ -131,6 +131,31 @@ export async function devolverProdutoEstoque(
   return {};
 }
 
+/** Cadastro simples de cupom de desconto do PDV Eventos (pedido do usuário,
+ * 2026-09-03) — código, tipo (percentual/valor) e valor; ativo/inativo em
+ * vez de excluir, mesmo padrão do resto do módulo. */
+export async function salvarCupomEvento(_prev: ResultadoForm, formData: FormData): Promise<ResultadoForm> {
+  const codigo = normalizarCampo(formData.get("codigo"), { caixaAlta: true });
+  if (!codigo) return { erro: "Código é obrigatório." };
+  const tipo = formData.get("tipo") === "percentual" ? "percentual" : "valor";
+  const valor = numeroOuZero(formData.get("valor"));
+  if (valor <= 0) return { erro: "Valor precisa ser maior que zero." };
+  if (tipo === "percentual" && valor > 100) return { erro: "Percentual não pode passar de 100." };
+
+  const supabase = await createClient();
+  const id = normalizarCampo(formData.get("id"));
+  const dados = { codigo, tipo, valor, ativo: formData.get("ativo") === "on" };
+
+  const { error } = id
+    ? await supabase.from("cupons_evento").update(dados).eq("id", id)
+    : await supabase.from("cupons_evento").insert(dados);
+
+  if (error) return { erro: mensagemErroSalvar(error, "código") };
+
+  revalidatePath("/pdv-eventos");
+  return undefined;
+}
+
 /** Entrada de peça de ouro (pedido direto do usuário, 2026-09-01): digita o
  * código, o preço sai sozinho (peso × cotação do dia × 1,30 — mesma
  * cotação usada no Estoque real, ver tela "Cotação"). Código já existente

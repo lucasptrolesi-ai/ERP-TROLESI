@@ -6,18 +6,28 @@ import { parseMoeda } from "@/lib/parse-moeda";
 import { filtra } from "@/lib/filtra";
 import { registrarVendaEvento } from "@/lib/actions/pdv-eventos";
 import { FORMA_LABEL_EVENTO, FORMAS_PAGAMENTO_EVENTO } from "@/lib/forma-pagamento-evento";
+import { calcularDescontoCupom } from "@/lib/cupom-evento";
 import { CupomEventoView } from "./cupom-evento-view";
 import { LeitorCameraModal } from "@/components/leitor-camera-modal";
 import { FotoComZoom } from "@/components/foto-com-zoom";
 import type { VendaEventoParaCupom } from "@/lib/cupom-linhas-evento";
-import type { FormaPagamentoEvento, ItemCarrinhoEvento, ProdutoEvento } from "@/lib/types";
+import type { CupomEvento, FormaPagamentoEvento, ItemCarrinhoEvento, ProdutoEvento } from "@/lib/types";
 
-export function VenderEvento({ produtosEvento }: { produtosEvento: ProdutoEvento[] }) {
+export function VenderEvento({
+  produtosEvento,
+  cupons,
+}: {
+  produtosEvento: ProdutoEvento[];
+  cupons: CupomEvento[];
+}) {
   const [carrinho, setCarrinho] = useState<ItemCarrinhoEvento[]>([]);
   const [buscaCodigo, setBuscaCodigo] = useState("");
   const [codigoNaoEncontrado, setCodigoNaoEncontrado] = useState(false);
   const [leitorCameraAberto, setLeitorCameraAberto] = useState(false);
   const [valorDesconto, setValorDesconto] = useState("0");
+  const [cupomCodigo, setCupomCodigo] = useState("");
+  const [cupomAplicado, setCupomAplicado] = useState<CupomEvento | null>(null);
+  const [erroCupom, setErroCupom] = useState<string | null>(null);
   const [clienteNome, setClienteNome] = useState("");
   const [clienteCpf, setClienteCpf] = useState("");
   const [clienteTelefone, setClienteTelefone] = useState("");
@@ -62,9 +72,36 @@ export function VenderEvento({ produtosEvento }: { produtosEvento: ProdutoEvento
   }
 
   const subtotal = carrinho.reduce((soma, i) => soma + i.quantidade * i.preco_unitario, 0);
-  const descontoNum = Math.max(0, parseMoeda(valorDesconto));
+  // Cupom aplicado sempre recalcula em cima do subtotal atual (se o
+  // carrinho mudar depois de aplicar, o desconto acompanha) — só cai pro
+  // campo manual quando não há cupom ativo na venda.
+  const descontoNum = cupomAplicado
+    ? calcularDescontoCupom(cupomAplicado.tipo, cupomAplicado.valor, subtotal)
+    : Math.max(0, parseMoeda(valorDesconto));
   const total = Math.max(0, subtotal - descontoNum);
   const itensAcimaDoEstoque = carrinho.filter((i) => i.quantidade > i.estoqueDisponivel);
+
+  function aplicarCupom() {
+    const codigo = cupomCodigo.trim();
+    if (!codigo) return;
+    const encontrado = cupons.find((c) => c.codigo.trim().toLowerCase() === codigo.toLowerCase());
+    if (!encontrado) {
+      setErroCupom("Cupom não encontrado.");
+      return;
+    }
+    if (!encontrado.ativo) {
+      setErroCupom("Esse cupom está desativado.");
+      return;
+    }
+    setErroCupom(null);
+    setCupomAplicado(encontrado);
+  }
+
+  function removerCupom() {
+    setCupomAplicado(null);
+    setCupomCodigo("");
+    setErroCupom(null);
+  }
 
   function adicionarAoCarrinho(produto: ProdutoEvento) {
     setCarrinho((atual) => {
@@ -167,6 +204,7 @@ export function VenderEvento({ produtosEvento }: { produtosEvento: ProdutoEvento
       });
       setCarrinho([]);
       setValorDesconto("0");
+      removerCupom();
       setFormaPagamento("dinheiro");
       setNumeroParcelas(2);
       setIdempotencyKey(crypto.randomUUID());
@@ -350,15 +388,50 @@ export function VenderEvento({ produtosEvento }: { produtosEvento: ProdutoEvento
           </div>
         </div>
 
-        <label className="flex flex-col gap-1.5">
-          <span className="text-xs font-semibold uppercase tracking-wide text-text-soft">Desconto (R$)</span>
-          <input
-            value={valorDesconto}
-            onChange={(e) => setValorDesconto(e.target.value)}
-            inputMode="decimal"
-            className="rounded-lg border border-line bg-cream px-3 py-2 text-sm text-ink outline-none focus:border-rose focus:ring-2 focus:ring-rose-soft"
-          />
-        </label>
+        <div className="flex flex-col gap-1.5">
+          <span className="text-xs font-semibold uppercase tracking-wide text-text-soft">Cupom de desconto</span>
+          {cupomAplicado ? (
+            <div className="flex items-center justify-between rounded-lg border border-ok bg-ok-bg px-3 py-2 text-sm font-semibold text-ok">
+              <span>
+                {cupomAplicado.codigo} (
+                {cupomAplicado.tipo === "percentual" ? `${cupomAplicado.valor}%` : formatarMoeda(cupomAplicado.valor)}
+                )
+              </span>
+              <button type="button" onClick={removerCupom} className="text-xs underline">
+                Remover
+              </button>
+            </div>
+          ) : (
+            <div className="flex gap-2">
+              <input
+                value={cupomCodigo}
+                onChange={(e) => setCupomCodigo(e.target.value)}
+                placeholder="Código do cupom"
+                className="flex-1 rounded-lg border border-line bg-cream px-3 py-2 text-sm text-ink outline-none focus:border-rose focus:ring-2 focus:ring-rose-soft"
+              />
+              <button
+                type="button"
+                onClick={aplicarCupom}
+                className="rounded-lg border border-rose px-3 py-2 text-sm font-semibold text-rose-deep"
+              >
+                Aplicar
+              </button>
+            </div>
+          )}
+          {erroCupom && <p className="text-xs font-medium text-crit">{erroCupom}</p>}
+        </div>
+
+        {!cupomAplicado && (
+          <label className="flex flex-col gap-1.5">
+            <span className="text-xs font-semibold uppercase tracking-wide text-text-soft">Desconto manual (R$)</span>
+            <input
+              value={valorDesconto}
+              onChange={(e) => setValorDesconto(e.target.value)}
+              inputMode="decimal"
+              className="rounded-lg border border-line bg-cream px-3 py-2 text-sm text-ink outline-none focus:border-rose focus:ring-2 focus:ring-rose-soft"
+            />
+          </label>
+        )}
 
         <div>
           <span className="text-xs font-semibold uppercase tracking-wide text-text-soft">Forma de pagamento</span>

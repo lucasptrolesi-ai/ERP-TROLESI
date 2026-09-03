@@ -514,6 +514,15 @@ export type ProdutoEvento = {
   usa_cotacao_diaria: boolean;
 };
 
+export type CupomEvento = {
+  id: string;
+  codigo: string;
+  tipo: "percentual" | "valor";
+  valor: number;
+  ativo: boolean;
+  criado_em: string;
+};
+
 /** Recorte leve de Produto usado só na busca do modal "Importar do Estoque"
  * (PDV Eventos) — evita puxar as ~40 colunas comerciais de Produto pra uma
  * lista de seleção. */

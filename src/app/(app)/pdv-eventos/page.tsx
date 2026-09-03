@@ -4,7 +4,7 @@ import { podeEditarPedidos } from "@/lib/permissoes";
 import { comoLista } from "@/lib/supabase-embed";
 import { hojeIso } from "@/lib/datas";
 import { PdvEventosView } from "./pdv-eventos-view";
-import type { ProdutoParaImportar, VendaEvento } from "@/lib/types";
+import type { CupomEvento, ProdutoParaImportar, VendaEvento } from "@/lib/types";
 
 export default async function PdvEventosPage() {
   const perfil = await getPerfilAtual();
@@ -22,7 +22,7 @@ export default async function PdvEventosPage() {
   }
 
   const supabase = await createClient();
-  const [{ data: produtosEvento }, { data: vendasEvento }, { data: produtosReais }, { data: cotacaoOuro }] =
+  const [{ data: produtosEvento }, { data: vendasEvento }, { data: produtosReais }, { data: cotacaoOuro }, { data: cupons }] =
     await Promise.all([
       supabase.from("produtos_evento").select("*").order("criado_em", { ascending: false }),
       supabase
@@ -40,6 +40,7 @@ export default async function PdvEventosPage() {
       // Mesma cotação diária da tela "Cotação" (material 'Ouro') — usada
       // pela entrada rápida de peça de ouro no estoque do evento.
       supabase.from("cotacoes_diarias").select("valor").eq("material", "Ouro").eq("data", hojeIso()).maybeSingle(),
+      supabase.from("cupons_evento").select("*").order("criado_em", { ascending: false }),
     ]);
 
   return (
@@ -48,6 +49,7 @@ export default async function PdvEventosPage() {
       vendasEvento={comoLista<VendaEvento>(vendasEvento)}
       produtosReais={(produtosReais ?? []) as ProdutoParaImportar[]}
       cotacaoOuroHoje={cotacaoOuro?.valor ?? null}
+      cupons={(cupons ?? []) as CupomEvento[]}
     />
   );
 }

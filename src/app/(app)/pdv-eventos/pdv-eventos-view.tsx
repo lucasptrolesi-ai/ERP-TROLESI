@@ -4,20 +4,23 @@ import { useState } from "react";
 import { VenderEvento } from "./vender-evento";
 import { EstoqueEvento } from "./estoque-evento";
 import { ResumoEvento } from "./resumo-evento";
-import type { ProdutoEvento, ProdutoParaImportar, VendaEvento } from "@/lib/types";
+import { CuponsEvento } from "./cupons-evento";
+import type { CupomEvento, ProdutoEvento, ProdutoParaImportar, VendaEvento } from "@/lib/types";
 
-type Aba = "vender" | "estoque" | "resumo";
+type Aba = "vender" | "estoque" | "resumo" | "cupons";
 
 export function PdvEventosView({
   produtosEvento,
   vendasEvento,
   produtosReais,
   cotacaoOuroHoje,
+  cupons,
 }: {
   produtosEvento: ProdutoEvento[];
   vendasEvento: VendaEvento[];
   produtosReais: ProdutoParaImportar[];
   cotacaoOuroHoje: number | null;
+  cupons: CupomEvento[];
 }) {
   const [aba, setAba] = useState<Aba>("vender");
 
@@ -53,13 +56,22 @@ export function PdvEventosView({
           >
             Resumo
           </button>
+          <button
+            onClick={() => setAba("cupons")}
+            className={`border-b-2 py-3 text-sm font-semibold ${
+              aba === "cupons" ? "border-rose text-rose-deep" : "border-transparent text-text-soft"
+            }`}
+          >
+            Cupons
+          </button>
         </div>
 
-        {aba === "vender" && <VenderEvento produtosEvento={produtosEvento} />}
+        {aba === "vender" && <VenderEvento produtosEvento={produtosEvento} cupons={cupons} />}
         {aba === "estoque" && (
           <EstoqueEvento produtosEvento={produtosEvento} produtosReais={produtosReais} cotacaoOuroHoje={cotacaoOuroHoje} />
         )}
         {aba === "resumo" && <ResumoEvento vendasEvento={vendasEvento} produtosEvento={produtosEvento} />}
+        {aba === "cupons" && <CuponsEvento cupons={cupons} />}
       </div>
     </div>
   );
