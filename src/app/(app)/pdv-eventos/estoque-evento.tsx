@@ -10,14 +10,8 @@ import { LeitorCodigoModal } from "@/components/leitor-codigo-modal";
 import { ProdutoEventoForm } from "./produto-evento-form";
 import { ImportarProdutoModal } from "./importar-produto-modal";
 import { EntradaOuroModal } from "./entrada-ouro-modal";
+import { prefixoCodigo } from "@/lib/prefixo-codigo";
 import type { ProdutoEvento, ProdutoParaImportar } from "@/lib/types";
-
-// Prefixo de letras do código (esquema do usuário: PA, BL, BLF...) vira a
-// seção — é a mesma lógica de sugestão de próximo código
-// (campo-codigo-produto.tsx), só usada aqui pra agrupar em vez de sugerir.
-function prefixoCodigo(codigo: string): string {
-  return codigo.match(/^[A-Za-z]+/)?.[0]?.toUpperCase() ?? "Outros";
-}
 
 function baixarArquivo(base64: string, nomeArquivo: string) {
   const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));

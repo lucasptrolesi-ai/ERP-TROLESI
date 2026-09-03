@@ -585,6 +585,7 @@ export type ProdutoEventoVinculado = {
 export type ItemCarrinhoEvento = {
   linha_id: string;
   produto_evento_id: string;
+  codigo_interno: string;
   nome: string;
   preco_unitario: number;
   quantidade: number;

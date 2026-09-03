@@ -7,6 +7,7 @@ import { filtra } from "@/lib/filtra";
 import { registrarVendaEvento } from "@/lib/actions/pdv-eventos";
 import { FORMA_LABEL_EVENTO, FORMAS_PAGAMENTO_EVENTO } from "@/lib/forma-pagamento-evento";
 import { calcularDescontoCupom } from "@/lib/cupom-evento";
+import { calcularDescontoBerloques } from "@/lib/promocao-berloques";
 import { CupomEventoView } from "./cupom-evento-view";
 import { LeitorCameraModal } from "@/components/leitor-camera-modal";
 import { FotoComZoom } from "@/components/foto-com-zoom";
@@ -72,6 +73,10 @@ export function VenderEvento({
   }
 
   const subtotal = carrinho.reduce((soma, i) => soma + i.quantidade * i.preco_unitario, 0);
+  // Promoção berloques (pedido do usuário, 2026-09-03): 3+ peças com
+  // código "BL" (qualquer combinação) saem por R$49,90 cada — automática,
+  // não depende de cupom nem de desconto manual.
+  const descontoBerloques = calcularDescontoBerloques(carrinho);
   // Cupom aplicado sempre recalcula em cima do subtotal atual (se o
   // carrinho mudar depois de aplicar, o desconto acompanha) — só cai pro
   // campo manual quando não há cupom ativo na venda.
@@ -81,7 +86,7 @@ export function VenderEvento({
   // Valor "de tabela" — nunca muda por causa do ajuste manual, fica sempre
   // visível ao lado do valor final (pedido do usuário, 2026-09-03: "o valor
   // real da compra não pode ser alterado, aparece os dois").
-  const totalCalculado = Math.max(0, subtotal - descontoNum);
+  const totalCalculado = Math.max(0, subtotal - descontoNum - descontoBerloques);
   // Total final editável direto: "fechar em R$X" é mais natural numa
   // negociação de balcão do que reverter pra desconto em %/R$ — funciona
   // igual pra qualquer forma de pagamento, inclusive parcelado (a
@@ -133,6 +138,7 @@ export function VenderEvento({
         {
           linha_id: crypto.randomUUID(),
           produto_evento_id: produto.id,
+          codigo_interno: produto.codigo_interno,
           nome: produto.nome,
           preco_unitario: produto.preco,
           quantidade: 1,
@@ -496,12 +502,18 @@ export function VenderEvento({
             <span className="text-text-soft">Desconto</span>
             <span className="tabular-nums">− {formatarMoeda(descontoNum)}</span>
           </div>
+          {descontoBerloques > 0 && (
+            <div className="flex justify-between text-rose-deep">
+              <span>🎁 Promoção berloques (3+ = R$49,90 cada)</span>
+              <span className="tabular-nums">− {formatarMoeda(descontoBerloques)}</span>
+            </div>
+          )}
           <div className="flex justify-between text-base font-bold text-ink">
-            <span>Total calculado</span>
+            <span>Valor da compra</span>
             <span className="tabular-nums">{formatarMoeda(totalCalculado)}</span>
           </div>
           <div className="flex items-center justify-between text-xl font-bold text-ink">
-            <span>Valor final da venda</span>
+            <span>Valor cobrado</span>
             <div className="flex items-center gap-1">
               <span className="text-sm font-normal text-text-soft">R$</span>
               <input
@@ -512,11 +524,14 @@ export function VenderEvento({
               />
             </div>
           </div>
+          <p className="text-right text-xs text-text-soft">
+            Use pra somar o juros da maquininha quando cobrar à parte — o valor da compra acima não muda.
+          </p>
           {totalManual !== null && (
             <p className="text-right text-xs text-text-soft">
-              Ajustado na mão, diferente do calculado —{" "}
+              Diferente do valor da compra —{" "}
               <button type="button" onClick={() => setTotalManual(null)} className="font-semibold text-rose-deep hover:underline">
-                voltar ao calculado
+                voltar ao valor da compra
               </button>
             </p>
           )}
