@@ -9,6 +9,7 @@ import { FORMA_LABEL_EVENTO, FORMAS_PAGAMENTO_EVENTO } from "@/lib/forma-pagamen
 import { calcularDescontoCupom } from "@/lib/cupom-evento";
 import { calcularDescontoBerloques } from "@/lib/promocao-berloques";
 import { CupomEventoView } from "./cupom-evento-view";
+import { PecaAvulsaEvento } from "./peca-avulsa-evento";
 import { LeitorCameraModal } from "@/components/leitor-camera-modal";
 import { FotoComZoom } from "@/components/foto-com-zoom";
 import type { VendaEventoParaCupom } from "@/lib/cupom-linhas-evento";
@@ -147,6 +148,25 @@ export function VenderEvento({
         },
       ];
     });
+  }
+
+  // Peça não cadastrada (ver PecaAvulsaEvento): sem produto_evento_id, sem
+  // código real, sem estoque pra checar — entra na venda como uma linha
+  // avulsa, sempre nova (não tem com o que agrupar/somar quantidade).
+  function adicionarPecaAvulsa(item: { nome: string; preco: number }) {
+    setCarrinho((atual) => [
+      ...atual,
+      {
+        linha_id: crypto.randomUUID(),
+        produto_evento_id: null,
+        codigo_interno: "",
+        nome: item.nome,
+        preco_unitario: item.preco,
+        quantidade: 1,
+        estoqueDisponivel: Infinity,
+        fotoUrl: null,
+      },
+    ]);
   }
 
   // Compartilhada entre o leitor USB (bipagem por teclado) e o leitor por
@@ -302,6 +322,8 @@ export function VenderEvento({
         {codigoNaoEncontrado && (
           <p className="text-xs font-semibold text-crit">Código não encontrado no estoque do evento.</p>
         )}
+
+        <PecaAvulsaEvento onAdicionar={adicionarPecaAvulsa} />
 
         <div className="overflow-x-auto rounded-xl border border-line">
           <table className="w-full text-sm">

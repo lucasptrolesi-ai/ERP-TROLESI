@@ -279,7 +279,7 @@ export async function fecharCaixaEvento(
 }
 
 export async function registrarVendaEvento(
-  itens: { produto_evento_id: string; nome: string; quantidade: number; preco_unitario: number }[],
+  itens: { produto_evento_id: string | null; nome: string; quantidade: number; preco_unitario: number }[],
   formaPagamento: FormaPagamentoEvento,
   valorDesconto: number,
   numeroParcelas: number,

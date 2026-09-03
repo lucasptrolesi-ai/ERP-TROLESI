@@ -584,7 +584,9 @@ export type ProdutoEventoVinculado = {
 
 export type ItemCarrinhoEvento = {
   linha_id: string;
-  produto_evento_id: string;
+  // null = peça avulsa (não cadastrada, ver EntradaAvulsaEvento) — não
+  // baixa estoque de nada, só entra na venda.
+  produto_evento_id: string | null;
   codigo_interno: string;
   nome: string;
   preco_unitario: number;
