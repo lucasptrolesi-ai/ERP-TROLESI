@@ -2,6 +2,42 @@
 
 Histórico de decisões de escopo e arquitetura, na ordem em que foram tomadas. Decisões revistas ficam marcadas como tal, não apagadas.
 
+## 2026-09-21 — Módulo de varejo, etapa 1: estrutura de operações + carimbo ATACADO (migration escrita, NÃO aplicada)
+
+**Contexto:** o varejo entra como uma operação dentro do mesmo ERP (empresa → operação ATACADO|VAREJO → depósito/caixa), com isolamento por permissão e por faturamento. Regras invioláveis do pedido: `operacao_id NOT NULL` vindo da sessão (nunca do cliente), autorização no servidor com falha por padrão, estoque só por movimento, custo congelado no fato, produto pai + variação, dinheiro `numeric(12,2)` com HALF_UP único, multiplicador de atacado só na rotina de transferência. A etapa 1 cria a estrutura e carimba o histórico; o isolamento real (RLS por operação, contexto de sessão, middleware) é a etapa 2.
+
+**Decisões do usuário (D1–D7):**
+- **D1** `produtos` é por operação (`operacao_id NOT NULL`), contra a recomendação inicial de catálogo compartilhado. `produto_imagens` e `produto_ia_correcoes` acompanham.
+- **D2** `clientes` por operação.
+- **D3** as 8 tabelas do PDV Eventos (`vendas_evento`, `vendas_evento_itens`, `produtos_evento`, `movimentacoes_estoque_evento`, `movimentos_caixa_evento`, `aberturas_caixa_evento`, `fechamentos_caixa_evento`, `cupons_evento`) são carimbadas VAREJO, não ATACADO. Nenhum relatório atual lê essas tabelas junto com `pedidos`, então nada muda nos números de hoje.
+- **D4** `usuario_operacoes` entra na etapa 1: Lucas em ATACADO e VAREJO; Barbara, Bianca e Maria Fernanda só em ATACADO; TESTE TESTE sem operação.
+- **D5** `DEFAULT` transitório por tabela até a etapa 2 + FKs compostas `(coluna, operacao_id)` já na etapa 1 (motivo: o varejo não pode "conversar" com pedidos/tabelas do atacado). Reescrever as ~20 functions agora foi descartado.
+- **D6** série fiscal: ATACADO = "1" (a da única nota existente); VAREJO em branco + pendência (decisão fiscal com o contador, não se supõe).
+- **D7** dinheiro `numeric(12,2)`: migration própria depois da etapa 1.
+
+**Desvios em relação ao levantamento, descobertos ao escrever a migration:**
+- Nenhuma unicidade é alterada na etapa 1: `conceder_permissao` usa `ON CONFLICT (profile_id, permissao)` e `comissoes.ts` faz `upsert(..., { onConflict: "profile_id" })` em `vendedores`. Reformular essas unicidades agora quebraria produção; entram na etapa 2 junto com a reescrita das duas rotinas.
+- O carimbo usa `ADD COLUMN ... NOT NULL DEFAULT` em vez de `UPDATE`: um `UPDATE` dispararia `set_atualizado_em` (reescrevendo `atualizado_em` de pedidos, clientes, produtos...) e eventos de Realtime.
+- O PDV Eventos tem 8 tabelas, não 9 como dito durante a conversa.
+
+**Duas exceções legadas, sem FK composta (consequência de D1 + D3):** `produtos_evento.produto_origem_id` e `movimentacoes_estoque_evento.produto_id` (VAREJO) apontam para `produtos` (ATACADO). `importar_produto_evento`/`devolver_produto_evento` movem estoque do atacado sem lançamento intercompany. A rotina de transferência deve substituí-los.
+
+**Pendências registradas em `pending_decisions` (`ativo=false`):** `serie_fiscal_varejo`, `remover_default_operacao_id`, `unicidades_por_operacao`, `excecoes_vinculo_evento_atacado`, `dinheiro_numeric_12_2`.
+
+**Achados do levantamento que definem as próximas etapas:**
+- O RLS de leitura é `auth.uid() is not null` em pedidos, itens, produtos, movimentos, vendas de evento etc.; `vendedor` escreve em pedidos/clientes/garantias/eventos. Sem a etapa 2 não há isolamento, e o VAREJO não pode operar antes dela.
+- `proxy.ts` só autentica; não há autorização por rota nem falha por padrão (regra 2). A checagem hoje é RLS + `permissoes.ts`.
+- `produtos.quantidade_estoque` é coluna mutável e diverge da soma de `movimentos_estoque` em 32 de 50 produtos (18 sem movimento); só há 4 entradas e 348 saídas, sem saldo inicial.
+- Não há custo congelado em `movimentos_estoque` nem em `pedido_itens` (só `produtos.custo_aquisicao`, mutável).
+- `codigo_peca × 2,8` é o custo do varejo; RLS não esconde colunas, então o varejo precisa ler produtos por view/RPC sem `codigo_peca`/`custo_aquisicao`.
+- O multiplicador vive em `produtos.multiplicador` (default 2,8) e a UI (`novo-pedido.tsx`, `venda-por-foto-view.tsx`, `precificacao.ts`) calcula preço no cliente; o PDV Eventos tem um 1,3 fixo. Contraria a regra 7.
+- ~20 functions `SECURITY DEFINER` ignoram RLS e precisam carimbar/filtrar a operação por conta própria. `estatisticas_cliente()` conta compras de todos os pedidos do cliente.
+- O bucket `pedidos-notas-fotos` só filtra por papel; precisa de prefixo por operação. O Realtime só passa a respeitar a operação depois do RLS.
+- Novos funcionários (`/permissoes`) não recebem operação automaticamente: a criação precisa gravar em `usuario_operacoes` na etapa 2.
+- Drift repo × banco: `entrada_ouro_evento` é chamada pelo app (`pdv-eventos.ts`), mas a function não existe no banco (a migration `20260901000002` provavelmente nunca foi aplicada). `list_migrations` do Supabase está vazio (migrations coladas à mão) e o `PROJECT_STATUS.md` está parado em 27/07.
+
+**Como aplicar (SQL Editor, pelo usuário):** `supabase/migrations/20260921000001_estrutura_operacoes.sql` vem em modo `ensaio` (aplica, verifica, desfaz e compara o schema; termina de propósito com "ENSAIO OK" e não grava nada). Só depois de "ENSAIO OK", trocar o modo para `aplicar`. Rollback: modo `desfazer`. O gate de code-review (regra 2 do `CLAUDE.md`) ainda está pendente.
+
 ## 2026-08-11 — Code review completo (Cadastros/Estoque + Pedidos/PDV/Financeiro) + auditoria LGPD
 
 Pedido do usuário: revisar o ERP inteiro atrás de bugs de código/execução, e rodar uma auditoria LGPD completa. Feito em 3 revisões paralelas (subagentes). Achados registrados aqui pra não se perder; nem todos foram corrigidos ainda.
