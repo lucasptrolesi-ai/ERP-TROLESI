@@ -1,5 +1,6 @@
 import { AppShell } from "@/components/app-shell";
 import { getPerfilAtual } from "@/lib/supabase/auth";
+import { getContextoSessao } from "@/lib/supabase/contexto";
 import { createClient } from "@/lib/supabase/server";
 import { podeEditarFinanceiro } from "@/lib/permissoes";
 import { hojeIso, isoEmDias } from "@/lib/datas";
@@ -15,6 +16,7 @@ const PAPEL_LABEL: Record<string, string> = {
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const perfil = await getPerfilAtual();
+  const contexto = await getContextoSessao();
   const papelLabel = PAPEL_LABEL[perfil.papel] ?? "Sem papel";
   const inicial = perfil.nome.charAt(0).toUpperCase();
 
@@ -58,6 +60,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       inicial={inicial}
       parcelasVencendo={parcelasVencendo}
       contasPagarVencendo={contasPagarVencendo}
+      operacoes={contexto?.operacoes ?? []}
+      operacaoId={contexto?.operacao_id ?? null}
+      operacaoCodigo={contexto?.operacao_codigo ?? null}
+      papel={contexto?.papel ?? null}
     >
       {children}
     </AppShell>
