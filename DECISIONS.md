@@ -2,7 +2,7 @@
 
 Histórico de decisões de escopo e arquitetura, na ordem em que foram tomadas. Decisões revistas ficam marcadas como tal, não apagadas.
 
-## 2026-09-21 — Módulo de varejo, etapa 1: estrutura de operações + carimbo ATACADO (migration escrita, NÃO aplicada)
+## 2026-09-21 — Módulo de varejo, etapa 1: estrutura de operações + carimbo ATACADO (migration APLICADA em produção em 2026-09-21 15:44 BRT)
 
 **Contexto:** o varejo entra como uma operação dentro do mesmo ERP (empresa → operação ATACADO|VAREJO → depósito/caixa), com isolamento por permissão e por faturamento. Regras invioláveis do pedido: `operacao_id NOT NULL` vindo da sessão (nunca do cliente), autorização no servidor com falha por padrão, estoque só por movimento, custo congelado no fato, produto pai + variação, dinheiro `numeric(12,2)` com HALF_UP único, multiplicador de atacado só na rotina de transferência. A etapa 1 cria a estrutura e carimba o histórico; o isolamento real (RLS por operação, contexto de sessão, middleware) é a etapa 2.
 
@@ -36,7 +36,7 @@ Histórico de decisões de escopo e arquitetura, na ordem em que foram tomadas. 
 - Novos funcionários (`/permissoes`) não recebem operação automaticamente: a criação precisa gravar em `usuario_operacoes` na etapa 2.
 - Drift repo × banco: `entrada_ouro_evento` é chamada pelo app (`pdv-eventos.ts`), mas a function não existe no banco (a migration `20260901000002` provavelmente nunca foi aplicada). `list_migrations` do Supabase está vazio (migrations coladas à mão) e o `PROJECT_STATUS.md` está parado em 27/07.
 
-**Como aplicar (SQL Editor, pelo usuário):** `supabase/migrations/20260921000001_estrutura_operacoes.sql` vem em modo `ensaio` (aplica, verifica, desfaz e compara o schema; termina de propósito com "ENSAIO OK" e não grava nada). Só depois de "ENSAIO OK", trocar o modo para `aplicar`. Rollback: modo `desfazer`. O gate de code-review (regra 2 do `CLAUDE.md`) ainda está pendente.
+**Como aplicar (SQL Editor, pelo usuário):** `supabase/migrations/20260921000001_estrutura_operacoes.sql` vem em modo `ensaio` (aplica, verifica, desfaz e compara o schema; termina de propósito com "ENSAIO OK" e não grava nada). Só depois de "ENSAIO OK", trocar o modo para `aplicar`. Rollback: modo `desfazer`. O gate de code-review (regra 2 do `CLAUDE.md`) ainda está pendente. **Estado real:** ensaio deu `ENSAIO OK` às 15:42 e o modo `aplicar` gravou às 15:44:27; a verificação por leitura confirmou 31 colunas (30 NOT NULL + `audit_log` nullable), 31 FKs para `operacoes`, 28 FKs compostas validadas, 7 unicidades `(id, operacao_id)`, 31 índices, contagens idênticas às de antes e os 5 vínculos de usuário. O SQL Editor exibiu um erro `42P01` (`_op_tabelas`) porque anexou `ALTER TABLE ... ENABLE ROW LEVEL SECURITY` para as tabelas TEMP depois do `commit`; é inofensivo, a migration já estava gravada. **Pendente:** a branch `etapa1-operacoes` ainda não está na `master`, então o repositório não reflete o banco até o merge.
 
 ## 2026-08-11 — Code review completo (Cadastros/Estoque + Pedidos/PDV/Financeiro) + auditoria LGPD
 
