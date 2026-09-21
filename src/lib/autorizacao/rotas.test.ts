@@ -57,7 +57,7 @@ describe("decidirAcesso — operação", () => {
   });
 
   it("no varejo, as telas do atacado ficam negadas", () => {
-    for (const rota of ["/pedidos", "/financeiro", "/estoque", "/cadastros", "/fiscal", "/crediario"]) {
+    for (const rota of ["/pedidos", "/financeiro", "/estoque", "/cadastros", "/fiscal", "/crediario", "/transferencia"]) {
       expect(decidirAcesso(rota, adminNoVarejo)).toMatchObject({ permitido: false, motivo: "operacao_errada" });
     }
   });
@@ -80,7 +80,7 @@ describe("decidirAcesso — papel", () => {
 describe("destinoInicial", () => {
   it("cada operação abre na sua tela principal", () => {
     expect(destinoInicial("ATACADO")).toBe("/pedidos");
-    expect(destinoInicial("VAREJO")).toBe("/pdv-eventos");
+    expect(destinoInicial("VAREJO")).toBe("/varejo/pdv");
     expect(destinoInicial(null)).toBe("/pedidos");
   });
 });
