@@ -2,6 +2,24 @@
 
 Histórico de decisões de escopo e arquitetura, na ordem em que foram tomadas. Decisões revistas ficam marcadas como tal, não apagadas.
 
+## 2026-09-21 — Módulo de varejo, etapas 3 a 5b: fundação, caixa, PDV de vendas e transferência (migrations escritas, NÃO aplicadas)
+
+**Estado das etapas 1 e 2:** aplicadas e verificadas em produção (etapa 2 aplicada às 16:35 BRT; ensaio `ENSAIO OK` com T1–T9). O app novo (seletor de operação, proxy que nega por padrão) está na branch e compila na Vercel, mas **não foi publicado**: exige autorização explícita para o PR/merge e só é seguro porque `contexto_sessao()` já existe.
+
+**Etapa 3 — fundação (`20260921000003`):** `arredondar_moeda()` (HALF_UP, única função de arredondamento; dinheiro novo em `numeric(12,2)`); `parametros_multiplicador` com vigência sem sobreposição e `multiplicador_vigente()` não executável pelo app; catálogo pai + variação (produto sem variação não existe, por constraint deferida); `estoque_movimentos` append-only (trigger + sem privilégio), `custo_unitario` obrigatório gravado no fato, saldo por agregação (`estoque_saldos`), escrita só por `registrar_entrada_estoque`/`registrar_ajuste_estoque` (auditadas); views do PDV sem coluna de custo; auditoria de alteração de preço. Compilada (sintaxe) sem execução. Ensaio: T1–T10.
+
+**Etapa 4 — caixa, supervisor, auditoria (`20260921000004`):** sessão de caixa com fechamento cego (`fechar_sessao_caixa` recebe o valor contado e só então calcula e revela esperado e divergência; o vendedor só lê a própria sessão aberta), sangria/suprimento auditados, movimentos append-only; PIN de supervisor (bcrypt, 5 erros bloqueiam 10 min, contador persiste porque a function devolve resultado em vez de lançar), autorização pontual de uso único, 5 min, presa a quem pediu e à ação/alvo, supervisor não autoriza a si mesmo; `audit_log` ganha `ip` e `ip_cliente` por trigger e vira append-only. Ensaio: T1–T12. Revisão manual achou e corrigiu duas funções auxiliares inválidas antes de publicar.
+
+**Etapa 5a — PDV de vendas (`20260921000005`):** `registrar_venda` (preço lido do catálogo, cliente só pede preço menor; totais recalculados; custo do movimento copiado para `venda_itens.custo_unitario`; desconto abaixo do piso exige autorização de supervisor; troco; movimento de caixa líquido; idempotência; auditoria) e `cancelar_venda` (autorização de supervisor, devolução ao estoque pelo custo original congelado, estorno no caixa). Views sem custo; `venda_itens` só o admin lê. Ensaio: T1–T10.
+
+**Etapa 5b — transferência (`20260921000006`):** `transferir_estoque` é o único ponto que lê o multiplicador (custo = `codigo_peca` × multiplicador vigente), baixa o atacado (modelo legado), dá entrada no varejo com custo congelado e gera `contas_receber` (atacado) e `contas_pagar` (varejo) com `intercompany = true`; é a única rotina que grava em duas operações (`app.transferencia`); o atacado representa o varejo como cliente marcado (`clientes.intercompany_operacao_id`). `relatorio_consolidado` (admin) elimina os lançamentos intercompany. Ensaio: T1–T7.
+
+**Ordem obrigatória:** 3 → 4 → 5a → 5b, cada uma primeiro em modo `ensaio` (`ENSAIO OK`) e depois `aplicar`. Só as etapas 1–3 foram checadas quanto à sintaxe antes de chegar ao usuário; 4, 5a e 5b só passaram por revisão manual.
+
+**O que ainda impede o varejo de operar:** não existem telas do varejo (PDV, caixa, cadastro de catálogo, transferência); pelo `CLAUDE.md` elas exigem mockup aprovado antes do código. O VAREJO segue inativo (`operacoes.ativo = false`): ativar é a decisão de go-live, depois de cadastrar supervisores (`definir_pin_supervisor`), catálogo e estoque.
+
+**Pendências registradas em `pending_decisions`:** método de custo (médio × PEPS), varejo sem saldo negativo, prazo intercompany, clientes intercompany nos relatórios do atacado, `operacoes.tipo` genérico, estorno de transferência, vínculo produto atacado ↔ variação, NFC-e e série do varejo, taxas de maquininha, cancelamento com sessão fechada, piso sem preço mínimo, IP confiável na auditoria, migração do atacado para estoque por movimento e para o multiplicador em tabela.
+
 ## 2026-09-21 — Módulo de varejo, etapa 2: contexto de sessão e isolamento (migration + app escritos, NÃO aplicados)
 
 **Mecanismo de contexto:** `operacao_atual()` lê `app_metadata.operacao_id` do JWT e SEMPRE o valida contra `usuario_operacoes` (claim forjado ou velho cai na operação padrão; sem vínculo → NULL → o usuário não vê nem grava nada). `usuario_operacoes.padrao` mantém o app atual igual: Lucas, Barbara, Bianca e Maria Fernanda ficam com ATACADO. A troca de operação é uma Server Action que grava `app_metadata` pela Admin API (campo que só o servidor altera) e renova o token.
