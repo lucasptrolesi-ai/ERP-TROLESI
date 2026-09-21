@@ -56,8 +56,14 @@ export const REGRAS_ROTAS: readonly RegraRota[] = [
   { prefixo: "/relatorios", operacao: "ATACADO", papeis: ["admin"] },
   { prefixo: "/gmax", operacao: "ATACADO", papeis: ["admin"] },
 
-  // Varejo (o PDV Eventos é o primeiro módulo do VAREJO; o PDV do varejo entra na etapa 4).
+  // Transferência atacado -> varejo: só o admin, no contexto do atacado.
+  { prefixo: "/transferencia", operacao: "ATACADO", papeis: ["admin"] },
+
+  // Varejo: caixa, PDV, catálogo e supervisores (o PDV Eventos é o módulo anterior do VAREJO).
   { prefixo: "/pdv-eventos", operacao: "VAREJO" },
+  { prefixo: "/varejo", operacao: "VAREJO" },
+  { prefixo: "/varejo/catalogo", operacao: "VAREJO", papeis: ["admin", "estoque"] },
+  { prefixo: "/varejo/supervisores", operacao: "VAREJO", papeis: ["admin"] },
 ];
 
 function normalizar(caminho: string): string {
@@ -102,5 +108,5 @@ export function decidirAcesso(caminho: string, contexto: ContextoAcesso | null):
 
 /** Tela inicial de cada operação (a raiz "/" redireciona para cá). */
 export function destinoInicial(operacaoCodigo: string | null): string {
-  return operacaoCodigo === "VAREJO" ? "/pdv-eventos" : "/pedidos";
+  return operacaoCodigo === "VAREJO" ? "/varejo/pdv" : "/pedidos";
 }
