@@ -2,6 +2,24 @@
 
 Histórico de decisões de escopo e arquitetura, na ordem em que foram tomadas. Decisões revistas ficam marcadas como tal, não apagadas.
 
+## 2026-09-21 — Módulo de varejo, etapa 2: contexto de sessão e isolamento (migration + app escritos, NÃO aplicados)
+
+**Mecanismo de contexto:** `operacao_atual()` lê `app_metadata.operacao_id` do JWT e SEMPRE o valida contra `usuario_operacoes` (claim forjado ou velho cai na operação padrão; sem vínculo → NULL → o usuário não vê nem grava nada). `usuario_operacoes.padrao` mantém o app atual igual: Lucas, Barbara, Bianca e Maria Fernanda ficam com ATACADO. A troca de operação é uma Server Action que grava `app_metadata` pela Admin API (campo que só o servidor altera) e renova o token.
+
+**Isolamento no banco:** política RESTRITIVA `escopo de operacao` nas 31 tabelas (soma-se por AND às políticas de papel existentes; cobre leitura, escrita e Realtime). Triggers carimbam `operacao_id` pela sessão e rejeitam (42501) INSERT com `operacao_id` informado e UPDATE do campo; só a rotina de transferência da etapa 5 poderá liberar, via `app.transferencia`. Os DEFAULTs transitórios da etapa 1 são removidos. As 15 functions `SECURITY DEFINER` (que ignoram RLS) ganham guarda em runtime, inserida sobre a definição viva e removida exatamente no rollback: exigem a operação certa (atacado = ATACADO, PDV Eventos = VAREJO) e que o registro pedido pertença à operação atual. `tem_permissao` passa a valer por operação. O bucket `pedidos-notas-fotos` fica restrito ao ATACADO. `contexto_sessao()` entrega papel, operação, operações e permissões numa chamada.
+
+**Prova antes de aplicar:** o modo `ensaio` roda 9 testes de comportamento simulando os usuários reais (Lucas sem claim e com claim VAREJO, Barbara com claim válido e forjado, TESTE TESTE sem operação, anônimo), inclusive carimbo automático e rejeição de `operacao_id`, depois desfaz e compara o schema.
+
+**App:** `proxy.ts` nega por padrão (403) toda rota sem regra em `src/lib/autorizacao/rotas.ts`; as regras são por operação e papel; o menu usa a mesma tabela; há seletor de operação no cabeçalho; funcionário novo nasce na operação atual do admin. Teste de cobertura: página nova sem regra falha.
+
+**Ordem obrigatória de aplicação:** 1) migration da etapa 2 (ensaio, depois aplicar); 2) só então merge do app. O app chama `contexto_sessao()`, que só existe depois da migration; sem ela o proxy nega tudo (falha fechada).
+
+**Efeitos conhecidos:** o PDV Eventos só funciona em contexto VAREJO e somente o admin tem VAREJO (D4); TESTE TESTE, sem operação, não vê nada; Server Actions herdam o filtro da rota mas o banco é a autoridade; a rejeição de `operacao_id` no payload é feita pelo banco (trigger), não pelo proxy.
+
+**Pendências registradas em `pending_decisions`:** `estoque_saldo_por_movimento`, `auditoria_ip_operacao`, `storage_notinhas_por_operacao`, `pdv_eventos_exige_varejo`, `functions_definer_sem_guarda`. `unicidades_por_operacao` e `dinheiro_numeric_12_2` (etapa 1) seguem abertas.
+
+**Ainda por construir para o sistema completo:** etapa 3 (estoque só por movimento, custo congelado, produto pai + variação), etapa 4 (PDV do varejo, sessão de caixa com fechamento cego, PIN de supervisor, auditoria com IP), etapa 5 (multiplicador com vigência, transferência entre operações com contas intercompany, consolidado).
+
 ## 2026-09-21 — Módulo de varejo, etapa 1: estrutura de operações + carimbo ATACADO (migration APLICADA em produção em 2026-09-21 15:44 BRT)
 
 **Contexto:** o varejo entra como uma operação dentro do mesmo ERP (empresa → operação ATACADO|VAREJO → depósito/caixa), com isolamento por permissão e por faturamento. Regras invioláveis do pedido: `operacao_id NOT NULL` vindo da sessão (nunca do cliente), autorização no servidor com falha por padrão, estoque só por movimento, custo congelado no fato, produto pai + variação, dinheiro `numeric(12,2)` com HALF_UP único, multiplicador de atacado só na rotina de transferência. A etapa 1 cria a estrutura e carimba o histórico; o isolamento real (RLS por operação, contexto de sessão, middleware) é a etapa 2.
