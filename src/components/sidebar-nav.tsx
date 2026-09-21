@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { decidirAcesso, type ContextoAcesso } from "@/lib/autorizacao/rotas";
 
 // Dashboard/Fiscal seguem fora do menu (2026-07-20, fusão com o documento
 // mestre do PDV) — código mantido no repositório, só não fica acessível
@@ -26,12 +27,13 @@ const ITENS = [
   { href: "/gmax", label: "Importar GMax", icone: "🔄" },
 ];
 
-export function SidebarNav({ onNavegar }: { onNavegar?: () => void }) {
+export function SidebarNav({ contexto, onNavegar }: { contexto: ContextoAcesso; onNavegar?: () => void }) {
   const pathname = usePathname();
 
   return (
     <nav className="flex flex-col gap-1">
-      {ITENS.map((item) => {
+      {/* O menu usa a mesma tabela de regras do proxy: só aparece o que o usuário pode abrir. */}
+      {ITENS.filter((item) => decidirAcesso(item.href, contexto).permitido).map((item) => {
         // "/" redireciona pro PDV — trata como ativo também nesse caso.
         const ativo = pathname.startsWith(item.href) || (item.href === "/pedidos" && pathname === "/");
         return (
