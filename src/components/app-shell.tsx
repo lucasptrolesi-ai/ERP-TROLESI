@@ -6,6 +6,8 @@ import { SidebarNav } from "@/components/sidebar-nav";
 import { BrandBadge } from "@/components/brand-badge";
 import { AlertaVencimentos } from "@/components/alerta-vencimentos";
 import { RealtimeRefresh } from "@/components/realtime-refresh";
+import { SeletorOperacao } from "@/components/seletor-operacao";
+import type { OperacaoDoUsuario } from "@/lib/autorizacao/tipos";
 import { logout } from "@/lib/actions/auth";
 import { CHAVE_RASCUNHO_PEDIDO } from "@/lib/rascunho-pedido";
 import type { ContaPagarVencendo, ParcelaVencendo } from "@/lib/types";
@@ -16,6 +18,10 @@ export function AppShell({
   inicial,
   parcelasVencendo,
   contasPagarVencendo,
+  operacoes,
+  operacaoId,
+  operacaoCodigo,
+  papel,
   children,
 }: {
   nome: string;
@@ -23,10 +29,15 @@ export function AppShell({
   inicial: string;
   parcelasVencendo: ParcelaVencendo[];
   contasPagarVencendo: ContaPagarVencendo[];
+  operacoes: OperacaoDoUsuario[];
+  operacaoId: string | null;
+  operacaoCodigo: string | null;
+  papel: string | null;
   children: React.ReactNode;
 }) {
   const [menuAberto, setMenuAberto] = useState(false);
   const primeiroNome = nome.split(" ")[0];
+  const contextoAcesso = { papel, operacaoCodigo, operacoes };
 
   return (
     <div className="min-h-screen print:block md:grid md:grid-cols-[246px_1fr] print:md:grid-cols-1">
@@ -50,7 +61,7 @@ export function AppShell({
           <span className="font-display text-xl font-semibold text-[#f3ded6]">Trolesi ERP</span>
         </div>
 
-        <SidebarNav onNavegar={() => setMenuAberto(false)} />
+        <SidebarNav contexto={contextoAcesso} onNavegar={() => setMenuAberto(false)} />
 
         <div className="mt-auto border-t border-white/10 pt-3 text-xs text-text-soft">
           <p className="font-semibold text-sidebar-text">{nome}</p>
@@ -85,6 +96,7 @@ export function AppShell({
             ☰
           </button>
           <div className="flex items-center gap-2 sm:gap-3">
+            <SeletorOperacao operacoes={operacoes} atualId={operacaoId} />
             <AlertaVencimentos parcelasReceber={parcelasVencendo} contasPagar={contasPagarVencendo} />
             <span className="hidden rounded-full bg-rose-soft px-2.5 py-1 text-[0.7rem] font-semibold uppercase tracking-wide text-rose-deep md:inline-flex">
               {papelLabel}
