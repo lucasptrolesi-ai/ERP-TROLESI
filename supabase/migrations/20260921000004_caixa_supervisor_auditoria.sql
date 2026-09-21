@@ -53,37 +53,6 @@ begin
   lock table public.pending_decisions in access exclusive mode;
 end $lock$;
 
-create or replace function pg_temp.fp_schema() returns table(item text) language sql as $f$
-  select 'T ' || c.relname || ' ' || c.relkind::text
-    from pg_class c where c.relnamespace = 'public'::regnamespace and c.relkind in ('r', 'v', 'm', 'S', 'p')
-  union all
-  select 'C ' || table_name || '.' || column_name || ' ' || data_type || ' ' || is_nullable || ' ' || coalesce(column_default, '')
-    from information_schema.columns where table_schema = 'public'
-  union all
-  select 'K ' || conrelid::regclass::text || ' ' || conname || ' ' || pg_get_constraintdef(oid)
-    from pg_constraint where connamespace = 'public'::regnamespace
-  union all
-  select 'I ' || indexdef from pg_indexes where schemaname = 'public'
-  union all
-  select 'P ' || tablename || ' ' || policyname || ' ' || cmd || ' ' || coalesce(qual, '') || ' ' || coalesce(with_check, '')
-    from pg_policies where schemaname in ('public', 'storage')
-  union all
-  select 'G ' || tgrelid::regclass::text || ' ' || tgname
-    from pg_trigger where not tgisinternal and tgrelid in (select oid from pg_class where relnamespace = 'public'::regnamespace)
-  union all
-  select 'F ' || p.oid::regprocedure::text || ' ' || md5(p.prosrc)
-    from pg_proc p where p.pronamespace = 'public'::regnamespace
-  union all
-  select 'D pending_decisions ' || count(*) || ' ' || count(*) filter (where ativo) from public.pending_decisions
-  union all
-  select 'S caixas ' || count(*) || ' ' || count(*) filter (where deposito_id is not null) from public.caixas
-$f$;
-
--- (a coluna caixas.deposito_id ainda nao existe no "antes": a impressao digital usa so o que existe)
-create or replace function pg_temp.fp_schema_antes() returns table(item text) language sql as $f$
-  select item from pg_temp.fp_schema_base()
-$f$;
-
 create or replace function pg_temp.fp_schema_base() returns table(item text) language sql as $f$
   select 'T ' || c.relname || ' ' || c.relkind::text
     from pg_class c where c.relnamespace = 'public'::regnamespace and c.relkind in ('r', 'v', 'm', 'S', 'p')
@@ -884,8 +853,6 @@ begin
 end $cmp$;
 
 -- Daqui para baixo so roda nos modos aplicar e desfazer.
-drop function if exists pg_temp.fp_schema();
-drop function if exists pg_temp.fp_schema_antes();
 drop function if exists pg_temp.fp_schema_base();
 notify pgrst, 'reload schema';
 
