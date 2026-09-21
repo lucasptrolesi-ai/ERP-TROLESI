@@ -31,6 +31,11 @@
 --      compara o schema com o inicial. Termina de proposito com um erro; sucesso = a mensagem
 --      "ENSAIO OK". Nada e gravado.
 --   2. APLICAR: trocar 'ensaio' por 'aplicar' na linha do set_config e rodar de novo.
+--   ATENCAO (comportamento do SQL Editor): ao ver "create temp table", o editor anexa ao fim do
+--   script "ALTER TABLE _op_... ENABLE ROW LEVEL SECURITY". Nos modos aplicar e desfazer isso roda
+--   DEPOIS do commit (as tabelas temporarias ja foram descartadas) e aparece como o erro 42P01
+--   'relation "_op_tabelas" does not exist'. E inofensivo: a migration ja estava commitada.
+--   APLICADA em producao em 2026-09-21 15:44:27 (America/Sao_Paulo), modo aplicar, com esse erro.
 --
 -- ROLLBACK:
 --   Trocar o modo para 'desfazer' e rodar este mesmo arquivo. Dropa as FKs compostas, as
