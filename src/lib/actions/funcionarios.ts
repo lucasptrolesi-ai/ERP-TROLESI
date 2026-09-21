@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getPerfilAtual } from "@/lib/supabase/auth";
+import { getContextoSessao } from "@/lib/supabase/contexto";
 
 type PapelUsuario = "admin" | "vendedor" | "financeiro" | "estoque";
 
@@ -64,6 +65,24 @@ export async function criarFuncionario(
     // saber se a conta existe ou não); reporta o erro pra ele revisar o
     // papel manualmente se precisar.
     return { erro: `Funcionário criado, mas houve um erro ao definir o papel: ${erroRegistro.message}`, senhaTemporaria };
+  }
+
+  // Funcionário novo nasce vinculado à operação em que o admin está trabalhando (contexto da
+  // sessão, nunca um valor vindo do formulário). Sem vínculo o usuário não enxerga nenhum dado.
+  const contexto = await getContextoSessao();
+  if (contexto?.operacao_id) {
+    const { error: erroOperacao } = await admin.from("usuario_operacoes").insert({
+      profile_id: data.user.id,
+      operacao_id: contexto.operacao_id,
+      concedida_por: perfil.id,
+      padrao: true,
+    });
+    if (erroOperacao) {
+      return {
+        erro: `Funcionário criado, mas sem operação (${erroOperacao.message}). Conceda a operação manualmente.`,
+        senhaTemporaria,
+      };
+    }
   }
 
   revalidarFuncionarios();
