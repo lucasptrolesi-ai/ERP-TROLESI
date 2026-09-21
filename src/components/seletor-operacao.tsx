@@ -46,7 +46,7 @@ export function SeletorOperacao({ operacoes, atualId }: { operacoes: OperacaoDoU
       >
         {atualId === null && <option value="">Escolha…</option>}
         {operacoes.map((o) => (
-          <option key={o.id} value={o.id} disabled={!o.ativa && false}>
+          <option key={o.id} value={o.id}>
             {o.nome}
             {o.ativa ? "" : " (inativa)"}
           </option>
