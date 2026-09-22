@@ -14,6 +14,14 @@
 --   3. relatorio_consolidado(): so admin; soma as operacoes e ELIMINA os lancamentos intercompany.
 --
 -- COMO RODAR: igual as etapas anteriores ('ensaio' -> 'ENSAIO OK' -> 'aplicar'; rollback: 'desfazer').
+--
+-- ROLLBACK:
+-- -- Troque a linha abaixo, no corpo deste MESMO arquivo, para 'desfazer' e rode o arquivo
+-- -- inteiro de novo (nao e um script separado: o bloco DO $down$ mais abaixo tem o DROP/DELETE
+-- -- exato para cada CREATE/INSERT deste arquivo, gerado a partir da mesma lista usada por
+-- -- 'aplicar', e testado pelo proprio modo 'ensaio' antes de chegar aqui):
+-- --   select set_config('app.modo_migration', 'desfazer', true);
+
 
 begin;
 
