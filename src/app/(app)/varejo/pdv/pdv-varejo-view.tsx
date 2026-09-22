@@ -7,11 +7,10 @@ import { formatarMoeda } from "@/lib/formatar-moeda";
 import { arredondarMoeda, lerMoeda } from "@/lib/dinheiro";
 import { filtra } from "@/lib/filtra";
 import { cancelarVenda, registrarVenda } from "@/lib/actions/varejo";
+import { calcularLinha, calcularTotais, calcularTroco, type ItemCarrinho } from "@/lib/varejo/carrinho";
 import { Modal } from "@/components/modal";
 import { PinSupervisorModal } from "@/components/pin-supervisor-modal";
 import type { FormaPagamento, ItemCatalogo, PagamentoDaVenda, SessaoCaixa, Supervisor, VendaDaSessao } from "@/lib/varejo/tipos";
-
-type ItemCarrinho = { variacao: ItemCatalogo; quantidade: number; precoTexto: string };
 
 const FORMAS: { valor: FormaPagamento; rotulo: string }[] = [
   { valor: "dinheiro", rotulo: "Dinheiro" },
@@ -75,16 +74,12 @@ export function PdvVarejoView({
     setAutorizacaoDesconto(null);
   }
 
-  const linhas = carrinho.map((l) => {
-    const preco = Math.min(lerMoeda(l.precoTexto) ?? l.variacao.preco_venda, l.variacao.preco_venda);
-    const piso = l.variacao.preco_minimo ?? l.variacao.preco_venda;
-    return { ...l, preco, abaixoDoPiso: preco < piso };
-  });
-  const subtotal = arredondarMoeda(linhas.reduce((s, l) => s + l.variacao.preco_venda * l.quantidade, 0));
-  const total = arredondarMoeda(linhas.reduce((s, l) => s + l.preco * l.quantidade, 0));
-  const precisaAutorizacao = linhas.some((l) => l.abaixoDoPiso);
+  // Matematica do carrinho (preco travado no maximo de tabela, piso, subtotal/total, troco) em
+  // src/lib/varejo/carrinho.ts, testada isoladamente — nao repetida aqui.
+  const linhas = carrinho.map(calcularLinha);
+  const { subtotal, total, precisaAutorizacao } = calcularTotais(linhas);
   const valorRecebido = lerMoeda(valorRecebidoTexto) ?? 0;
-  const troco = forma === "dinheiro" ? Math.max(0, arredondarMoeda(valorRecebido - total)) : 0;
+  const troco = calcularTroco(forma, valorRecebido, total);
 
   function limparVenda() {
     setCarrinho([]);
