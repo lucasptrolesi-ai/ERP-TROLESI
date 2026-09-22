@@ -2,6 +2,14 @@
 
 Histórico de decisões de escopo e arquitetura, na ordem em que foram tomadas. Decisões revistas ficam marcadas como tal, não apagadas.
 
+## 2026-09-22 (cont. 2) — Matematica do carrinho extraida e testada (sessao retomada apos limite de uso)
+
+Ultima melhoria autonoma antes de aguardar o usuario: a logica que decide se um item do carrinho do PDV esta abaixo do preco minimo (e, portanto, se a venda exige PIN de supervisor) vivia so dentro do componente da tela (`pdv-varejo-view.tsx`), sem nenhum teste do lado do cliente — a unica cobertura dessa regra era no banco (SQL, `registrar_venda`). Extraida para `src/lib/varejo/carrinho.ts` (`calcularLinha`, `calcularTotais`, `calcularTroco`, puras) com 9 testes novos (`carrinho.test.ts`): preco nunca passa do de tabela, deteccao de abaixo do piso (inclusive sem `preco_minimo` cadastrado, onde o proprio preco de tabela vira o piso), soma de subtotal/total, calculo de troco. `pdv-varejo-view.tsx` passou a usar essas funcoes em vez da logica embutida.
+
+**Verificado:** `npm run lint` limpo, `npx tsc --noEmit` limpo, `npm test` — 110 passando (era 101), `npm run build` — completo, mesmas 5 rotas do varejo.
+
+**Estado inalterado desde a entrada anterior:** as 3 acoes que so o usuario pode fazer continuam pendentes — rodar os ensaios das migrations 3 a 5c (nessa ordem), autorizar PR/merge para `master`, testar num navegador real com login. Nenhuma migration foi aplicada nesta sessao alem das etapas 1 e 2 (ja aplicadas antes).
+
 ## 2026-09-22 (cont.) — Code review da branch (regra 2 do CLAUDE.md): 7 achados, 6 corrigidos
 
 Rodado `/code-review medium` sobre a branch inteira (`git diff origin/master...HEAD`, ~7200 linhas, 36 arquivos), com verificacao 1-voto por achado. 7 achados sobreviveram, 6 corrigidos nesta sessao (nenhum SQL ja aplicado foi tocado):
