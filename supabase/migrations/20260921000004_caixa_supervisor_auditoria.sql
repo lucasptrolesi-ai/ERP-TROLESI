@@ -17,6 +17,14 @@
 --
 -- COMO RODAR: igual as etapas anteriores. Modo padrao 'ensaio' (aplica, verifica, testa, desfaz e
 -- compara o schema; termina com "ENSAIO OK", nada e gravado). Depois 'aplicar'. Rollback: 'desfazer'.
+--
+-- ROLLBACK:
+-- -- Troque a linha abaixo, no corpo deste MESMO arquivo, para 'desfazer' e rode o arquivo
+-- -- inteiro de novo (nao e um script separado: o bloco DO $down$ mais abaixo tem o DROP/DELETE
+-- -- exato para cada CREATE/INSERT deste arquivo, gerado a partir da mesma lista usada por
+-- -- 'aplicar', e testado pelo proprio modo 'ensaio' antes de chegar aqui):
+-- --   select set_config('app.modo_migration', 'desfazer', true);
+
 
 begin;
 
