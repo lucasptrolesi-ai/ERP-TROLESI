@@ -2,12 +2,14 @@
 
 import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { formatarMoeda } from "@/lib/formatar-moeda";
 import { arredondarMoeda, lerMoeda } from "@/lib/dinheiro";
 import { filtra } from "@/lib/filtra";
-import { registrarVenda } from "@/lib/actions/varejo";
+import { cancelarVenda, registrarVenda } from "@/lib/actions/varejo";
+import { Modal } from "@/components/modal";
 import { PinSupervisorModal } from "@/components/pin-supervisor-modal";
-import type { FormaPagamento, ItemCatalogo, PagamentoDaVenda, SessaoCaixa, Supervisor } from "@/lib/varejo/tipos";
+import type { FormaPagamento, ItemCatalogo, PagamentoDaVenda, SessaoCaixa, Supervisor, VendaDaSessao } from "@/lib/varejo/tipos";
 
 type ItemCarrinho = { variacao: ItemCatalogo; quantidade: number; precoTexto: string };
 
@@ -22,11 +24,14 @@ export function PdvVarejoView({
   sessao,
   catalogo,
   supervisores,
+  vendas,
 }: {
   sessao: SessaoCaixa | null;
   catalogo: ItemCatalogo[];
   supervisores: Supervisor[];
+  vendas: VendaDaSessao[];
 }) {
+  const router = useRouter();
   const [busca, setBusca] = useState("");
   const [carrinho, setCarrinho] = useState<ItemCarrinho[]>([]);
   const [forma, setForma] = useState<FormaPagamento>("dinheiro");
@@ -121,6 +126,7 @@ export function PdvVarejoView({
       }
       setSucesso(`Venda registrada${forma === "dinheiro" && troco > 0 ? ` — troco: ${formatarMoeda(troco)}` : ""}.`);
       limparVenda();
+      router.refresh();
     });
   }
 
@@ -272,6 +278,8 @@ export function PdvVarejoView({
         </button>
       </div>
 
+      <VendasDaSessao vendas={vendas} supervisores={supervisores} onCancelada={() => router.refresh()} />
+
       <PinSupervisorModal
         aberto={pinAberto}
         onFechar={() => setPinAberto(false)}
@@ -282,6 +290,123 @@ export function PdvVarejoView({
           setAutorizacaoDesconto(id);
           setPinAberto(false);
         }}
+      />
+    </div>
+  );
+}
+
+/**
+ * Vendas da sessão aberta, com cancelamento — exige PIN de supervisor (autorização pontual, uso
+ * único) e um motivo. Sem esta tela, cancelar_venda (no banco) ficava sem nenhuma forma de acesso
+ * pela UI (achado no code review, 2026-09-22).
+ */
+function VendasDaSessao({
+  vendas,
+  supervisores,
+  onCancelada,
+}: {
+  vendas: VendaDaSessao[];
+  supervisores: Supervisor[];
+  onCancelada: () => void;
+}) {
+  const [vendaAlvo, setVendaAlvo] = useState<VendaDaSessao | null>(null);
+  const [motivo, setMotivo] = useState("");
+  const [pinAberto, setPinAberto] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
+  const [pendente, iniciar] = useTransition();
+
+  if (vendas.length === 0) return null;
+
+  function fechar() {
+    setVendaAlvo(null);
+    setMotivo("");
+    setErro(null);
+  }
+
+  function pedirAutorizacao() {
+    if (!motivo.trim()) {
+      setErro("Informe o motivo do cancelamento.");
+      return;
+    }
+    setErro(null);
+    setPinAberto(true);
+  }
+
+  function confirmarCancelamento(autorizacaoId: string) {
+    setPinAberto(false);
+    const venda = vendaAlvo;
+    if (!venda) return;
+    iniciar(async () => {
+      const resposta = await cancelarVenda(venda.id, motivo, autorizacaoId);
+      if (resposta.erro) {
+        setErro(resposta.erro);
+        setVendaAlvo(venda);
+        return;
+      }
+      fechar();
+      onCancelada();
+    });
+  }
+
+  return (
+    <div className="flex flex-col gap-2 rounded-[14px] border border-line bg-surface p-4 shadow-sm lg:col-span-2 sm:p-5">
+      <p className="text-sm font-semibold">Vendas desta sessão</p>
+      <div className="flex flex-col gap-1.5">
+        {vendas.map((v) => (
+          <div key={v.id} className="flex items-center justify-between gap-2 border-b border-line pb-1.5 text-sm last:border-0">
+            <span>
+              #{v.numero} · {formatarMoeda(v.total)}
+              {v.status === "cancelada" && <span className="ml-2 text-xs text-text-soft">cancelada</span>}
+            </span>
+            {v.status === "concluida" && (
+              <button
+                type="button"
+                onClick={() => setVendaAlvo(v)}
+                className="text-xs font-semibold text-red-700 underline decoration-dotted"
+              >
+                Cancelar
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {vendaAlvo && (
+        <Modal aberto onFechar={fechar} titulo={`Cancelar venda #${vendaAlvo.numero}`}>
+          <div className="flex flex-col gap-3">
+            <p className="text-sm text-text-soft">
+              O estoque volta pelo custo original da venda e, se houve dinheiro, o valor é estornado no caixa. Exige
+              autorização de supervisor.
+            </p>
+            <label className="flex flex-col gap-1 text-sm">
+              Motivo
+              <input
+                type="text"
+                value={motivo}
+                onChange={(e) => setMotivo(e.target.value)}
+                className="rounded-lg border border-line bg-surface px-3 py-2"
+              />
+            </label>
+            {erro && <p className="text-sm text-red-700">{erro}</p>}
+            <button
+              type="button"
+              onClick={pedirAutorizacao}
+              disabled={pendente}
+              className="rounded-lg border border-red-300 px-3 py-2 text-sm font-semibold text-red-700 disabled:opacity-60"
+            >
+              {pendente ? "Cancelando…" : "Autorizar e cancelar"}
+            </button>
+          </div>
+        </Modal>
+      )}
+
+      <PinSupervisorModal
+        aberto={pinAberto}
+        onFechar={() => setPinAberto(false)}
+        acao="cancelamento_venda"
+        alvoId={vendaAlvo?.id ?? null}
+        supervisores={supervisores}
+        onAutorizado={confirmarCancelamento}
       />
     </div>
   );
