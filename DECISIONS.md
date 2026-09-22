@@ -2,6 +2,12 @@
 
 Histórico de decisões de escopo e arquitetura, na ordem em que foram tomadas. Decisões revistas ficam marcadas como tal, não apagadas.
 
+## 2026-09-22 (cont. 3) — Mockup retroativo das 5 telas do varejo (achado #6 do code review)
+
+Construído o mockup que a regra 1 do CLAUDE.md exige (Artifact tool, tipo Design/canvas), fechando a lacuna registrada no achado #6 — com a ressalva honesta de que ele foi feito DEPOIS do código, não antes: https://claude.ai/artifact/1nVM3ewqwf6m1viHdYMHcj (5 artboards: PDV, Caixa/fechamento cego, Catálogo, Supervisores, Transferência — refletindo o que já está implementado, para revisão do usuário). Também publicado um runbook (https://claude.ai/artifact/HpPAJjAyC8Th2UiHPSg2Z5) com as 5 migrations pendentes prontas para copiar, para não repetir o SQL no chat a cada etapa.
+
+**Nada além disso mudou nesta entrada:** etapas 1-2 aplicadas; 3 a 5c escritas, testadas por ensaio, revisadas e com os achados corrigidos, aguardando o usuário rodar; branch não publicada (PR/merge pendente de autorização); nenhum teste em navegador com login real ainda.
+
 ## 2026-09-22 (cont. 2) — Matematica do carrinho extraida e testada (sessao retomada apos limite de uso)
 
 Ultima melhoria autonoma antes de aguardar o usuario: a logica que decide se um item do carrinho do PDV esta abaixo do preco minimo (e, portanto, se a venda exige PIN de supervisor) vivia so dentro do componente da tela (`pdv-varejo-view.tsx`), sem nenhum teste do lado do cliente — a unica cobertura dessa regra era no banco (SQL, `registrar_venda`). Extraida para `src/lib/varejo/carrinho.ts` (`calcularLinha`, `calcularTotais`, `calcularTroco`, puras) com 9 testes novos (`carrinho.test.ts`): preco nunca passa do de tabela, deteccao de abaixo do piso (inclusive sem `preco_minimo` cadastrado, onde o proprio preco de tabela vira o piso), soma de subtotal/total, calculo de troco. `pdv-varejo-view.tsx` passou a usar essas funcoes em vez da logica embutida.
