@@ -335,7 +335,7 @@ begin
 
   create view public.pdv_catalogo as
     select v.id as variacao_id, v.operacao_id, p.id as produto_id, p.nome, p.categoria, v.sku, v.codigo_barras,
-           v.atributos, v.preco_venda,
+           v.atributos, v.preco_venda, v.preco_minimo,
            coalesce((select sum(m.quantidade) from public.estoque_movimentos m
                       where m.variacao_id = v.id and m.operacao_id = v.operacao_id), 0)::integer as saldo
       from public.catalogo_variacoes v
