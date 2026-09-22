@@ -19,6 +19,7 @@ export type ItemCatalogo = {
   codigo_barras: string | null;
   atributos: Record<string, string>;
   preco_venda: number;
+  preco_minimo: number | null;
   saldo: number;
 };
 
