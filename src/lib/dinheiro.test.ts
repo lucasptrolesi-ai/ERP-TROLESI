@@ -38,4 +38,15 @@ describe("lerMoeda", () => {
     expect(lerMoeda("")).toBeNull();
     expect(lerMoeda("abc")).toBeNull();
   });
+
+  it('lê milhar brasileiro sem vírgula ("1.000" é mil, não R$1,00) — achado no code review', () => {
+    expect(lerMoeda("1.000")).toBe(1000);
+    expect(lerMoeda("12.345")).toBe(12345);
+    expect(lerMoeda("1.234.567")).toBe(1234567);
+  });
+
+  it("mantém o ponto como decimal quando não é um grupo de milhar válido", () => {
+    expect(lerMoeda("12.5")).toBe(12.5);
+    expect(lerMoeda("12.50")).toBe(12.5);
+  });
 });
