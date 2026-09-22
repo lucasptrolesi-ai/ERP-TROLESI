@@ -68,21 +68,28 @@ export async function criarFuncionario(
   }
 
   // Funcionário novo nasce vinculado à operação em que o admin está trabalhando (contexto da
-  // sessão, nunca um valor vindo do formulário). Sem vínculo o usuário não enxerga nenhum dado.
+  // sessão, nunca um valor vindo do formulário). Sem vínculo o usuário não enxerga nenhum dado —
+  // por isso a ausência de contexto.operacao_id é tratada como erro, não pulada em silêncio
+  // (achado no code review, 2026-09-22: o admin recebia "sucesso" com o funcionário sem operação
+  // nenhuma, sem ficar sabendo).
   const contexto = await getContextoSessao();
-  if (contexto?.operacao_id) {
-    const { error: erroOperacao } = await admin.from("usuario_operacoes").insert({
-      profile_id: data.user.id,
-      operacao_id: contexto.operacao_id,
-      concedida_por: perfil.id,
-      padrao: true,
-    });
-    if (erroOperacao) {
-      return {
-        erro: `Funcionário criado, mas sem operação (${erroOperacao.message}). Conceda a operação manualmente.`,
-        senhaTemporaria,
-      };
-    }
+  if (!contexto?.operacao_id) {
+    return {
+      erro: "Funcionário criado, mas não foi possível determinar sua operação atual para vincular o acesso. Conceda a operação manualmente.",
+      senhaTemporaria,
+    };
+  }
+  const { error: erroOperacao } = await admin.from("usuario_operacoes").insert({
+    profile_id: data.user.id,
+    operacao_id: contexto.operacao_id,
+    concedida_por: perfil.id,
+    padrao: true,
+  });
+  if (erroOperacao) {
+    return {
+      erro: `Funcionário criado, mas sem operação (${erroOperacao.message}). Conceda a operação manualmente.`,
+      senhaTemporaria,
+    };
   }
 
   revalidarFuncionarios();
