@@ -9,6 +9,12 @@
 -- sua, mesmo fora do contexto atual da sessao -- nomes de deposito/caixa, nao dado financeiro, mas
 -- contraria a regra de isolamento total. Corrige com a MESMA politica restritiva das outras tabelas.
 --
+-- ACHADO 2 (code review, 2026-09-22, antes de aplicar): a mesma falha existia em "empresas" (CNPJ,
+-- inscricao estadual, endereco -- dado mais sensivel que nome de deposito/caixa). Corrigido aqui
+-- tambem: empresas ganha "escopo de operacao" restrito a empresa DONA da operacao atual da sessao
+-- (join por operacoes.empresa_id, ja que empresas nao tem operacao_id direto -- uma empresa tem
+-- varias operacoes).
+--
 -- O QUE MAIS FAZ:
 --   1. cadastrar_produto_catalogo(): cria o produto (pai) e a(s) variacao(oes) numa unica transacao --
 --      a trigger deferida "produto sem variacao nao existe" (etapa 3) so aceita isso feito assim; duas
@@ -88,6 +94,11 @@ begin
   if not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'caixas' and policyname = 'escopo de operacao') then
     create policy "escopo de operacao" on public.caixas as restrictive for all to public
       using (operacao_id = (select public.operacao_atual())) with check (operacao_id = (select public.operacao_atual()));
+  end if;
+  if not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'empresas' and policyname = 'escopo de operacao') then
+    create policy "escopo de operacao" on public.empresas as restrictive for all to public
+      using (id = (select o.empresa_id from public.operacoes o where o.id = (select public.operacao_atual())))
+      with check (id = (select o.empresa_id from public.operacoes o where o.id = (select public.operacao_atual())));
   end if;
 
   -- 2. cadastrar_produto_catalogo: pai + variacoes numa unica transacao ----------------------------
@@ -171,8 +182,8 @@ begin
   end if;
 
   select count(*) into v_n from pg_policies where schemaname = 'public' and policyname = 'escopo de operacao'
-     and tablename in ('depositos', 'caixas') and permissive = 'RESTRICTIVE';
-  if v_n <> 2 then raise exception 'FALHA: politicas restritivas em depositos/caixas = %, esperado 2', v_n; end if;
+     and tablename in ('depositos', 'caixas', 'empresas') and permissive = 'RESTRICTIVE';
+  if v_n <> 3 then raise exception 'FALHA: politicas restritivas em depositos/caixas/empresas = %, esperado 3', v_n; end if;
 
   select count(*) into v_n from information_schema.routines
    where routine_schema = 'public' and routine_name in ('cadastrar_produto_catalogo', 'buscar_variacoes_operacao');
@@ -184,7 +195,7 @@ begin
   select count(*) into v_n from information_schema.columns where table_schema = 'public' and table_name = 'admin_supervisores' and column_name = 'pin_hash';
   if v_n <> 0 then raise exception 'FALHA: admin_supervisores expoe pin_hash'; end if;
 
-  raise notice 'VERIFICACAO OK: RLS de depositos/caixas corrigida, 2 funcoes novas, view de supervisores sem hash.';
+  raise notice 'VERIFICACAO OK: RLS de depositos/caixas/empresas corrigida, 2 funcoes novas, view de supervisores sem hash.';
 end $chk$;
 
 -- TESTES DE COMPORTAMENTO (so ensaio) --------------------------------------------------------------
@@ -223,6 +234,28 @@ begin
   execute 'set local role authenticated';
   select count(*) into v_n from public.caixas where operacao_id = v_atacado;
   if v_n <> 0 then raise exception 'TESTE FALHOU [T2]: Lucas em contexto VAREJO ainda viu % caixas do ATACADO', v_n; end if;
+  execute 'reset role';
+
+  -- T2b. empresas: Lucas (ligado a duas operacoes) so ve a empresa da operacao ATUAL. Cria uma
+  -- segunda empresa/operacao fake dentro desta transacao (desfeita no fim do ensaio) so pra provar
+  -- que a politica nova isola por empresa dona da operacao, nao por "qualquer operacao do usuario".
+  declare
+    v_empresa_zz uuid;
+    v_operacao_zz uuid;
+  begin
+    insert into public.empresas (razao_social, cnpj) values ('ZZ ENSAIO EMPRESA', '00000000000191') returning id into v_empresa_zz;
+    insert into public.operacoes (empresa_id, codigo, nome, ativo) values (v_empresa_zz, 'ZZFAKE', 'ZZ FAKE', true) returning id into v_operacao_zz;
+    insert into public.usuario_operacoes (profile_id, operacao_id) values (v_lucas, v_operacao_zz);
+
+    perform set_config('request.jwt.claims', jsonb_build_object('sub', v_lucas, 'role', 'authenticated',
+                       'app_metadata', jsonb_build_object('operacao_id', v_varejo))::text, true);
+    execute 'set local role authenticated';
+    select count(*) into v_n from public.empresas;
+    if v_n <> 1 then raise exception 'TESTE FALHOU [T2b]: Lucas em contexto VAREJO viu % empresas, esperado 1 (so a dona do VAREJO)', v_n; end if;
+    select count(*) into v_n from public.empresas where id = v_empresa_zz;
+    if v_n <> 0 then raise exception 'TESTE FALHOU [T2b]: Lucas viu a empresa ZZ FAKE fora do contexto dela'; end if;
+    execute 'reset role';
+  end;
 
   -- T3. cadastrar_produto_catalogo cria pai + 2 variacoes numa unica chamada; vendedor nao pode
   v_prod := public.cadastrar_produto_catalogo('ZZ ENSAIO 5C', 'ANEL', jsonb_build_array(
@@ -294,6 +327,7 @@ begin
   drop view if exists public.admin_supervisores;
   drop function if exists public.buscar_variacoes_operacao(text, text);
   drop function if exists public.cadastrar_produto_catalogo(text, text, jsonb);
+  drop policy if exists "escopo de operacao" on public.empresas;
   drop policy if exists "escopo de operacao" on public.caixas;
   drop policy if exists "escopo de operacao" on public.depositos;
 end $down$;
