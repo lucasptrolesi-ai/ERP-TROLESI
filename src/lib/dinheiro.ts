@@ -28,11 +28,20 @@ export function arredondarMoeda(valor: number | string): number {
   return partes[1] === "-" && centavos !== 0 ? -resultado : resultado;
 }
 
-/** Lê o que o operador digitou ("1.234,56", "12,5", "12.50") e arredonda; null se não for número. */
+/** Lê o que o operador digitou ("1.234,56", "12,5", "12.50", "1.000") e arredonda; null se não for número. */
 export function lerMoeda(texto: string): number | null {
   const limpo = texto.trim().replace(/[^\d.,-]/g, "");
   if (limpo === "") return null;
-  const normal = limpo.includes(",") ? limpo.replace(/\./g, "").replace(",", ".") : limpo;
+  // Com vírgula: o ponto é separador de milhar (ex.: "1.234,56"). Sem vírgula, mas no padrão
+  // brasileiro de milhar — grupos de exatamente 3 dígitos após cada ponto, sem sobra (ex.: "1.000",
+  // "12.345.678") — o ponto também é separador de milhar, nunca decimal: ninguém digita fração de
+  // centavo, então "1.000" é mil reais, não R$1,00 (achado no code review, 2026-09-22). Qualquer
+  // outro padrão sem vírgula (ex.: "12.5", "12.50") mantém o ponto como decimal.
+  const normal = limpo.includes(",")
+    ? limpo.replace(/\./g, "").replace(",", ".")
+    : /^-?\d{1,3}(\.\d{3})+$/.test(limpo)
+      ? limpo.replace(/\./g, "")
+      : limpo;
   const numero = Number(normal);
   return Number.isFinite(numero) ? arredondarMoeda(numero) : null;
 }
