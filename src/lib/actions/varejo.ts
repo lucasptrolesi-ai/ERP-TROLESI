@@ -187,6 +187,16 @@ export async function registrarEntradaEstoque(
 }
 
 /** Transferência do atacado para o varejo: o custo é calculado pelo banco (multiplicador vigente). */
+export type VariacaoDeOutraOperacao = { variacao_id: string; produto_id: string; nome: string; categoria: string | null; sku: string; preco_venda: number };
+
+/** Admin, a partir do contexto ATACADO, buscando o catalogo do VAREJO para escolher o destino da transferencia. */
+export async function buscarVariacoesDoVarejo(termo: string): Promise<VariacaoDeOutraOperacao[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("buscar_variacoes_operacao", { p_operacao_codigo: "VAREJO", p_termo: termo.trim() || null });
+  if (error || !data) return [];
+  return data as VariacaoDeOutraOperacao[];
+}
+
 export async function transferirEstoque(
   itens: { produto_origem_id: string; variacao_destino_id: string; quantidade: number }[],
   vencimentoIso: string,
