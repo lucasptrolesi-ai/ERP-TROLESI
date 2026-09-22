@@ -2,6 +2,23 @@
 
 Histórico de decisões de escopo e arquitetura, na ordem em que foram tomadas. Decisões revistas ficam marcadas como tal, não apagadas.
 
+## 2026-09-22 — Modulo de varejo: telas construidas e verificadas (branch ainda nao publicada)
+
+**Etapa 5c (achado durante a construcao das telas, corrigido antes de virar UI):** `depositos` e `caixas` (etapa 1) nunca receberam a politica restritiva "escopo de operacao" que as outras 31 tabelas ganharam na etapa 2 — um usuario ligado a mais de uma operacao lia depositos/caixas de qualquer uma delas, fora do contexto atual. Corrigido na migration `20260922000001_funcoes_apoio_telas_e_correcao_rls.sql`, que tambem adiciona `cadastrar_produto_catalogo()` (produto + variacoes numa unica transacao, exigido pela trigger deferida da etapa 3) e `buscar_variacoes_operacao()` (segunda excecao consciente que cruza operacoes, so admin, sem custo — necessaria pra tela de Transferencia escolher o destino no varejo estando no contexto do atacado). Ensaio: T1-T5. A etapa 3 (`20260921000003`, ainda nao aplicada) foi ajustada para a view `pdv_catalogo` expor `preco_minimo` (piso de negociacao, nao e custo).
+
+**Codigo do app:** `src/lib/dinheiro.ts` (arredondarMoeda HALF_UP, espelho de `arredondar_moeda()` do banco, testado), `src/lib/actions/varejo.ts` (Server Actions que so chamam RPCs do banco — nenhuma envia operacao_id), `src/components/pin-supervisor-modal.tsx` (reusado nas telas que exigem PIN). `createClient()` do Supabase passa a repassar o IP do usuario final via header `x-client-ip`, lido por `audit_log.ip_cliente`.
+
+**Telas construidas (`src/app/(app)/varejo/` e `src/app/(app)/transferencia/`), custo e margem nunca aparecem em nenhuma:**
+- `/varejo/pdv` — venda: catalogo com saldo (`pdv_catalogo`), carrinho, preco so pode ser igual ou menor que o de tabela, desconto abaixo do minimo exige PIN, dinheiro calcula troco.
+- `/varejo/caixa` — abrir com fundo de troco, sangria/suprimento, fechamento cego (informa o contado antes de o esperado aparecer).
+- `/varejo/catalogo` (admin/estoque) — novo produto com variacoes, entrada de estoque com custo.
+- `/varejo/supervisores` (admin) — definir/redefinir PIN por usuario vinculado a operacao.
+- `/transferencia` (admin, contexto ATACADO) — escolhe peca do atacado e variacao de destino no varejo; custo calculado pelo servidor, nunca pelo cliente.
+
+**Verificado nesta maquina (branch sincronizada local e remoto, sem divergencia):** `npm run lint` limpo, `npx tsc --noEmit` limpo (1 erro real de tipo achado e corrigido: `ItemCatalogo` sem `preco_minimo`), `npm test` — 99 passando (0 falhas), `npm run build` — build de producao completo, com as 5 rotas novas listadas.
+
+**O que isso NAO prova:** nenhuma tela foi aberta num navegador real; nenhuma migration da etapa 3 em diante foi aplicada no banco (o build passa porque o TypeScript so confere contra os tipos declarados a mao em `varejo/tipos.ts`, nao contra o schema real). Uso real depende de: rodar os ensaios das migrations 20260921000003 a 20260921000006 e 20260922000001, nessa ordem, e so entao aplicar cada uma; abrir PR e fazer merge da branch (autorizacao pendente do usuario); cadastrar ao menos um supervisor com PIN antes de qualquer desconto/cancelamento funcionar; ativar a operacao VAREJO.
+
 ## 2026-09-21 — Módulo de varejo, etapas 3 a 5b: fundação, caixa, PDV de vendas e transferência (migrations escritas, NÃO aplicadas)
 
 **Estado das etapas 1 e 2:** aplicadas e verificadas em produção (etapa 2 aplicada às 16:35 BRT; ensaio `ENSAIO OK` com T1–T9). O app novo (seletor de operação, proxy que nega por padrão) está na branch e compila na Vercel, mas **não foi publicado**: exige autorização explícita para o PR/merge e só é seguro porque `contexto_sessao()` já existe.
