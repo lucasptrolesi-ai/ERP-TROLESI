@@ -2,7 +2,7 @@ import { getPerfilAtual } from "@/lib/supabase/auth";
 import { getContextoSessao } from "@/lib/supabase/contexto";
 import { createClient } from "@/lib/supabase/server";
 import { PdvVarejoView } from "./pdv-varejo-view";
-import type { ItemCatalogo, SessaoCaixa, Supervisor } from "@/lib/varejo/tipos";
+import type { ItemCatalogo, SessaoCaixa, Supervisor, VendaDaSessao } from "@/lib/varejo/tipos";
 
 // Venda do varejo: custo e margem NUNCA aparecem aqui, em nenhuma hipótese — regra do módulo de
 // varejo, independente do papel. As views do banco (pdv_catalogo, minha_sessao_caixa,
@@ -19,10 +19,13 @@ export default async function PdvVarejoPage() {
   }
 
   const supabase = await createClient();
-  const [{ data: sessao }, { data: catalogo }, { data: supervisores }] = await Promise.all([
+  const [{ data: sessao }, { data: catalogo }, { data: supervisores }, { data: vendas }] = await Promise.all([
     supabase.from("minha_sessao_caixa").select("*").maybeSingle(),
     supabase.from("pdv_catalogo").select("*").order("nome"),
     supabase.from("pdv_supervisores").select("*").order("nome"),
+    // Vendas da sessao aberta do proprio operador (pdv_vendas ja filtra por minha_sessao_caixa) —
+    // sem isso nao havia como ver uma venda pra poder cancelar (achado no code review, 2026-09-22).
+    supabase.from("pdv_vendas").select("*").order("criada_em", { ascending: false }),
   ]);
 
   return (
@@ -30,6 +33,7 @@ export default async function PdvVarejoPage() {
       sessao={sessao as SessaoCaixa | null}
       catalogo={(catalogo ?? []) as ItemCatalogo[]}
       supervisores={(supervisores ?? []) as Supervisor[]}
+      vendas={(vendas ?? []) as VendaDaSessao[]}
     />
   );
 }
