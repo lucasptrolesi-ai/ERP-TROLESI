@@ -10,9 +10,17 @@
 --      Isso carimba o historico SEM UPDATE (nao dispara set_atualizado_em nem Realtime).
 --      22 tabelas = ATACADO; 8 tabelas do PDV Eventos = VAREJO (D3); audit_log = coluna
 --      nullable e sem default (acoes globais, como criar funcionario, nao tem operacao).
---   4. Cria FKs compostas (coluna, operacao_id) -> pai(id, operacao_id): filho e pai nao
---      conseguem pertencer a operacoes diferentes. Duas excecoes legadas ficam de fora
---      (produtos_evento.produto_origem_id e movimentacoes_estoque_evento.produto_id).
+--   4. NAO cria FKs compostas (coluna, operacao_id) -> pai(id, operacao_id) — ver incidente de
+--      2026-09-23 no DECISIONS.md: a versao original desta migration criava essa FK composta ao
+--      lado da FK simples ja existente em 28 relacionamentos (pedidos->clientes, pedido_itens->
+--      produtos etc.), e o PostgREST, com dois caminhos possiveis pro mesmo relacionamento, passou
+--      a recusar montar qualquer select com embed (HTTP 300 Multiple Choices) — derrubou pedidos,
+--      relatorios e praticamente toda tela que busca dado relacionado, sem erro visivel no app (que
+--      engole a falha e mostra lista vazia). A garantia de "filho e pai na mesma operacao" fica por
+--      conta da etapa 2 (RLS restritiva + trigger de carimbo): uma sessao na operacao X nunca
+--      enxerga nem referencia um registro da operacao Y, entao o mesmo problema que a FK composta
+--      evitava ja fica coberto sem precisar de uma segunda FK ambigua. _op_fks (lista abaixo) fica
+--      só como documentação de quais relações são intra-operação — não é mais aplicada no banco.
 --   5. Registra 5 pendencias em pending_decisions (ativo = false).
 --
 -- O QUE NAO FAZ (de proposito): RLS por operacao, functions, codigo do app, unicidades por
@@ -38,10 +46,10 @@
 --   APLICADA em producao em 2026-09-21 15:44:27 (America/Sao_Paulo), modo aplicar, com esse erro.
 --
 -- ROLLBACK:
---   Trocar o modo para 'desfazer' e rodar este mesmo arquivo. Dropa as FKs compostas, as
---   unicidades (id, operacao_id), as colunas operacao_id, as 5 tabelas novas e as 5 linhas de
---   pending_decisions. So remove o que esta migration criou; nenhum dado existente e apagado.
---   Valido enquanto nenhuma etapa posterior (RLS/functions por operacao) estiver aplicada.
+--   Trocar o modo para 'desfazer' e rodar este mesmo arquivo. Dropa as colunas operacao_id, as
+--   5 tabelas novas e as 5 linhas de pending_decisions. So remove o que esta migration criou;
+--   nenhum dado existente e apagado. Valido enquanto nenhuma etapa posterior (RLS/functions por
+--   operacao) estiver aplicada.
 
 begin;
 
@@ -353,17 +361,10 @@ begin
     execute format('create index %I on public.%I (operacao_id)', r.tabela || '_operacao_id_idx', r.tabela);
   end loop;
 
-  -- 4. FKs compostas: filho e pai na mesma operacao ------------------------------------
-
-  for r in select distinct pai from _op_fks order by pai loop
-    execute format('alter table public.%I add constraint %I unique (id, operacao_id)',
-                   r.pai, r.pai || '_id_operacao_id_key');
-  end loop;
-
-  for r in select filha, coluna, pai from _op_fks order by filha, coluna loop
-    execute format('alter table public.%I add constraint %I foreign key (%I, operacao_id) references public.%I (id, operacao_id)',
-                   r.filha, r.filha || '_' || r.coluna || '_op_fkey', r.coluna, r.pai);
-  end loop;
+  -- 4. FKs compostas: DESATIVADO (incidente 2026-09-23, ver header e DECISIONS.md) — a FK
+  -- composta ao lado da FK simples deixa o PostgREST sem saber qual caminho usar num embed
+  -- (HTTP 300), derrubando embed em qualquer tela. A garantia de integridade fica com a etapa 2
+  -- (RLS + carimbo por operacao). _op_fks continua populada só como lista de referência.
 
   -- 5. Pendencias ----------------------------------------------------------------------
 
@@ -424,11 +425,11 @@ begin
     end if;
   end loop;
 
+  -- FK composta desativada (incidente 2026-09-23) — confirma que nenhuma foi criada por engano.
   select count(*) into v_n from pg_constraint
-   where connamespace = 'public'::regnamespace and contype = 'f' and right(conname, 8) = '_op_fkey' and convalidated;
-  select count(*) into v_m from _op_fks;
-  if v_n <> v_m then
-    raise exception 'FALHA: FKs compostas validadas = %, esperado %', v_n, v_m;
+   where connamespace = 'public'::regnamespace and contype = 'f' and right(conname, 8) = '_op_fkey';
+  if v_n <> 0 then
+    raise exception 'FALHA: existem % FKs compostas "_op_fkey" — deveriam ter sido removidas do incidente de 2026-09-23', v_n;
   end if;
 
   select count(*) into v_n from public.operacoes;
@@ -451,7 +452,7 @@ begin
 
   select count(*) into v_n from public.produtos_evento where produto_origem_id is not null;
   raise notice 'Excecao legada (D3): % linhas de produtos_evento com produto_origem_id apontando para produtos do ATACADO.', v_n;
-  raise notice 'VERIFICACAO OK: 31 tabelas carimbadas, contagens preservadas, 28 FKs compostas, sementes conferidas.';
+  raise notice 'VERIFICACAO OK: 31 tabelas carimbadas, contagens preservadas, sem FK composta (incidente 2026-09-23), sementes conferidas.';
 end $chk$;
 
 -- DESFAZER (modos ensaio e desfazer) ---------------------------------------------------------
@@ -465,13 +466,8 @@ begin
     return;
   end if;
 
-  for r in select filha, coluna from _op_fks order by filha, coluna loop
-    execute format('alter table public.%I drop constraint if exists %I', r.filha, r.filha || '_' || r.coluna || '_op_fkey');
-  end loop;
-
-  for r in select distinct pai from _op_fks order by pai loop
-    execute format('alter table public.%I drop constraint if exists %I', r.pai, r.pai || '_id_operacao_id_key');
-  end loop;
+  -- Nada a dropar aqui: FK composta e unicidade (id, operacao_id) desativadas desde o
+  -- incidente de 2026-09-23 (ver secao 4 do $up$) — nunca chegam a ser criadas.
 
   -- Dropar a coluna leva junto o default, o indice e a FK para operacoes.
   for r in select tabela from _op_tabelas order by tabela loop
