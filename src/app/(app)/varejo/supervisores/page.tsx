@@ -18,7 +18,10 @@ export default async function SupervisoresVarejoPage() {
 
   const supabase = await createClient();
   const [{ data: vinculos }, { data: supervisores }] = await Promise.all([
-    supabase.from("usuario_operacoes").select("profile_id, profiles(nome)").eq("operacao_id", contexto.operacao_id),
+    supabase
+      .from("usuario_operacoes")
+      .select("profile_id, profiles!usuario_operacoes_profile_id_fkey(nome)")
+      .eq("operacao_id", contexto.operacao_id),
     supabase.from("admin_supervisores").select("profile_id, ativo"),
   ]);
 
