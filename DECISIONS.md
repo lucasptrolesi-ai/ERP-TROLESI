@@ -2,6 +2,12 @@
 
 Histórico de decisões de escopo e arquitetura, na ordem em que foram tomadas. Decisões revistas ficam marcadas como tal, não apagadas.
 
+## 2026-09-23 (cont. 6) — Painéis com gráfico (Atacado, Varejo, Consolidado): mockup aprovado, construído sem biblioteca externa
+
+Usuário pediu dashboards com gráfico e informações. Mockup (Artifact, 3 abas) aprovado antes de codar (gate de mockup do CLAUDE.md). Ao implementar, descobri que o projeto já tinha um componente de gráfico próprio, acessível (`grafico-movimento-vendas.tsx`, usado em `/relatorios`) e um `KpiCard` — decidi honrar esse padrão existente em vez de trazer uma biblioteca nova (cheguei a instalar `recharts` e desisti, removida do package.json): construí `grafico-faturamento-mensal.tsx`, `grafico-comparativo-mensal.tsx`, `grafico-formas-pagamento.tsx` e `lista-top-produtos.tsx` seguindo o mesmo padrão (tokens de cor "Café" do projeto, hover/foco por teclado, tabela equivalente, sem `lorem`/placeholder genérico).
+
+Backend: 3 functions novas admin-only, somente leitura (`relatorio_atacado_dashboard`, `relatorio_varejo_dashboard`, `relatorio_consolidado_mensal` — essa última completa a `relatorio_consolidado` da etapa 5b, que só dava o total de um período, com uma série mensal pro gráfico comparativo). Rotas novas: `/dashboard` (Atacado, admin), `/varejo/dashboard` (Varejo, admin), `/consolidado` (qualquer operação, admin) — todas com o mesmo padrão de guarda tripla (proxy + tela + function) já usado no resto do projeto.
+
 ## 2026-09-23 (cont. 5) — Go-live do VAREJO: ativado, acesso concedido, bug de embed ambíguo em /varejo/supervisores corrigido
 
 Ativação de fato do módulo de varejo, a pedido do usuário ("já vamos abrir"): `operacoes.ativo = true` pra VAREJO, e acesso concedido (`usuario_operacoes`, sem `padrao`) pra Bianca Trolesi e Barbara Carneiro além do admin — decisão do usuário sobre quem opera o caixa. Como ainda não existe tela pra conceder acesso a um funcionário já existente (só na criação), isso exigiu INSERT direto.

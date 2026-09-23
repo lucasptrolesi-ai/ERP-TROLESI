@@ -41,8 +41,10 @@ export const REGRAS_ROTAS: readonly RegraRota[] = [
   { prefixo: "/camera", operacao: "qualquer" }, // pareamento por QR: foto do celular
   { prefixo: "/cotacao", operacao: "qualquer" }, // cotação de metal é dado de mercado, global
   { prefixo: "/permissoes", operacao: "qualquer", papeis: ["admin"] },
+  { prefixo: "/consolidado", operacao: "qualquer", papeis: ["admin"] },
 
   // Módulo de atacado.
+  { prefixo: "/dashboard", operacao: "ATACADO", papeis: ["admin"] },
   { prefixo: "/pedidos", operacao: "ATACADO" },
   { prefixo: "/cadastros", operacao: "ATACADO" },
   { prefixo: "/estoque", operacao: "ATACADO" },
@@ -64,6 +66,7 @@ export const REGRAS_ROTAS: readonly RegraRota[] = [
   { prefixo: "/varejo", operacao: "VAREJO" },
   { prefixo: "/varejo/catalogo", operacao: "VAREJO", papeis: ["admin", "estoque"] },
   { prefixo: "/varejo/supervisores", operacao: "VAREJO", papeis: ["admin"] },
+  { prefixo: "/varejo/dashboard", operacao: "VAREJO", papeis: ["admin"] },
 ];
 
 function normalizar(caminho: string): string {

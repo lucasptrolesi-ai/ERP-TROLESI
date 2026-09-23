@@ -12,11 +12,14 @@ import { decidirAcesso, type ContextoAcesso } from "@/lib/autorizacao/rotas";
 // desvinculada.
 const ITENS = [
   { href: "/pedidos", label: "PDV", icone: "🧾" },
+  { href: "/dashboard", label: "Painel Atacado", icone: "📈" },
   { href: "/varejo/pdv", label: "PDV Varejo", icone: "🛍️" },
   { href: "/varejo/caixa", label: "Caixa", icone: "💵" },
   { href: "/varejo/catalogo", label: "Catálogo Varejo", icone: "📒" },
   { href: "/varejo/supervisores", label: "Supervisores", icone: "🔐" },
+  { href: "/varejo/dashboard", label: "Painel Varejo", icone: "🧮" },
   { href: "/transferencia", label: "Transferência", icone: "🔁" },
+  { href: "/consolidado", label: "Painel Consolidado", icone: "🧭" },
   { href: "/pdv-eventos", label: "PDV Eventos", icone: "🎪" },
   { href: "/cadastros", label: "Cadastros", icone: "👥" },
   { href: "/estoque", label: "Produtos & Estoque", icone: "💍" },
