@@ -12,14 +12,20 @@
  * escuro o bastante pra ser fundo de botão com texto branco; agora é usado
  * só como cor de texto/link/borda (permanece escuro de propósito, pra
  * manter contraste em cima do fundo claro) — o fundo dos botões primários
- * passou a usar `gold-start`/`gold-end` (claro, com texto escuro). */
+ * passou a usar `gold-start`/`gold-end` (claro, com texto escuro).
+ *
+ * 2026-09-23: troca de cor de destaque (dourado/bronze -> azul-ardósia),
+ * pedido do usuário a partir do mockup dos painéis com gráfico — mesma
+ * variante "Café" de fundo/neutros, só a cor de destaque muda. Nomes das
+ * variáveis mantidos (rose/rose-deep/gold-*) de novo de propósito, mesmo
+ * motivo de sempre: trocar só o valor aqui, nenhum componente muda. */
 :root {
-  --color-rose: #c5a880; /* dourado champanhe — bordas/detalhes decorativos */
-  --color-rose-deep: #7a5c36; /* bronze escuro — só texto/link/borda ativa, nunca fundo de botão (ver nota acima) */
-  --color-rose-soft: #efe6d8; /* tint claro de dourado — fundos sutis/hover */
-  --color-gold-start: #d2b48c; /* início do degradê dos botões primários — claro, mantém contraste com texto escuro */
-  --color-gold-end: #c5a880; /* fim do degradê — dourado champanhe exato pedido */
-  --color-gold-ink: #2a211a; /* texto fixo (não muda no dark mode) sobre botões dourados — garante contraste em qualquer tema */
+  --color-rose: #6e8fac; /* azul ardósia médio — bordas/detalhes decorativos */
+  --color-rose-deep: #2b4c6f; /* azul ardósia escuro — só texto/link/borda ativa, nunca fundo de botão (ver nota acima) */
+  --color-rose-soft: #e6edf3; /* tint claro de azul — fundos sutis/hover */
+  --color-gold-start: #a7c1d9; /* início do degradê dos botões primários — claro, mantém contraste com texto escuro */
+  --color-gold-end: #8fb0cc; /* fim do degradê — azul ardósia mais saturado */
+  --color-gold-ink: #16232e; /* texto fixo (não muda no dark mode) sobre botões azuis — garante contraste em qualquer tema */
   --color-cream: #f9f8f6; /* off-white das páginas */
   --color-ink: #2c2520; /* café profundo — texto principal e base da sidebar */
   --color-text: #4a3f37; /* derivado — corpo de texto, mais suave que ink */

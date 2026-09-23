@@ -4,9 +4,9 @@ import { useId, useState } from "react";
 import { formatarMoeda } from "@/lib/formatar-moeda";
 import { rotuloFormaPagamento, type FormaPagamentoResumo } from "@/lib/dashboard-tipos";
 
-// Rampa monocromática (bronze -> dourado claro), consistente com a paleta
-// "Café" do resto do app em vez de cores arbitrárias por fatia.
-const RAMPA = ["#7a5c36", "#8f6f42", "#a4834f", "#b9975c", "#c5a880", "#d8c3a3", "#e7dac6"];
+// Rampa monocromática (azul ardósia escuro -> claro), consistente com a cor
+// de destaque do resto do app em vez de cores arbitrárias por fatia.
+const RAMPA = ["#2b4c6f", "#3f6484", "#567b99", "#6e8fac", "#8fa9c0", "#b3c7d8", "#d3e2ea"];
 
 export function GraficoFormasPagamento({ dados }: { dados: FormaPagamentoResumo[] }) {
   const [indiceAtivo, setIndiceAtivo] = useState<number | null>(null);
