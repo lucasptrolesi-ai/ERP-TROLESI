@@ -2,6 +2,17 @@
 
 Histórico de decisões de escopo e arquitetura, na ordem em que foram tomadas. Decisões revistas ficam marcadas como tal, não apagadas.
 
+## 2026-09-23 (cont. 7) — Varredura de segurança pós-varejo: 26 functions fechadas pra anon, search_path fixado em 14
+
+A pedido do usuário ("verifique se existem erros pra sanar"), rodei os advisors do Supabase (segurança e performance) e uma auditoria própria de embeds ambíguos em todo o projeto. Achados reais, todos em código LEGADO do atacado (anterior a esta sessão), nada do módulo de varejo:
+
+- **26 functions SECURITY DEFINER chamáveis por `anon`** (usuário não logado) — `criar_pedido`, `extornar_pedido`, `aprovar_abatimento` etc. Já protegidas por `assert_papel()`/`auth.uid()` internamente, mas o Postgres deixava a chamada chegar até lá sem sessão nenhuma. Confirmado antes de mexer: nenhum script externo depende disso (`gmax-agent` usa `SERVICE_ROLE_KEY`; `print-agent` e os scripts de `migracao-dados` nunca chamam `/rpc/`, só tabela direto). Revogado `execute` de `anon` nas 26 — 4 delas (`auditar_alteracao_preco`, `handle_novo_usuario`, `meu_papel`, `operacao_atual`) também tinham grant sobrando pra `PUBLIC` (default do Postgres na criação, nunca revogado), que precisou de revoke duplo porque `anon` herda de `PUBLIC`.
+- **14 functions (principalmente gatilhos: `carimbar_operacao`, `travar_operacao`, `bloquear_alteracao_registro`) sem `search_path` fixado** — corrigido via `ALTER FUNCTION ... SET search_path = public` (só configuração, corpo da function intacto).
+
+Não mexido, por decisão consciente: as 8 views "SECURITY DEFINER" (proposital — é assim que a vendedora vê só a própria sessão sem acesso direto à tabela; confirmado que "corrigir" quebraria isso) e os achados de performance (80 FKs sem índice, 77 políticas permissivas múltiplas, 24 RLS não otimizada — débito pré-existente do atacado, sem urgência no volume atual).
+
+Auditoria de embeds ambíguos (mesma causa dos incidentes de `/pedidos` e `/varejo/supervisores`): mapeadas todas as 12 tabelas com mais de uma FK pro mesmo destino no banco inteiro (`vendas`→`profiles` com 4 FKs é a pior). Nenhuma ambiguidade está sendo acionada por código hoje — ficam "dormentes" no schema. Risco pra código futuro, não bug atual.
+
 ## 2026-09-23 (cont. 6) — Painéis com gráfico (Atacado, Varejo, Consolidado): mockup aprovado, construído sem biblioteca externa
 
 Usuário pediu dashboards com gráfico e informações. Mockup (Artifact, 3 abas) aprovado antes de codar (gate de mockup do CLAUDE.md). Ao implementar, descobri que o projeto já tinha um componente de gráfico próprio, acessível (`grafico-movimento-vendas.tsx`, usado em `/relatorios`) e um `KpiCard` — decidi honrar esse padrão existente em vez de trazer uma biblioteca nova (cheguei a instalar `recharts` e desisti, removida do package.json): construí `grafico-faturamento-mensal.tsx`, `grafico-comparativo-mensal.tsx`, `grafico-formas-pagamento.tsx` e `lista-top-produtos.tsx` seguindo o mesmo padrão (tokens de cor "Café" do projeto, hover/foco por teclado, tabela equivalente, sem `lorem`/placeholder genérico).
