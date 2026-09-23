@@ -2,6 +2,10 @@
 
 Histórico de decisões de escopo e arquitetura, na ordem em que foram tomadas. Decisões revistas ficam marcadas como tal, não apagadas.
 
+## 2026-09-23 (cont.) — Gate de mockup do varejo (achado #6): aprovado retroativamente pelo usuário
+
+Usuário revisou o mockup retroativo (https://claude.ai/code/artifact/0659f031-9a86-4e1f-a0fb-a7e7187a0468, 5 artboards: PDV, Caixa/fechamento cego, Catálogo, Supervisores, Transferência) e aprovou as 5 telas como estão — "por hora está perfeito, caso precise alteramos no futuro". Fecha o achado #6 do code review de 2026-09-22 (cont.): o gate foi pulado na hora, mas a aprovação visual existe agora, antes de qualquer merge/go-live. Não é mais um gate pendente.
+
 ## 2026-09-23 — Incidente: `/pedidos` e `/relatórios` vazios em produção (FK composta ambígua da etapa 1, não perda de dado)
 
 **O que o usuário viu:** por volta do meio-dia, `/pedidos` e `/relatórios` (produção, `erp-trolesi.vercel.app`, branch `master` — sem nenhum código do varejo) passaram a mostrar zero resultados, sem nenhuma mensagem de erro. Reação inicial (correta, dado o histórico do projeto): supor perda de dado.
