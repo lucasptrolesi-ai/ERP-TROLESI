@@ -369,12 +369,16 @@ begin
 
   select id into v_atacado from public.operacoes where codigo = 'ATACADO';
   select id into v_varejo from public.operacoes where codigo = 'VAREJO';
-  select p.id, p.codigo_peca, p.quantidade_estoque into v_prod_at, v_codigo, v_est
-    from public.produtos p where p.operacao_id = v_atacado and p.codigo_peca > 0 and p.quantidade_estoque >= 3
-   order by p.quantidade_estoque desc limit 1;
-  if v_prod_at is null then
-    raise exception 'ENSAIO INCONCLUSIVO: nenhum produto do atacado com codigo_peca > 0 e estoque >= 3';
-  end if;
+
+  -- Preparo: producao ainda nao tem nenhum produto do atacado com codigo_peca preenchido (campo
+  -- legado usado so pela transferencia); cria um produto sintetico do atacado pro ensaio, no mesmo
+  -- padrao do produto sintetico do varejo logo abaixo, em vez de depender de dado real existente.
+  perform set_config('request.jwt.claims', jsonb_build_object('sub', v_lucas, 'role', 'authenticated')::text, true);
+  execute 'set local role authenticated';
+  insert into public.produtos (nome, categoria, codigo_peca, quantidade_estoque)
+  values ('ZZ ENSAIO ATACADO', 'ANEL', 100.00, 10)
+  returning id, codigo_peca, quantidade_estoque into v_prod_at, v_codigo, v_est;
+  execute 'reset role';
   v_custo := public.arredondar_moeda(v_codigo * 2.8);
 
   -- Preparo: Lucas cria no varejo o produto/variacao de destino

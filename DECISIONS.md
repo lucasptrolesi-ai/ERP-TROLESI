@@ -2,6 +2,26 @@
 
 Histórico de decisões de escopo e arquitetura, na ordem em que foram tomadas. Decisões revistas ficam marcadas como tal, não apagadas.
 
+## 2026-09-23 (cont. 4) — Etapas 5b e 5c aplicadas: todas as 6 migrations do varejo estão em produção
+
+Etapa 5b (`20260921000006_transferencia_intercompany.sql`) e etapa 5c (`20260922000001_funcoes_apoio_telas_e_correcao_rls.sql`) aplicadas com sucesso, confirmado por introspecção direta (tabelas, funções, view `admin_supervisores` sem `pin_hash`, e as 3 políticas restritivas novas em depositos/caixas/empresas). Com isso, **etapas 1 a 5c do módulo de varejo estão todas aplicadas em produção** — schema completo, nada mais pendente do lado do banco.
+
+Também durante essa aplicação: um deadlock real (`40P01`) apareceu numa tentativa de aplicar a etapa 4 (provavelmente outra conexão — Supabase Studio ou dev server local — competindo pelos mesmos locks dos `lock table ... in access exclusive mode` do início do script); confirmado por introspecção que a transação abortou por inteiro (nada ficou aplicado pela metade) e a segunda tentativa, sem outras abas do Studio abertas, passou limpo.
+
+Próximos passos (não é mais migration): registrar pelo menos um supervisor com PIN (`definir_pin_supervisor`), testar as 5 telas do varejo de verdade no navegador com dado real, popular `codigo_peca` nos produtos do atacado que forem transferidos pra loja (pendência da etapa 5b), e só depois decidir PR/merge pra `master` (autorização do usuário já dada condicionalmente a "aplicar as migrations primeiro" — falta confirmação final) e a ativação de fato da operação VAREJO (`operacoes.ativo = true`).
+
+## 2026-09-23 (cont. 3) — Etapas 4 e 5a aplicadas; ensaio da etapa 5b ajustado (sem produto real com codigo_peca)
+
+Etapa 4 (`20260921000004_caixa_supervisor_auditoria.sql`) e etapa 5a (`20260921000005_pdv_vendas.sql`) aplicadas em produção com sucesso, confirmado por introspecção direta em ambas (tabelas, views, funções, políticas e pendências). Etapa 5a teve o mesmo tipo de bug de teste da etapa 4 (T6 esperava `insufficient_privilege` ao ler `venda_itens` como vendedora, mas essa tabela também tem `grant select ... to authenticated`) — corrigido do mesmo jeito, checando `count(*) = 0`.
+
+No ensaio da etapa 5b (`20260921000006_transferencia_intercompany.sql`), o preparo do teste abortou com "ENSAIO INCONCLUSIVO: nenhum produto do atacado com codigo_peca > 0 e estoque >= 3" — não é bug da migration, é a produção mesmo: os 50 produtos do ATACADO são todos placeholders genéricos de categoria (ex: "ANEL PRATA 925", "BRACELETE OURO", todos com `quantidade_estoque = 500` e `codigo_peca = 0.00`). `codigo_peca` é um campo legado do GMax usado só pela função nova de transferência (multiplicador atacado→varejo) e ainda não foi preenchido em nenhum produto real. Corrigido o teste pra criar um produto sintético do atacado (`ZZ ENSAIO ATACADO`, mesmo padrão já usado pro produto sintético do varejo), em vez de depender de achar um produto real — deixa o ensaio autocontido e não dependente do estado da produção. **Pendência real para o go-live do módulo de varejo:** popular `codigo_peca` nos produtos do atacado que forem de fato transferidos pra loja, ou a função `transferir_estoque` vai recusar qualquer transferência real até lá (comportamento correto, só falta o dado).
+
+## 2026-09-23 (cont. 2) — Etapa 3 aplicada; teste T3 da etapa 4 corrigido no ensaio
+
+Etapa 3 (`20260921000003_fundacao_varejo.sql`) aplicada em produção com sucesso — confirmado por introspecção direta (tabelas, funções e semente do VAREJO, incluindo depósito "LOJA" e caixa "CAIXA 1", todos presentes). O SQL Editor do Supabase mostrou `ERROR: relation "v_varejo" does not exist` após o commit — mesmo padrão cosmético já visto com `_op_tabelas` (artefato pós-commit do editor, inofensivo).
+
+No ensaio da etapa 4 (`20260921000004_caixa_supervisor_auditoria.sql`), o teste T3 falhou de verdade: esperava `insufficient_privilege` ao ler `caixa_sessoes` como vendedora, mas essa tabela tem `grant select ... to authenticated` (necessário pra RLS filtrar por policy, não pra bloquear a tabela toda) — só `supervisores` não tem esse grant. A proteção real (vendedora não vê `valor_esperado`/`divergencia`) já funcionava via RLS (RESTRICTIVE + só policy permissiva pra admin → 0 linhas pra vendedora); o teste só verificava do jeito errado. Corrigido para checar `count(*) = 0` em vez de esperar exceção — exatamente o tipo de coisa que o ensaio existe pra pegar antes de produção.
+
 ## 2026-09-23 (cont.) — Gate de mockup do varejo (achado #6): aprovado retroativamente pelo usuário
 
 Usuário revisou o mockup retroativo (https://claude.ai/code/artifact/0659f031-9a86-4e1f-a0fb-a7e7187a0468, 5 artboards: PDV, Caixa/fechamento cego, Catálogo, Supervisores, Transferência) e aprovou as 5 telas como estão — "por hora está perfeito, caso precise alteramos no futuro". Fecha o achado #6 do code review de 2026-09-22 (cont.): o gate foi pulado na hora, mas a aprovação visual existe agora, antes de qualquer merge/go-live. Não é mais um gate pendente.

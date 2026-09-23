@@ -624,13 +624,11 @@ begin
 
   -- T6. Vendedora nao le custo: tabelas negadas; views do PDV mostram itens sem custo
   execute 'set local role authenticated';
-  v_ok := false;
-  begin
-    execute 'select count(*) from public.venda_itens';
-  exception when insufficient_privilege then
-    v_ok := true;
-  end;
-  if not v_ok then raise exception 'TESTE FALHOU [T6]: vendedora leu venda_itens (tem custo)'; end if;
+  -- venda_itens tem GRANT SELECT para authenticated (o admin precisa ler o custo); quem protege
+  -- e a RLS (so a policy "admin le venda_itens" e permissiva pra leitura direta), entao a
+  -- vendedora consegue rodar a consulta mas nao ve nenhuma linha (nao gera excecao).
+  select count(*) into v_n from public.venda_itens;
+  if v_n <> 0 then raise exception 'TESTE FALHOU [T6]: vendedora leu % linha(s) de venda_itens (tem custo)', v_n; end if;
   select count(*) into v_n from public.pdv_venda_itens where venda_id = v_v1;
   if v_n <> 2 then raise exception 'TESTE FALHOU [T6]: pdv_venda_itens = %, esperado 2', v_n; end if;
   select count(*) into v_n from public.pdv_vendas;

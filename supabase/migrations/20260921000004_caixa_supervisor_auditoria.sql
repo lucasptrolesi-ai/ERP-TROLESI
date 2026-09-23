@@ -630,13 +630,11 @@ begin
   v_sessao := public.abrir_sessao_caixa(v_caixa, 100);
   select count(*) into v_n from public.minha_sessao_caixa where sessao_id = v_sessao;
   if v_n <> 1 then raise exception 'TESTE FALHOU [T3]: minha_sessao_caixa = %, esperado 1', v_n; end if;
-  v_ok := false;
-  begin
-    execute 'select count(*) from public.caixa_sessoes';
-  exception when insufficient_privilege then
-    v_ok := true;
-  end;
-  if not v_ok then raise exception 'TESTE FALHOU [T3]: vendedora leu caixa_sessoes (tem esperado e divergencia)'; end if;
+  -- caixa_sessoes tem GRANT SELECT para authenticated (o admin precisa ler); quem protege
+  -- e a RLS (so a policy "admin le caixa_sessoes" e permissiva pra leitura direta), entao
+  -- a vendedora consegue rodar a consulta mas nao ve nenhuma linha (nao gera excecao).
+  select count(*) into v_n from public.caixa_sessoes;
+  if v_n <> 0 then raise exception 'TESTE FALHOU [T3]: vendedora leu % linha(s) de caixa_sessoes (tem esperado e divergencia)', v_n; end if;
   v_ok := false;
   begin
     perform public.abrir_sessao_caixa(v_caixa, 50);
