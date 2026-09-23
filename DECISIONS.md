@@ -2,6 +2,12 @@
 
 Histórico de decisões de escopo e arquitetura, na ordem em que foram tomadas. Decisões revistas ficam marcadas como tal, não apagadas.
 
+## 2026-09-23 (cont. 5) — Go-live do VAREJO: ativado, acesso concedido, bug de embed ambíguo em /varejo/supervisores corrigido
+
+Ativação de fato do módulo de varejo, a pedido do usuário ("já vamos abrir"): `operacoes.ativo = true` pra VAREJO, e acesso concedido (`usuario_operacoes`, sem `padrao`) pra Bianca Trolesi e Barbara Carneiro além do admin — decisão do usuário sobre quem opera o caixa. Como ainda não existe tela pra conceder acesso a um funcionário já existente (só na criação), isso exigiu INSERT direto.
+
+Ao tentar cadastrar o próprio PIN de supervisor, a tela `/varejo/supervisores` não mostrava ninguém pra selecionar. Causa: a mesma classe de bug do incidente de `/pedidos` do dia 23 (FK composta ambígua) — `usuario_operacoes` tem duas FKs pra `profiles` (`profile_id` e `concedida_por`), e a query de `page.tsx` embutia `profiles(nome)` sem qualificar qual seguir; o PostgREST recusa e a lista fica vazia, sem erro visível na tela. Corrigido qualificando o embed pela constraint (`profiles!usuario_operacoes_profile_id_fkey`). Auditado o resto do código do varejo: nenhum outro embed não qualificado pra `profiles` (9 tabelas no banco têm mais de uma FK pra `profiles` — `abatimentos`, `autorizacoes_pontuais`, `caixa_movimentos`, `clientes`, `garantias`, `pedidos`, `permissoes_usuario`, `usuario_operacoes`, `vendas` — vale revisar sempre que algum código novo fizer embed de `profiles` a partir de qualquer uma delas).
+
 ## 2026-09-23 (cont. 4) — Etapas 5b e 5c aplicadas: todas as 6 migrations do varejo estão em produção
 
 Etapa 5b (`20260921000006_transferencia_intercompany.sql`) e etapa 5c (`20260922000001_funcoes_apoio_telas_e_correcao_rls.sql`) aplicadas com sucesso, confirmado por introspecção direta (tabelas, funções, view `admin_supervisores` sem `pin_hash`, e as 3 políticas restritivas novas em depositos/caixas/empresas). Com isso, **etapas 1 a 5c do módulo de varejo estão todas aplicadas em produção** — schema completo, nada mais pendente do lado do banco.
