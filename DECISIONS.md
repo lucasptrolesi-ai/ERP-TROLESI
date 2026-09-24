@@ -2,6 +2,14 @@
 
 Histórico de decisões de escopo e arquitetura, na ordem em que foram tomadas. Decisões revistas ficam marcadas como tal, não apagadas.
 
+## 2026-09-24 (cont. 2) — Auditoria de IP à prova de forjadura (auditoria_ip_confiavel)
+
+Uma das 26 pendências reais resolvidas hoje pelo usuário pedia prioridade ("quero isso resolvido logo"): `audit_log.ip_cliente` vinha do cabeçalho HTTP `x-client-ip`, que o Next.js preenche com o IP real do navegador (lido do `x-forwarded-for` da Vercel) — mas qualquer chamador com um JWT válido podia forjar esse mesmo cabeçalho direto contra a API do Supabase, pulando o Next.js inteiro, e mentir pra trilha de auditoria sobre o IP de origem.
+
+**Correção** (migration `20260924000003_auditoria_ip_confiavel.sql`): segredo compartilhado gerado uma vez (`openssl rand -hex 32`), guardado como `AUDIT_IP_SHARED_SECRET` no `.env.local` (local) e a configurar na Vercel (produção) — nunca no git. O Next.js (`src/lib/supabase/server.ts`) passa a mandar esse segredo num cabeçalho extra (`x-client-ip-secret`) junto com `x-client-ip`. No banco, só o HASH sha256 do segredo fica guardado, em `public.segredos_sistema` (RLS ligada, zero grant — mesmo padrão de `public.supervisores`, só function SECURITY DEFINER lê). `carimbar_ip_auditoria()` agora só grava `ip_cliente` quando o segredo do cabeçalho bate com o hash; sem bater (ou sem vir), `ip_cliente` fica `null` em vez de gravar um valor não verificado — `audit_log.ip` (do `x-forwarded-for` bruto, o que o Supabase viu conectar) não muda, a pendência era só sobre `ip_cliente`.
+
+Faltou 1 passo manual fora do git: rodar em separado (SQL enviado à parte no chat, nunca salvo em arquivo) o insert que grava o hash real em `segredos_sistema`, depois de aplicar a migration.
+
 ## 2026-09-24 (cont.) — Corrigido o sentido de pending_decisions.ativo na Central do Admin
 
 Bug meu, achado pelo usuário na hora de usar a tela: `listar_decisoes_pendentes()` e `resolver_decisao_pendente()` (etapa 20260923000003) foram escritas com o sentido de `ativo` invertido. O CLAUDE.md e o dado real do banco confirmam: `ativo=false` = ainda pendente (a funcionalidade fica "atrás" dela até decidir, regra 9), `ativo=true` = já decidido. A tela mostrava as 11 pendências do documento mestre já decididas em 21/07/2026 (todas com `decisao` preenchida) como se fossem novas, e escondia as 26 pendências reais registradas durante a construção do varejo (`prazo_intercompany`, `pin_supervisor_politica`, `metodo_custo_varejo` etc.) — `resolver_decisao_pendente` também nunca conseguiria resolver uma pendência de verdade, porque procurava `where ativo` (o oposto do que uma pendência real tem). Nenhum dado foi perdido ou alterado incorretamente — as 11 decisões de julho continuam intactas, só a lógica de leitura/escrita das duas functions foi corrigida (migration 20260924000001).
