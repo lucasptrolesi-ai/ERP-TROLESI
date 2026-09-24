@@ -11,6 +11,7 @@ import { decidirAcesso, type ContextoAcesso } from "@/lib/autorizacao/rotas";
 // estornar) — a tela já existia inteira desde antes do pivô, só estava
 // desvinculada.
 const ITENS = [
+  { href: "/central-admin", label: "Central do Admin", icone: "🗝️" },
   { href: "/pedidos", label: "PDV", icone: "🧾" },
   { href: "/dashboard", label: "Painel Atacado", icone: "📈" },
   { href: "/varejo/pdv", label: "PDV Varejo", icone: "🛍️" },

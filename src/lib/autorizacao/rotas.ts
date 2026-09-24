@@ -42,6 +42,7 @@ export const REGRAS_ROTAS: readonly RegraRota[] = [
   { prefixo: "/cotacao", operacao: "qualquer" }, // cotação de metal é dado de mercado, global
   { prefixo: "/permissoes", operacao: "qualquer", papeis: ["admin"] },
   { prefixo: "/consolidado", operacao: "qualquer", papeis: ["admin"] },
+  { prefixo: "/central-admin", operacao: "qualquer", papeis: ["admin"] },
 
   // Módulo de atacado.
   { prefixo: "/dashboard", operacao: "ATACADO", papeis: ["admin"] },

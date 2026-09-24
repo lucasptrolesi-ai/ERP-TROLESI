@@ -2,6 +2,13 @@
 
 Histórico de decisões de escopo e arquitetura, na ordem em que foram tomadas. Decisões revistas ficam marcadas como tal, não apagadas.
 
+## 2026-09-24 — Cor de destaque trocada pro azul ardósia; Central do Admin nova
+
+Duas mudanças a pedido do usuário, a partir do mockup dos painéis:
+
+1. **Cor de destaque**: dourado/bronze (paleta "Café") trocado por azul ardósia em todo o sistema — só os valores dos tokens em `globals.css` mudaram (`rose`/`rose-deep`/`gold-*`), nenhum componente foi tocado porque tudo já usava token em vez de cor fixa. Fundo/neutros continuam os mesmos (decisão explícita do usuário: manter claro, só trocar o destaque).
+2. **Central do Admin** (`/central-admin`, novo item de menu, só admin): atalhos pros 3 painéis + Permissões, e uma seção nova de "decisões pendentes" que lê a tabela `pending_decisions` (existia desde a fase 1 do documento mestre, nunca teve tela — só dava pra ver por SQL). Duas functions novas admin-only: `listar_decisoes_pendentes()` e `resolver_decisao_pendente(chave, decisao)` — essa última grava a decisão tomada, marca resolvida e audita. Reaproveitado 100% o design system já existente (mesmo cartão, mesma fonte, mesmo padrão de formulário do `/permissoes`) — não passou por mockup separado por ser composição de padrões já aprovados, não visual novo.
+
 ## 2026-09-23 (cont. 7) — Varredura de segurança pós-varejo: 26 functions fechadas pra anon, search_path fixado em 14
 
 A pedido do usuário ("verifique se existem erros pra sanar"), rodei os advisors do Supabase (segurança e performance) e uma auditoria própria de embeds ambíguos em todo o projeto. Achados reais, todos em código LEGADO do atacado (anterior a esta sessão), nada do módulo de varejo:
