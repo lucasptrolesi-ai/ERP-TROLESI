@@ -2,6 +2,10 @@
 
 Histórico de decisões de escopo e arquitetura, na ordem em que foram tomadas. Decisões revistas ficam marcadas como tal, não apagadas.
 
+## 2026-09-24 (cont.) — Corrigido o sentido de pending_decisions.ativo na Central do Admin
+
+Bug meu, achado pelo usuário na hora de usar a tela: `listar_decisoes_pendentes()` e `resolver_decisao_pendente()` (etapa 20260923000003) foram escritas com o sentido de `ativo` invertido. O CLAUDE.md e o dado real do banco confirmam: `ativo=false` = ainda pendente (a funcionalidade fica "atrás" dela até decidir, regra 9), `ativo=true` = já decidido. A tela mostrava as 11 pendências do documento mestre já decididas em 21/07/2026 (todas com `decisao` preenchida) como se fossem novas, e escondia as 26 pendências reais registradas durante a construção do varejo (`prazo_intercompany`, `pin_supervisor_politica`, `metodo_custo_varejo` etc.) — `resolver_decisao_pendente` também nunca conseguiria resolver uma pendência de verdade, porque procurava `where ativo` (o oposto do que uma pendência real tem). Nenhum dado foi perdido ou alterado incorretamente — as 11 decisões de julho continuam intactas, só a lógica de leitura/escrita das duas functions foi corrigida (migration 20260924000001).
+
 ## 2026-09-24 — Cor de destaque trocada pro azul ardósia; Central do Admin nova
 
 Duas mudanças a pedido do usuário, a partir do mockup dos painéis:
