@@ -48,9 +48,10 @@ export type DadosDaVenda = {
   idempotencyKey: string;
   clienteNome?: string;
   autorizacaoDescontoId?: string;
+  autorizacaoEstoqueId?: string;
 };
 
-export type AcaoPrivilegiada = "desconto_abaixo_piso" | "cancelamento_venda" | "estorno_pagamento";
+export type AcaoPrivilegiada = "desconto_abaixo_piso" | "cancelamento_venda" | "estorno_pagamento" | "estoque_negativo";
 
 export type ResultadoAutorizacao = { ok: boolean; motivo?: string; autorizacaoId?: string };
 

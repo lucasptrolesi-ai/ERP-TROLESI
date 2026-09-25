@@ -45,6 +45,16 @@ describe("calcularLinha", () => {
     const linha = calcularLinha({ variacao: item({ preco_minimo: null }), quantidade: 1, precoTexto: "99,99" });
     expect(linha.abaixoDoPiso).toBe(true);
   });
+
+  it("marca saldo insuficiente quando a quantidade pedida passa do saldo do catálogo", () => {
+    const linha = calcularLinha({ variacao: item({ saldo: 2 }), quantidade: 5, precoTexto: "" });
+    expect(linha.saldoInsuficiente).toBe(true);
+  });
+
+  it("na quantidade exata do saldo não exige autorização de estoque", () => {
+    const linha = calcularLinha({ variacao: item({ saldo: 2 }), quantidade: 2, precoTexto: "" });
+    expect(linha.saldoInsuficiente).toBe(false);
+  });
 });
 
 describe("calcularTotais", () => {
@@ -57,10 +67,16 @@ describe("calcularTotais", () => {
     expect(totais.subtotal).toBe(250);
     expect(totais.total).toBe(240);
     expect(totais.precisaAutorizacao).toBe(true);
+    expect(totais.precisaAutorizacaoEstoque).toBe(false);
+  });
+
+  it("sinaliza autorização de estoque quando alguma linha pede mais do que o saldo", () => {
+    const linhas = [calcularLinha({ variacao: item({ saldo: 1 }), quantidade: 3, precoTexto: "" })];
+    expect(calcularTotais(linhas).precisaAutorizacaoEstoque).toBe(true);
   });
 
   it("carrinho vazio dá zero em tudo, sem exigir autorização", () => {
-    expect(calcularTotais([])).toEqual({ subtotal: 0, total: 0, precisaAutorizacao: false });
+    expect(calcularTotais([])).toEqual({ subtotal: 0, total: 0, precisaAutorizacao: false, precisaAutorizacaoEstoque: false });
   });
 });
 

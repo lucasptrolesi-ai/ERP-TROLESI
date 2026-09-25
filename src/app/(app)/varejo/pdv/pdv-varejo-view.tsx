@@ -38,7 +38,9 @@ export function PdvVarejoView({
   const [clienteNome, setClienteNome] = useState("");
   const [idempotencyKey, setIdempotencyKey] = useState(() => crypto.randomUUID());
   const [pinAberto, setPinAberto] = useState(false);
+  const [pinEstoqueAberto, setPinEstoqueAberto] = useState(false);
   const [autorizacaoDesconto, setAutorizacaoDesconto] = useState<string | null>(null);
+  const [autorizacaoEstoque, setAutorizacaoEstoque] = useState<string | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [sucesso, setSucesso] = useState<string | null>(null);
   const [enviando, iniciarEnvio] = useTransition();
@@ -59,6 +61,7 @@ export function PdvVarejoView({
       return [...atual, { variacao: item, quantidade: 1, precoTexto: item.preco_venda.toFixed(2).replace(".", ",") }];
     });
     setAutorizacaoDesconto(null);
+    setAutorizacaoEstoque(null);
   }
 
   function mudarQuantidade(variacaoId: string, delta: number) {
@@ -67,6 +70,7 @@ export function PdvVarejoView({
         .map((l) => (l.variacao.variacao_id === variacaoId ? { ...l, quantidade: l.quantidade + delta } : l))
         .filter((l) => l.quantidade > 0),
     );
+    setAutorizacaoEstoque(null);
   }
 
   function mudarPreco(variacaoId: string, texto: string) {
@@ -77,7 +81,7 @@ export function PdvVarejoView({
   // Matematica do carrinho (preco travado no maximo de tabela, piso, subtotal/total, troco) em
   // src/lib/varejo/carrinho.ts, testada isoladamente — nao repetida aqui.
   const linhas = carrinho.map(calcularLinha);
-  const { subtotal, total, precisaAutorizacao } = calcularTotais(linhas);
+  const { subtotal, total, precisaAutorizacao, precisaAutorizacaoEstoque } = calcularTotais(linhas);
   const valorRecebido = lerMoeda(valorRecebidoTexto) ?? 0;
   const troco = calcularTroco(forma, valorRecebido, total);
 
@@ -86,6 +90,7 @@ export function PdvVarejoView({
     setValorRecebidoTexto("");
     setClienteNome("");
     setAutorizacaoDesconto(null);
+    setAutorizacaoEstoque(null);
     setIdempotencyKey(crypto.randomUUID());
   }
 
@@ -97,6 +102,10 @@ export function PdvVarejoView({
     }
     if (precisaAutorizacao && !autorizacaoDesconto) {
       setErro("Há item abaixo do preço mínimo: autorize com o supervisor antes de finalizar.");
+      return;
+    }
+    if (precisaAutorizacaoEstoque && !autorizacaoEstoque) {
+      setErro("Há item com saldo insuficiente: autorize com o supervisor antes de finalizar.");
       return;
     }
     if (forma === "dinheiro" && valorRecebido < total) {
@@ -114,6 +123,7 @@ export function PdvVarejoView({
         idempotencyKey,
         clienteNome: clienteNome || undefined,
         autorizacaoDescontoId: autorizacaoDesconto ?? undefined,
+        autorizacaoEstoqueId: autorizacaoEstoque ?? undefined,
       });
       if (resultado.erro) {
         setErro(resultado.erro);
@@ -152,13 +162,12 @@ export function PdvVarejoView({
               key={item.variacao_id}
               type="button"
               onClick={() => adicionar(item)}
-              disabled={item.saldo <= 0}
-              className="rounded-lg border border-line p-2.5 text-left text-sm disabled:cursor-not-allowed disabled:opacity-50"
+              className="rounded-lg border border-line p-2.5 text-left text-sm"
             >
               <p className="font-semibold">{item.nome}</p>
               <p className="text-xs text-text-soft">{Object.values(item.atributos ?? {}).join(" · ") || item.sku}</p>
-              <p className="mt-1">
-                {formatarMoeda(item.preco_venda)} · {item.saldo > 0 ? `${item.saldo} un` : "sem saldo"}
+              <p className={`mt-1 ${item.saldo <= 0 ? "text-red-700" : ""}`}>
+                {formatarMoeda(item.preco_venda)} · {item.saldo > 0 ? `${item.saldo} un` : "sem saldo — precisa autorização"}
               </p>
             </button>
           ))}
@@ -192,6 +201,7 @@ export function PdvVarejoView({
                 />
               </div>
               {l.abaixoDoPiso && <p className="text-xs text-red-700">Abaixo do preço mínimo — precisa de autorização.</p>}
+              {l.saldoInsuficiente && <p className="text-xs text-red-700">Saldo insuficiente ({l.variacao.saldo} em estoque) — precisa de autorização.</p>}
             </div>
           ))}
         </div>
@@ -260,6 +270,18 @@ export function PdvVarejoView({
           </button>
         )}
 
+        {precisaAutorizacaoEstoque && (
+          <button
+            type="button"
+            onClick={() => setPinEstoqueAberto(true)}
+            className={`rounded-lg border px-3 py-2 text-sm font-semibold ${
+              autorizacaoEstoque ? "border-line text-text-soft" : "border-red-400 text-red-700"
+            }`}
+          >
+            {autorizacaoEstoque ? "Estoque negativo autorizado" : "Autorizar venda com saldo insuficiente"}
+          </button>
+        )}
+
         {erro && <p className="text-sm text-red-700">{erro}</p>}
         {sucesso && <p className="text-sm text-emerald-700">{sucesso}</p>}
 
@@ -284,6 +306,18 @@ export function PdvVarejoView({
         onAutorizado={(id) => {
           setAutorizacaoDesconto(id);
           setPinAberto(false);
+        }}
+      />
+
+      <PinSupervisorModal
+        aberto={pinEstoqueAberto}
+        onFechar={() => setPinEstoqueAberto(false)}
+        acao="estoque_negativo"
+        alvoId={sessao.sessao_id}
+        supervisores={supervisores}
+        onAutorizado={(id) => {
+          setAutorizacaoEstoque(id);
+          setPinEstoqueAberto(false);
         }}
       />
     </div>

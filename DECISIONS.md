@@ -2,6 +2,16 @@
 
 Histórico de decisões de escopo e arquitetura, na ordem em que foram tomadas. Decisões revistas ficam marcadas como tal, não apagadas.
 
+## 2026-09-25 — Estoque negativo no Varejo, com autorização de supervisor (estoque_varejo_sem_saldo_negativo)
+
+Segunda das 3 pendências reais que exigiam trabalho de engenharia (não só registro): hoje `registrar_venda()` recusa sempre vender mais do que o saldo em sistema mostra. Decisão do usuário: permitir, igual já acontece no Atacado — mas com autorização de supervisor, porque o Varejo já tem o mecanismo de PIN pontual (usado hoje em desconto abaixo do piso, cancelamento e estorno) e o Atacado não.
+
+**Correção** (migration `20260925000001_estoque_negativo_varejo.sql`): `autorizacoes_pontuais.acao` e `autorizar_acao()` ganharam a ação `estoque_negativo`. `registrar_venda()` ganhou o parâmetro `p_autorizacao_estoque_id` (último, default `null` — chamada antiga sem ele continua bloqueando igual a hoje). Item com saldo insuficiente não bloqueia mais na hora: acumula; ao final da venda, sem autorização válida continua recusando (comportamento preservado), com autorização válida completa a venda com saldo negativo e audita quais itens/saldo/quantidade/quem autorizou.
+
+**Achado importante durante a implementação**: `CREATE OR REPLACE FUNCTION` não troca a function quando a lista de parâmetros muda (mesmo só acrescentando um com default) — o Postgres identifica a function pelos TIPOS dos parâmetros, então ficaria uma segunda versão sobrecarregada ao lado da antiga, e toda chamada existente do app (que não manda o parâmetro novo) viraria ambígua pro PostgREST. A migration derruba a assinatura antiga explicitamente antes de criar a nova (nos dois sentidos, `$up$` e `$down$`), e restaura o grant (`authenticated`, sem `anon`) que se perderia por causa do default privilege automático do Supabase em function nova — mesma classe de bug já vista na migration da auditoria de IP, desta vez em função, não em tabela.
+
+**Front-end** (`src/app/(app)/varejo/pdv/pdv-varejo-view.tsx`, `src/lib/varejo/carrinho.ts`): reaproveitado 100% o padrão já existente do desconto abaixo do piso — `LinhaCarrinho` ganhou `saldoInsuficiente` (linha pura, testada em `carrinho.test.ts`), a tela ganhou um segundo botão + segunda instância do `PinSupervisorModal` já existente (`acao="estoque_negativo"`), e o botão de adicionar item ao carrinho deixou de ficar desabilitado quando `saldo <= 0` (antes impedia até começar o fluxo). Sem mockup separado — composição de padrões já aprovados, mesmo critério já usado na Central do Admin.
+
 ## 2026-09-24 (cont. 2) — Auditoria de IP à prova de forjadura (auditoria_ip_confiavel)
 
 Uma das 26 pendências reais resolvidas hoje pelo usuário pedia prioridade ("quero isso resolvido logo"): `audit_log.ip_cliente` vinha do cabeçalho HTTP `x-client-ip`, que o Next.js preenche com o IP real do navegador (lido do `x-forwarded-for` da Vercel) — mas qualquer chamador com um JWT válido podia forjar esse mesmo cabeçalho direto contra a API do Supabase, pulando o Next.js inteiro, e mentir pra trilha de auditoria sobre o IP de origem.

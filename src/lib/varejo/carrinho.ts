@@ -11,21 +11,26 @@ import type { ItemCatalogo } from "@/lib/varejo/tipos";
 
 export type ItemCarrinho = { variacao: ItemCatalogo; quantidade: number; precoTexto: string };
 
-export type LinhaCarrinho = ItemCarrinho & { preco: number; abaixoDoPiso: boolean };
+export type LinhaCarrinho = ItemCarrinho & { preco: number; abaixoDoPiso: boolean; saldoInsuficiente: boolean };
 
 /** O preço praticado nunca passa do preço de tabela (o cliente só pode pedir desconto, nunca acréscimo). */
 export function calcularLinha(item: ItemCarrinho): LinhaCarrinho {
   const preco = Math.min(lerMoeda(item.precoTexto) ?? item.variacao.preco_venda, item.variacao.preco_venda);
   const piso = item.variacao.preco_minimo ?? item.variacao.preco_venda;
-  return { ...item, preco, abaixoDoPiso: preco < piso };
+  return { ...item, preco, abaixoDoPiso: preco < piso, saldoInsuficiente: item.quantidade > item.variacao.saldo };
 }
 
-export type TotaisCarrinho = { subtotal: number; total: number; precisaAutorizacao: boolean };
+export type TotaisCarrinho = { subtotal: number; total: number; precisaAutorizacao: boolean; precisaAutorizacaoEstoque: boolean };
 
 export function calcularTotais(linhas: LinhaCarrinho[]): TotaisCarrinho {
   const subtotal = arredondarMoeda(linhas.reduce((s, l) => s + l.variacao.preco_venda * l.quantidade, 0));
   const total = arredondarMoeda(linhas.reduce((s, l) => s + l.preco * l.quantidade, 0));
-  return { subtotal, total, precisaAutorizacao: linhas.some((l) => l.abaixoDoPiso) };
+  return {
+    subtotal,
+    total,
+    precisaAutorizacao: linhas.some((l) => l.abaixoDoPiso),
+    precisaAutorizacaoEstoque: linhas.some((l) => l.saldoInsuficiente),
+  };
 }
 
 /** Troco só existe em dinheiro; nunca negativo (a tela barra finalizar se o recebido for menor que o total). */

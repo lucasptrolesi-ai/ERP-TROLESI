@@ -102,6 +102,7 @@ export async function registrarVenda(dados: DadosDaVenda): Promise<{ erro?: stri
     p_cliente_nome: dados.clienteNome?.trim() || null,
     p_cliente_documento: null,
     p_autorizacao_desconto_id: dados.autorizacaoDescontoId ?? null,
+    p_autorizacao_estoque_id: dados.autorizacaoEstoqueId ?? null,
   });
   if (error) return { erro: mensagem(error) };
   atualizarTelas();
