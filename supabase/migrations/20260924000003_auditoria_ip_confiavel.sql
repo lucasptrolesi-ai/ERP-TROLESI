@@ -65,8 +65,10 @@ begin
     atualizado_em timestamptz not null default now()
   );
   alter table public.segredos_sistema enable row level security;
-  -- Sem policy, sem grant de proposito: nenhum papel (nem authenticated, nem service_role via
-  -- PostgREST) le esta tabela direto -- so funcoes SECURITY DEFINER, mesmo padrao de public.supervisores.
+  -- O Supabase tem "default privileges" que dao grant automatico em toda tabela nova pra anon/
+  -- authenticated (revogado explicitamente abaixo) -- mesmo padrao de public.supervisores. Sem
+  -- policy tambem: nenhum papel le esta tabela direto, so funcoes SECURITY DEFINER.
+  revoke all on public.segredos_sistema from anon, authenticated;
 
   create or replace function public.carimbar_ip_auditoria() returns trigger
   language plpgsql security definer set search_path = public as $fn$
