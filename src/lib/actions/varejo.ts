@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { lerMoeda } from "@/lib/dinheiro";
+import { subirFotoProduto } from "./foto-produto";
+import { parseAtributos } from "@/lib/varejo/atributos";
 import type {
   AcaoPrivilegiada,
   DadosDaVenda,
@@ -146,18 +148,102 @@ export async function cadastrarProdutoCatalogo(
   const { error } = await supabase.rpc("cadastrar_produto_catalogo", {
     p_nome: nome,
     p_categoria: categoria,
-    p_variacoes: variacoes.map((v) => {
-      // "tamanho 16, cor ouro" -> {"tamanho":"16","cor":"ouro"}; texto sem chave vira {"variacao": texto}
-      const atributos: Record<string, string> = {};
-      for (const parte of v.atributos.split(",")) {
-        const texto = parte.trim();
-        if (texto === "") continue;
-        const espaco = texto.indexOf(" ");
-        if (espaco > 0) atributos[texto.slice(0, espaco).toLowerCase()] = texto.slice(espaco + 1).trim();
-        else atributos.variacao = texto;
-      }
-      return { sku: v.sku, atributos, preco_venda: v.preco_venda, preco_minimo: v.preco_minimo };
-    }),
+    p_variacoes: variacoes.map((v) => ({
+      sku: v.sku,
+      atributos: parseAtributos(v.atributos),
+      preco_venda: v.preco_venda,
+      preco_minimo: v.preco_minimo,
+    })),
+  });
+  if (error) return { erro: mensagem(error) };
+  revalidatePath("/varejo/catalogo");
+  return {};
+}
+
+/** Cadastro de UMA peça de cada vez — mesmo fluxo do PDV Eventos (bipar código, foto local ou pelo
+ * celular): cria o produto (pai) já com sua primeira variação. sku em branco vira número sequencial
+ * sozinho (trigger definir_sku_variacao_catalogo, migration 20260929000001) — o componente
+ * CampoCodigoProduto só sugere visualmente antes de enviar. */
+export async function cadastrarPecaCatalogo(
+  nome: string,
+  categoria: string,
+  sku: string,
+  atributosTexto: string,
+  precoVenda: number,
+  precoMinimo: number | null,
+  foto: File | null,
+  fotoUrlDoCelular: string | null,
+): Promise<{ erro?: string }> {
+  if (nome.trim() === "") return { erro: "Informe o nome do produto." };
+  if (!Number.isFinite(precoVenda) || precoVenda <= 0) return { erro: "Informe o preço de venda." };
+  const supabase = await createClient();
+
+  // fotoUrlDoCelular carrega a foto pareada pelo celular (QR), se alguma foi tirada antes de
+  // salvar — arquivo local escolhido no input, se houver, tem prioridade (mesmo padrão de
+  // salvarProdutoEvento).
+  let fotoUrl = fotoUrlDoCelular;
+  if (foto && foto.size > 0) {
+    const resultado = await subirFotoProduto(supabase, foto, "varejo");
+    if (resultado.erro) return { erro: resultado.erro };
+    fotoUrl = resultado.url ?? fotoUrl;
+  }
+
+  const { error } = await supabase.rpc("cadastrar_produto_catalogo", {
+    p_nome: nome,
+    p_categoria: categoria,
+    p_variacoes: [
+      {
+        sku,
+        atributos: parseAtributos(atributosTexto),
+        preco_venda: precoVenda,
+        preco_minimo: precoMinimo,
+        foto_url: fotoUrl,
+      },
+    ],
+  });
+  if (error) return { erro: mensagem(error) };
+  revalidatePath("/varejo/catalogo");
+  return {};
+}
+
+/** Edição de uma peça já cadastrada — aberta pelo "Ler código" (bipou e achou) ou clicando no nome
+ * na lista. Edita nome/categoria do produto (pai) junto com sku/atributos/preço/foto/ativo dessa
+ * variação (peça), tudo em editar_produto_catalogo (migration 20260929000001). */
+export async function editarPecaCatalogo(
+  produtoId: string,
+  variacaoId: string,
+  nome: string,
+  categoria: string,
+  sku: string,
+  atributosTexto: string,
+  precoVenda: number,
+  precoMinimo: number | null,
+  foto: File | null,
+  fotoUrlAtual: string | null,
+  ativo: boolean,
+): Promise<{ erro?: string }> {
+  if (nome.trim() === "") return { erro: "Informe o nome do produto." };
+  if (!Number.isFinite(precoVenda) || precoVenda <= 0) return { erro: "Informe o preço de venda." };
+  const supabase = await createClient();
+
+  let fotoUrl = fotoUrlAtual;
+  if (foto && foto.size > 0) {
+    const resultado = await subirFotoProduto(supabase, foto, "varejo");
+    if (resultado.erro) return { erro: resultado.erro };
+    fotoUrl = resultado.url ?? fotoUrl;
+  }
+
+  const { error } = await supabase.rpc("editar_produto_catalogo", {
+    p_produto_id: produtoId,
+    p_variacao_id: variacaoId,
+    p_nome: nome,
+    p_categoria: categoria,
+    p_sku: sku,
+    p_atributos: parseAtributos(atributosTexto),
+    p_preco_venda: precoVenda,
+    p_preco_minimo: precoMinimo,
+    p_foto_url: fotoUrl,
+    p_ativo: ativo,
   });
   if (error) return { erro: mensagem(error) };
   revalidatePath("/varejo/catalogo");

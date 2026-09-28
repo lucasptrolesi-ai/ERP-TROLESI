@@ -13,7 +13,7 @@ export default async function CameraPage({
   return (
     <CameraCelularView
       sessionId={sessionId}
-      prefixo={prefixo === "evento" ? "evento" : "manual"}
+      prefixo={prefixo === "evento" ? "evento" : prefixo === "varejo" ? "varejo" : "manual"}
     />
   );
 }

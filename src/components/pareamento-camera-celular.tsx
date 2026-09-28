@@ -30,7 +30,7 @@ export function PareamentoCameraCelular({
   prefixo,
   onFoto,
 }: {
-  prefixo: "manual" | "evento";
+  prefixo: "manual" | "evento" | "varejo";
   onFoto: (url: string) => void;
 }) {
   const ouvintesRef = useRef(new Set<() => void>());

@@ -13,7 +13,7 @@ export function CampoFotoProduto({
   prefixoCelular,
 }: {
   fotoAtual: string | null | undefined;
-  prefixoCelular: "manual" | "evento";
+  prefixoCelular: "manual" | "evento" | "varejo";
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [previewLocal, setPreviewLocal] = useState<string | null>(null);

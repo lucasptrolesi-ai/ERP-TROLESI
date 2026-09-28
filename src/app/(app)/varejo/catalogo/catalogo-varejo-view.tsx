@@ -1,20 +1,13 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { formatarMoeda } from "@/lib/formatar-moeda";
 import { cadastrarProdutoCatalogo, registrarEntradaEstoque } from "@/lib/actions/varejo";
 import { Modal } from "@/components/modal";
-import type { VariacaoNova } from "@/lib/varejo/tipos";
-
-type LinhaCatalogo = {
-  variacao_id: string;
-  produto_nome: string;
-  categoria: string | null;
-  sku: string;
-  preco_venda: number;
-  preco_minimo: number | null;
-  ativo: boolean;
-};
+import { FotoComZoom } from "@/components/foto-com-zoom";
+import { LeitorCodigoModal } from "@/components/leitor-codigo-modal";
+import { PecaCatalogoForm } from "./peca-catalogo-form";
+import type { LinhaCatalogo, VariacaoNova } from "@/lib/varejo/tipos";
 
 export function CatalogoVarejoView({
   linhas,
@@ -25,24 +18,58 @@ export function CatalogoVarejoView({
 }) {
   const [novoAberto, setNovoAberto] = useState(false);
   const [entradaVariacao, setEntradaVariacao] = useState<LinhaCatalogo | null>(null);
+  const [lendoCodigo, setLendoCodigo] = useState(false);
+  const [pecaEditando, setPecaEditando] = useState<LinhaCatalogo | null | undefined>(undefined);
+  const [codigoParaNovaPeca, setCodigoParaNovaPeca] = useState<string | undefined>(undefined);
+
+  const skusExistentes = useMemo(() => linhas.map((l) => l.sku), [linhas]);
+
+  // Peça já usa esse sku, cadastrada com etiqueta impressa antes de existir no sistema — mesmo
+  // fluxo "ler código pra cadastrar" do PDV Eventos: bipar o código já impresso abre a peça
+  // existente pra edição, ou o cadastro novo já com o código preenchido, se ainda não existir.
+  function handleCodigoLido(codigo: string) {
+    setLendoCodigo(false);
+    const encontrada = linhas.find((l) => l.sku.trim().toLowerCase() === codigo.trim().toLowerCase());
+    if (encontrada) {
+      setCodigoParaNovaPeca(undefined);
+      setPecaEditando(encontrada);
+    } else {
+      setCodigoParaNovaPeca(codigo.trim().toUpperCase());
+      setPecaEditando(null);
+    }
+  }
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-lg font-semibold">Catálogo do varejo</h1>
-        <button
-          type="button"
-          onClick={() => setNovoAberto(true)}
-          className="rounded-lg bg-gradient-to-br from-gold-start to-gold-end px-4 py-2 text-sm font-semibold text-gold-ink"
-        >
-          Novo produto
-        </button>
+        <div className="flex shrink-0 gap-2">
+          <button
+            type="button"
+            onClick={() => setLendoCodigo(true)}
+            title="Ler código pra cadastrar"
+            className="rounded-full border border-rose px-3 py-2 text-sm font-semibold text-rose-deep"
+          >
+            🔫<span className="hidden sm:inline"> Ler código</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setCodigoParaNovaPeca(undefined);
+              setPecaEditando(null);
+            }}
+            className="rounded-lg bg-gradient-to-br from-gold-start to-gold-end px-4 py-2 text-sm font-semibold text-gold-ink"
+          >
+            + Nova peça
+          </button>
+        </div>
       </div>
 
       <div className="overflow-x-auto rounded-[14px] border border-line bg-surface shadow-sm">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-line text-left text-text-soft">
+              <th className="px-4 py-2.5" />
               <th className="px-4 py-2.5">Produto</th>
               <th className="px-4 py-2.5">SKU</th>
               <th className="px-4 py-2.5">Preço</th>
@@ -52,12 +79,24 @@ export function CatalogoVarejoView({
           </thead>
           <tbody>
             {linhas.map((l) => (
-              <tr key={l.variacao_id} className="border-b border-line last:border-0">
-                <td className="px-4 py-2.5">
-                  {l.produto_nome}
-                  {l.categoria && <span className="text-text-soft"> · {l.categoria}</span>}
+              <tr key={l.variacao_id} className={`border-b border-line last:border-0 ${l.ativo ? "" : "opacity-50"}`}>
+                <td className="py-2 pl-4">
+                  {l.foto_url ? (
+                    <FotoComZoom src={l.foto_url} tamanhoBase="h-14 w-14" />
+                  ) : (
+                    <span className="flex h-14 w-14 items-center justify-center rounded-lg border border-dashed border-line text-[0.6rem] text-text-soft">
+                      sem foto
+                    </span>
+                  )}
                 </td>
-                <td className="px-4 py-2.5">{l.sku}</td>
+                <td className="px-4 py-2.5">
+                  <button type="button" onClick={() => setPecaEditando(l)} className="text-left font-semibold hover:underline">
+                    {l.produto_nome}
+                  </button>
+                  {l.categoria && <span className="text-text-soft"> · {l.categoria}</span>}
+                  {!l.ativo && <span className="ml-2 text-[0.65rem] text-text-soft">(inativa)</span>}
+                </td>
+                <td className="px-4 py-2.5 font-mono text-xs text-text-soft">#{l.sku}</td>
                 <td className="px-4 py-2.5">{formatarMoeda(l.preco_venda)}</td>
                 <td className="px-4 py-2.5">{l.preco_minimo != null ? formatarMoeda(l.preco_minimo) : "—"}</td>
                 <td className="px-4 py-2.5 text-right">
@@ -69,7 +108,7 @@ export function CatalogoVarejoView({
             ))}
             {linhas.length === 0 && (
               <tr>
-                <td colSpan={5} className="px-4 py-6 text-center text-text-soft">
+                <td colSpan={6} className="px-4 py-6 text-center text-text-soft">
                   Nenhum produto cadastrado ainda.
                 </td>
               </tr>
@@ -77,6 +116,29 @@ export function CatalogoVarejoView({
           </tbody>
         </table>
       </div>
+
+      <button
+        type="button"
+        onClick={() => setNovoAberto(true)}
+        className="self-start text-xs font-semibold text-rose-deep underline decoration-dotted"
+      >
+        Produto com várias variações de uma vez (tamanho/cor)
+      </button>
+
+      <LeitorCodigoModal aberto={lendoCodigo} onFechar={() => setLendoCodigo(false)} onCodigo={handleCodigoLido} titulo="Ler código de barras" />
+      {pecaEditando !== undefined && (
+        <PecaCatalogoForm
+          key={pecaEditando?.variacao_id ?? codigoParaNovaPeca ?? "novo"}
+          aberto
+          onFechar={() => {
+            setPecaEditando(undefined);
+            setCodigoParaNovaPeca(undefined);
+          }}
+          peca={pecaEditando}
+          skusExistentes={skusExistentes}
+          codigoInicial={codigoParaNovaPeca}
+        />
+      )}
 
       <NovoProdutoModal aberto={novoAberto} onFechar={() => setNovoAberto(false)} />
       {entradaVariacao && (

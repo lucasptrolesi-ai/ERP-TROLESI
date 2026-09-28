@@ -58,3 +58,16 @@ export type ResultadoAutorizacao = { ok: boolean; motivo?: string; autorizacaoId
 export type ResultadoFechamento = { valor_informado: number; valor_esperado: number; divergencia: number };
 
 export type VariacaoNova = { sku: string; atributos: string; preco_venda: number; preco_minimo: number | null };
+
+export type LinhaCatalogo = {
+  variacao_id: string;
+  produto_id: string;
+  produto_nome: string;
+  categoria: string | null;
+  sku: string;
+  atributos: Record<string, string>;
+  preco_venda: number;
+  preco_minimo: number | null;
+  foto_url: string | null;
+  ativo: boolean;
+};

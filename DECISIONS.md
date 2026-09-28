@@ -2,6 +2,18 @@
 
 Histórico de decisões de escopo e arquitetura, na ordem em que foram tomadas. Decisões revistas ficam marcadas como tal, não apagadas.
 
+## 2026-09-29 — Cadastro do catálogo Varejo passa a usar o sistema do PDV Eventos (bip, código, foto)
+
+Pedido do usuário: alinhar o cadastro do catálogo Varejo com o que já existe no PDV Eventos — leitor de código (USB ou câmera do celular), código sugerido automaticamente e foto (upload local ou pareamento com a câmera do celular via QR), tudo reaproveitando os mesmos componentes já aprovados visualmente (`CampoFotoProduto`, `CampoCodigoProduto`, `LeitorCodigoModal`, `LeitorCameraModal`, `PareamentoCameraCelular`) — sem mockup novo, por ser composição de padrões já em produção (mesma exceção já usada na Central do Admin).
+
+**Decisão confirmada com o usuário:** o campo que vira "o código" (sugerido automaticamente, lido de volta no bip) é o `sku` já existente, não o `codigo_barras` (que segue no schema sem uso, como já estava — fora de escopo).
+
+**Correção** (migration `20260929000001_catalogo_varejo_bip_codigo_foto.sql`): `catalogo_variacoes` ganha `foto_url` (foto por peça/variação, mesmo padrão de `produtos_evento.foto_url`); `sku` deixa de ser obrigatório na hora de cadastrar — em branco, um trigger (`definir_sku_variacao_catalogo`, mesma lógica de `definir_codigo_produto_evento`) numera sozinho; nova function `editar_produto_catalogo()` fecha o fluxo que faltava (só existia criar, não editar) — é o que permite "bipou, achou a peça existente, abre pra editar". `fotos_celular_pendentes.prefixo` ganhou `'varejo'` como terceiro valor aceito, reaproveitando o mesmo mecanismo de pareamento por QR sem tabela nova.
+
+**Front-end**: nova tela "Nova peça"/"Editar peça" (`peca-catalogo-form.tsx`) no catálogo, com foto + código bipável, espelhando `produto-evento-form.tsx` quase 1:1 (incluindo a prop `key` pra forçar remontagem do formulário ao trocar de peça sem fechar o modal — mesmo detalhe usado lá). O fluxo antigo de cadastro em lote com várias variações (`NovoProdutoModal`, tamanho/cor) foi mantido intacto como opção secundária, sem foto/bip — continua sendo o caminho certo pra quem cadastra várias variações do mesmo produto de uma vez.
+
+**Não testado visualmente no navegador** (sem sessão de admin/estoque disponível neste ambiente) — build, lint e testes automatizados passam limpos, e os componentes reaproveitados já foram aprovados visualmente em produção no PDV Eventos, mas o usuário deve conferir a tela real depois de aplicar.
+
 ## 2026-09-28 — Varredura de rotina: revoga grant sobrando em carimbar_ip_auditoria()
 
 Usuário pediu uma checagem geral do sistema. Lint, testes, build e git — tudo limpo. Advisors do Supabase (segurança + performance) rodados: a maioria dos achados é ruído esperado (padrão SECURITY DEFINER usado de propósito em 8 views e 48 functions, débito de performance pré-existente — FK sem índice, índice não usado, RLS reavaliada por linha). Um achado real ligado ao trabalho desta semana: `carimbar_ip_auditoria()` (trigger da migration `20260924000003_auditoria_ip_confiavel.sql`) ficou com grant automático do Supabase pra `anon`/`authenticated`/`public`, o mesmo problema já corrigido em `segredos_sistema` e `registrar_venda` na mesma leva — esquecido porque é function de trigger, não RPC comum.

@@ -18,7 +18,7 @@ export function CameraCelularView({
   prefixo,
 }: {
   sessionId: string;
-  prefixo: "manual" | "evento";
+  prefixo: "manual" | "evento" | "varejo";
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [enviando, setEnviando] = useState(false);
@@ -61,7 +61,7 @@ export function CameraCelularView({
       <div>
         <h1 className="font-display text-xl font-semibold text-ink">Câmera do celular</h1>
         <p className="text-sm text-text-soft">
-          Trolesi ERP — {prefixo === "evento" ? "PDV Eventos" : "Estoque"}
+          Trolesi ERP — {prefixo === "evento" ? "PDV Eventos" : prefixo === "varejo" ? "Catálogo Varejo" : "Estoque"}
         </p>
       </div>
 

@@ -2,17 +2,7 @@ import { getPerfilAtual } from "@/lib/supabase/auth";
 import { getContextoSessao } from "@/lib/supabase/contexto";
 import { createClient } from "@/lib/supabase/server";
 import { CatalogoVarejoView } from "./catalogo-varejo-view";
-
-type LinhaCatalogo = {
-  variacao_id: string;
-  produto_id: string;
-  produto_nome: string;
-  categoria: string | null;
-  sku: string;
-  preco_venda: number;
-  preco_minimo: number | null;
-  ativo: boolean;
-};
+import type { LinhaCatalogo } from "@/lib/varejo/tipos";
 
 export default async function CatalogoVarejoPage() {
   const perfil = await getPerfilAtual();
@@ -29,7 +19,7 @@ export default async function CatalogoVarejoPage() {
   const [{ data: variacoes }, { data: depositos }] = await Promise.all([
     supabase
       .from("catalogo_variacoes")
-      .select("id, produto_id, sku, preco_venda, preco_minimo, ativo, catalogo_produtos(nome, categoria)")
+      .select("id, produto_id, sku, atributos, preco_venda, preco_minimo, foto_url, ativo, catalogo_produtos(nome, categoria)")
       .order("criado_em", { ascending: false }),
     supabase.from("depositos").select("id, nome").eq("ativo", true).order("nome"),
   ]);
@@ -42,8 +32,10 @@ export default async function CatalogoVarejoPage() {
       produto_nome: produto?.nome ?? "",
       categoria: produto?.categoria ?? null,
       sku: v.sku,
+      atributos: (v.atributos ?? {}) as Record<string, string>,
       preco_venda: v.preco_venda,
       preco_minimo: v.preco_minimo,
+      foto_url: v.foto_url,
       ativo: v.ativo,
     };
   });

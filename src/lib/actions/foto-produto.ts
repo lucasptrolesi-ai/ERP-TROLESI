@@ -7,7 +7,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 export async function subirFotoProduto(
   supabase: SupabaseClient,
   arquivo: File,
-  prefixo: "manual" | "evento",
+  prefixo: "manual" | "evento" | "varejo",
 ): Promise<{ url?: string; erro?: string }> {
   const extensao = arquivo.type === "image/png" ? "png" : "jpg";
   const caminho = `${prefixo}/${crypto.randomUUID()}.${extensao}`;
