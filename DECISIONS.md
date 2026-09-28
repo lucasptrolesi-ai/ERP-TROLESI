@@ -2,6 +2,14 @@
 
 Histórico de decisões de escopo e arquitetura, na ordem em que foram tomadas. Decisões revistas ficam marcadas como tal, não apagadas.
 
+## 2026-09-28 — Varredura de rotina: revoga grant sobrando em carimbar_ip_auditoria()
+
+Usuário pediu uma checagem geral do sistema. Lint, testes, build e git — tudo limpo. Advisors do Supabase (segurança + performance) rodados: a maioria dos achados é ruído esperado (padrão SECURITY DEFINER usado de propósito em 8 views e 48 functions, débito de performance pré-existente — FK sem índice, índice não usado, RLS reavaliada por linha). Um achado real ligado ao trabalho desta semana: `carimbar_ip_auditoria()` (trigger da migration `20260924000003_auditoria_ip_confiavel.sql`) ficou com grant automático do Supabase pra `anon`/`authenticated`/`public`, o mesmo problema já corrigido em `segredos_sistema` e `registrar_venda` na mesma leva — esquecido porque é function de trigger, não RPC comum.
+
+**Correção** (`20260928000001_revoga_grant_carimbar_ip_auditoria.sql`): revoga execute de anon/authenticated/public. Não era vulnerabilidade ativa (tipo de retorno `trigger` — o Postgres recusa chamar via `/rest/v1/rpc/...`), só limpeza de superfície: gatilho continua disparando normal, disparo de trigger não passa por checagem de grant de execute.
+
+Proteção contra senha vazada (HaveIBeenPwned) segue desligada no Supabase Auth — é toggle de painel, não SQL; fica registrado como sugestão de baixo esforço pro usuário ativar quando quiser.
+
 ## 2026-09-25 (cont.) — Cliente intercompany filtrado dos relatórios (clientes_intercompany_relatorios)
 
 Terceira e última das pendências que exigiam trabalho de engenharia (não só registro). O Atacado representa o Varejo como um cliente comum (`clientes.intercompany_operacao_id`) pra registrar as transferências entre operações como uma venda — decisão do usuário: filtrar esse cliente sintético dos relatórios de cliente inativo, primeira compra e crediário, pra não distorcer as métricas com um "cliente" que não é uma pessoa de verdade.
