@@ -24,6 +24,7 @@ export type Cliente = {
   crediario_status: string;
   contatado_reativacao_em: string | null;
   contatado_reativacao_por: string | null;
+  intercompany_operacao_id: string | null;
 };
 
 export type CrediarioLancamento = {

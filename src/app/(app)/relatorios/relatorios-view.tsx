@@ -113,11 +113,23 @@ export function RelatoriosView({
 
   const estoqueBaixo = produtos.filter((p) => p.quantidade_estoque < p.estoque_minimo);
 
+  // Cliente intercompany: o Atacado representa o Varejo como cliente
+  // (clientes.intercompany_operacao_id) pra registrar as transferências entre
+  // operações como uma venda comum. Não é cliente de verdade — decisão do
+  // usuário (pendência clientes_intercompany_relatorios, 2026-09-25): excluir
+  // dos relatórios de cliente inativo, primeira compra e crediário.
+  const idsIntercompany = useMemo(
+    () => new Set(clientes.filter((c) => c.intercompany_operacao_id).map((c) => c.id)),
+    [clientes],
+  );
+
   // Primeira compra no período: entre as vendas do período, quantas são a
   // primeira venda de verdade (faturado/aguardando/lançado) daquele cliente
   // em toda a janela de histórico carregada (~13 meses), não só no período.
   const vendasValidas = pedidos.filter(
-    (p) => p.status === "faturado" || p.status === "aguardando_lancamento_gmax" || p.status === "lancado_gmax",
+    (p) =>
+      (p.status === "faturado" || p.status === "aguardando_lancamento_gmax" || p.status === "lancado_gmax") &&
+      !(p.cliente_id && idsIntercompany.has(p.cliente_id)),
   );
   const primeiraVendaPorCliente = useMemo(() => {
     const mapa = new Map<string, string>();
@@ -151,6 +163,7 @@ export function RelatoriosView({
   })();
   const clientesInativos = useMemo(() => {
     return clientes
+      .filter((c) => !c.intercompany_operacao_id)
       .filter((c) => {
         const ultima = ultimaCompraPorCliente.get(c.id);
         return !ultima || dataLocalDoTimestamptz(ultima) < seiseMesesAtrasIso;
@@ -182,10 +195,12 @@ export function RelatoriosView({
       .sort((a, b) => a.data_nascimento!.slice(8, 10).localeCompare(b.data_nascimento!.slice(8, 10)));
   }, [clientes, mesAtual]);
 
-  const crediarioComSituacao = crediarioLancamentos.map((l) => ({
-    ...l,
-    situacaoCalculada: situacaoEfetiva(l.situacao as SituacaoConta, l.vencimento),
-  }));
+  const crediarioComSituacao = crediarioLancamentos
+    .filter((l) => !idsIntercompany.has(l.cliente_id))
+    .map((l) => ({
+      ...l,
+      situacaoCalculada: situacaoEfetiva(l.situacao as SituacaoConta, l.vencimento),
+    }));
   const crediarioAtrasado = crediarioComSituacao.filter((l) => l.situacaoCalculada === "atrasado");
   const valorCrediarioAtrasado = crediarioAtrasado.reduce((s, l) => s + l.valor, 0);
 

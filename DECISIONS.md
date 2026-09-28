@@ -2,6 +2,12 @@
 
 Histórico de decisões de escopo e arquitetura, na ordem em que foram tomadas. Decisões revistas ficam marcadas como tal, não apagadas.
 
+## 2026-09-25 (cont.) — Cliente intercompany filtrado dos relatórios (clientes_intercompany_relatorios)
+
+Terceira e última das pendências que exigiam trabalho de engenharia (não só registro). O Atacado representa o Varejo como um cliente comum (`clientes.intercompany_operacao_id`) pra registrar as transferências entre operações como uma venda — decisão do usuário: filtrar esse cliente sintético dos relatórios de cliente inativo, primeira compra e crediário, pra não distorcer as métricas com um "cliente" que não é uma pessoa de verdade.
+
+**Correção** (`src/app/(app)/relatorios/relatorios-view.tsx`, `src/lib/types.ts`): só front-end, sem migration — `Cliente` ganhou o campo `intercompany_operacao_id` (já vinha do `select("*")`, só faltava no tipo). A view monta um `Set` com os ids de clientes intercompany e filtra os três lugares que hoje derivam relatório de cliente: `vendasValidas` (a base de `primeiraCompraNoPeriodo` e do "última compra" usado em clientes inativos), a lista de `clientesInativos` em si, e `crediarioComSituacao`. Conferido em produção: nenhum cliente intercompany existe ainda (só é criado na primeira transferência de verdade) — a correção é preventiva, entra em vigor sozinha quando a primeira transferência acontecer.
+
 ## 2026-09-25 — Estoque negativo no Varejo, com autorização de supervisor (estoque_varejo_sem_saldo_negativo)
 
 Segunda das 3 pendências reais que exigiam trabalho de engenharia (não só registro): hoje `registrar_venda()` recusa sempre vender mais do que o saldo em sistema mostra. Decisão do usuário: permitir, igual já acontece no Atacado — mas com autorização de supervisor, porque o Varejo já tem o mecanismo de PIN pontual (usado hoje em desconto abaixo do piso, cancelamento e estorno) e o Atacado não.
