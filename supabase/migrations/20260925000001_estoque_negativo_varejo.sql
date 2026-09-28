@@ -444,6 +444,11 @@ begin
 
   execute 'reset role';
 
+  -- Limpa a autorizacao sintetica do T2 (consumir_autorizacao so marca usada_em, nao apaga a linha)
+  -- -- senao o $down$ mais abaixo falha ao tentar devolver a constraint pra 3 valores: essa linha,
+  -- com acao='estoque_negativo', violaria o check antigo mais restrito.
+  delete from public.autorizacoes_pontuais where id = (v_autorizacao ->> 'autorizacao_id')::uuid;
+
   raise notice 'TESTES DE COMPORTAMENTO OK: T1 a T4 (bloqueia sem autorizacao, PIN concede, venda completa negativa e auditada, autorizacao de uso unico).';
 end $teste$;
 
