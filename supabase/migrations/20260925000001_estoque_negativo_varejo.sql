@@ -606,6 +606,7 @@ begin
       if not found then
         raise exception 'Variacao nao encontrada ou inativa';
       end if;
+      -- O preco vem do catalogo; o cliente so pode pedir um preco MENOR (desconto).
       v_prat := coalesce(public.arredondar_moeda(nullif(v_item ->> 'preco_unitario', '')::numeric), v_tab);
       if v_prat < 0 or v_prat > v_tab then
         raise exception 'Preco praticado invalido (maximo: preco de tabela)';
@@ -627,6 +628,7 @@ begin
 
       insert into public.estoque_movimentos (deposito_id, variacao_id, tipo, quantidade, custo_unitario, documento_tipo, documento_id, criado_por)
       values (v_dep, v_var, 'venda', -v_qtd, v_custo, 'venda', v_id, auth.uid());
+      -- Custo congelado no fato: a linha da venda recebe a COPIA do custo gravado no movimento.
       insert into public.venda_itens (venda_id, variacao_id, quantidade, preco_tabela, preco_unitario, custo_unitario)
       values (v_id, v_var, v_qtd, v_tab, v_prat, v_custo);
 
