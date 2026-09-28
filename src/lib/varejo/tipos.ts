@@ -49,6 +49,8 @@ export type DadosDaVenda = {
   clienteNome?: string;
   autorizacaoDescontoId?: string;
   autorizacaoEstoqueId?: string;
+  valorDesconto?: number;
+  valorAcrescimo?: number;
 };
 
 export type AcaoPrivilegiada = "desconto_abaixo_piso" | "cancelamento_venda" | "estorno_pagamento" | "estoque_negativo";

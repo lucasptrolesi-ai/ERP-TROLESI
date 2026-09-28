@@ -41,6 +41,10 @@ export function PdvVarejoView({
   const [pinEstoqueAberto, setPinEstoqueAberto] = useState(false);
   const [autorizacaoDesconto, setAutorizacaoDesconto] = useState<string | null>(null);
   const [autorizacaoEstoque, setAutorizacaoEstoque] = useState<string | null>(null);
+  const [percentualDesconto, setPercentualDesconto] = useState("");
+  const [valorDescontoTexto, setValorDescontoTexto] = useState("0");
+  const [percentualAcrescimo, setPercentualAcrescimo] = useState("");
+  const [valorAcrescimoTexto, setValorAcrescimoTexto] = useState("0");
   const [erro, setErro] = useState<string | null>(null);
   const [sucesso, setSucesso] = useState<string | null>(null);
   const [enviando, iniciarEnvio] = useTransition();
@@ -81,7 +85,13 @@ export function PdvVarejoView({
   // Matematica do carrinho (preco travado no maximo de tabela, piso, subtotal/total, troco) em
   // src/lib/varejo/carrinho.ts, testada isoladamente — nao repetida aqui.
   const linhas = carrinho.map(calcularLinha);
-  const { subtotal, total, precisaAutorizacao, precisaAutorizacaoEstoque } = calcularTotais(linhas);
+  const { subtotal, total: totalItens, precisaAutorizacao, precisaAutorizacaoEstoque } = calcularTotais(linhas);
+  // Desconto/acréscimo do carrinho inteiro (pedido do usuário, 2026-09-30) — livre, sem PIN,
+  // separado da autorização de preço abaixo do mínimo por peça acima (essa continua olhando só o
+  // preço de cada item). Mesmo padrão do PDV Atacado: o % só calcula o R$, que é o valor real.
+  const numDesconto = lerMoeda(valorDescontoTexto) ?? 0;
+  const numAcrescimo = lerMoeda(valorAcrescimoTexto) ?? 0;
+  const total = Math.max(0, arredondarMoeda(totalItens - numDesconto + numAcrescimo));
   const valorRecebido = lerMoeda(valorRecebidoTexto) ?? 0;
   const troco = calcularTroco(forma, valorRecebido, total);
 
@@ -91,6 +101,10 @@ export function PdvVarejoView({
     setClienteNome("");
     setAutorizacaoDesconto(null);
     setAutorizacaoEstoque(null);
+    setPercentualDesconto("");
+    setValorDescontoTexto("0");
+    setPercentualAcrescimo("");
+    setValorAcrescimoTexto("0");
     setIdempotencyKey(crypto.randomUUID());
   }
 
@@ -124,6 +138,8 @@ export function PdvVarejoView({
         clienteNome: clienteNome || undefined,
         autorizacaoDescontoId: autorizacaoDesconto ?? undefined,
         autorizacaoEstoqueId: autorizacaoEstoque ?? undefined,
+        valorDesconto: numDesconto || undefined,
+        valorAcrescimo: numAcrescimo || undefined,
       });
       if (resultado.erro) {
         setErro(resultado.erro);
@@ -213,11 +229,71 @@ export function PdvVarejoView({
           </div>
           <div className="flex justify-between text-text-soft">
             <span>Desconto</span>
-            <span>{formatarMoeda(arredondarMoeda(subtotal - total))}</span>
+            <span>{formatarMoeda(arredondarMoeda(subtotal - totalItens))}</span>
           </div>
+          {numDesconto > 0 && (
+            <div className="flex justify-between text-text-soft">
+              <span>Desconto do carrinho</span>
+              <span className="tabular-nums">− {formatarMoeda(numDesconto)}</span>
+            </div>
+          )}
+          {numAcrescimo > 0 && (
+            <div className="flex justify-between text-text-soft">
+              <span>Acréscimo do carrinho</span>
+              <span className="tabular-nums">+ {formatarMoeda(numAcrescimo)}</span>
+            </div>
+          )}
           <div className="flex justify-between text-lg font-semibold">
             <span>Total</span>
             <span>{formatarMoeda(total)}</span>
+          </div>
+        </div>
+
+        <div className="rounded-lg border border-line bg-cream p-3">
+          <p className="mb-2 text-xs font-bold uppercase tracking-wide text-text-soft">Desconto / acréscimo do carrinho</p>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <label className="flex flex-col gap-1">
+              <span className="text-[0.7rem] text-text-soft">Desconto (%)</span>
+              <input
+                value={percentualDesconto}
+                onChange={(e) => {
+                  setPercentualDesconto(e.target.value);
+                  const p = Number(e.target.value.replace(",", "."));
+                  if (Number.isFinite(p)) setValorDescontoTexto(((totalItens * p) / 100).toFixed(2));
+                }}
+                placeholder="0"
+                className="rounded-lg border border-line bg-surface px-2 py-1.5 text-sm"
+              />
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="text-[0.7rem] text-text-soft">Desconto (R$)</span>
+              <input
+                value={valorDescontoTexto}
+                onChange={(e) => setValorDescontoTexto(e.target.value)}
+                className="rounded-lg border border-line bg-surface px-2 py-1.5 text-sm"
+              />
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="text-[0.7rem] text-text-soft">Acréscimo (%)</span>
+              <input
+                value={percentualAcrescimo}
+                onChange={(e) => {
+                  setPercentualAcrescimo(e.target.value);
+                  const p = Number(e.target.value.replace(",", "."));
+                  if (Number.isFinite(p)) setValorAcrescimoTexto(((totalItens * p) / 100).toFixed(2));
+                }}
+                placeholder="0"
+                className="rounded-lg border border-line bg-surface px-2 py-1.5 text-sm"
+              />
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="text-[0.7rem] text-text-soft">Acréscimo (R$)</span>
+              <input
+                value={valorAcrescimoTexto}
+                onChange={(e) => setValorAcrescimoTexto(e.target.value)}
+                className="rounded-lg border border-line bg-surface px-2 py-1.5 text-sm"
+              />
+            </label>
           </div>
         </div>
 

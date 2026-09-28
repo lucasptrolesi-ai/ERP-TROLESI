@@ -2,6 +2,16 @@
 
 Histórico de decisões de escopo e arquitetura, na ordem em que foram tomadas. Decisões revistas ficam marcadas como tal, não apagadas.
 
+## 2026-09-30 — Desconto/acréscimo do carrinho no PDV Varejo
+
+Pedido do usuário: um lugar no PDV Varejo pra aplicar desconto ou acréscimo no carrinho inteiro (não só por peça, que já existe editando o preço de cada item), em percentual ou em valor — mesmo par de campos %/R$ já usado no PDV Atacado (`novo-pedido.tsx`), onde digitar o % calcula o R$ automaticamente e o R$ é o valor que realmente vale.
+
+**Decisão confirmada com o usuário:** fica livre, sem PIN de supervisor — igual já funciona no Atacado hoje. A proteção de PIN que já existe no Varejo (preço de uma peça específica abaixo do mínimo dela) continua exatamente como está, é um mecanismo separado.
+
+**Correção** (migration `20260930000001_desconto_acrescimo_carrinho_varejo.sql`): `vendas` ganha `desconto_manual`/`acrescimo_manual` (gravados separados de `desconto_total`, que continua sendo só o desconto por peça — evita violar o `check (desconto_total >= 0)` quando o acréscimo for maior que o desconto por peça). `registrar_venda()` ganha `p_valor_desconto`/`p_valor_acrescimo` (últimos parâmetros, default 0 — chamada existente sem eles continua igual), validado como `criar_pedido` do Atacado já faz (nenhum negativo, total final não pode ficar negativo), aplicado depois da checagem de preço abaixo do mínimo por peça — não interfere nela.
+
+**Front-end**: PDV Varejo ganhou o mesmo bloco de 4 campos (Desconto %/R$, Acréscimo %/R$) do PDV Atacado, com linhas condicionais no resumo do carrinho mostrando cada um separado do desconto por peça já existente.
+
 ## 2026-09-29 — Cadastro do catálogo Varejo passa a usar o sistema do PDV Eventos (bip, código, foto)
 
 Pedido do usuário: alinhar o cadastro do catálogo Varejo com o que já existe no PDV Eventos — leitor de código (USB ou câmera do celular), código sugerido automaticamente e foto (upload local ou pareamento com a câmera do celular via QR), tudo reaproveitando os mesmos componentes já aprovados visualmente (`CampoFotoProduto`, `CampoCodigoProduto`, `LeitorCodigoModal`, `LeitorCameraModal`, `PareamentoCameraCelular`) — sem mockup novo, por ser composição de padrões já em produção (mesma exceção já usada na Central do Admin).
