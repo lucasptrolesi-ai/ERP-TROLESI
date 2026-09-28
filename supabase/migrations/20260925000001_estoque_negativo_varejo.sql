@@ -20,6 +20,13 @@
 -- nem no fluxo de PIN da tela -- isso e ajuste de front-end (src/app/(app)/varejo/pdv), feito
 -- junto no mesmo commit desta migration, fora do escopo do que roda no SQL Editor.
 --
+-- CORRIGIDO apos ensaio falhar em producao: a primeira versao desta migration reconstruiu o corpo
+-- de registrar_venda() de memoria, errado -- a logica de pagamento de verdade (update em
+-- vendas.subtotal/desconto_total/total/troco, checagem de troco, movimento 'venda_dinheiro') e
+-- bem diferente do que foi transcrito antes. Conferido com pg_get_functiondef direto em producao
+-- e batido com o arquivo 20260921000005_pdv_vendas.sql (que sempre esteve certo) antes de escrever
+-- esta versao -- nao era divergencia real entre git e producao, foi erro de transcricao aqui.
+--
 -- COMO RODAR: 'ensaio' -> confirma "ENSAIO OK" -> troca a linha do modo pra 'aplicar' -> roda de novo.
 --
 -- ROLLBACK:
@@ -277,21 +284,26 @@ begin
         v_dinheiro := v_dinheiro + v_valor;
       end if;
     end loop;
-
-    if abs(v_soma - v_total) > 0.01 then
-      raise exception 'A soma dos pagamentos (%) nao bate com o total da venda (%)', v_soma, v_total;
+    if v_soma < v_total then
+      raise exception 'Pagamento insuficiente';
     end if;
-    if v_dinheiro > 0 then
-      v_troco := v_dinheiro - (v_total - (v_soma - v_dinheiro));
-      if v_troco > 0 then
-        insert into public.caixa_movimentos (sessao_id, tipo, valor, motivo, criado_por)
-        values (p_sessao_id, 'troco', -v_troco, 'Troco da venda #' || v_numero, auth.uid())
-        returning id into v_mov;
-      end if;
+    v_troco := v_soma - v_total;
+    if v_troco > v_dinheiro then
+      raise exception 'Troco maior que o dinheiro recebido';
     end if;
 
-    perform public.registrar_auditoria('vendas', v_id, 'venda_registrada', null,
-      jsonb_build_object('numero', v_numero, 'total', v_total, 'forma_pagamento', p_pagamentos), null);
+    update public.vendas
+       set subtotal = v_subtotal, desconto_total = v_subtotal - v_total, total = v_total, troco = v_troco,
+           desconto_autorizado_por = v_sup
+     where id = v_id;
+
+    if v_dinheiro - v_troco > 0 then
+      insert into public.caixa_movimentos (sessao_id, tipo, valor, motivo, documento_id, criado_por)
+      values (p_sessao_id, 'venda_dinheiro', v_dinheiro - v_troco, 'Venda ' || v_numero, v_id, auth.uid())
+      returning id into v_mov;
+      perform public.registrar_auditoria('caixa_movimentos', v_mov, 'venda_dinheiro_caixa', null,
+        jsonb_build_object('sessao_id', p_sessao_id, 'venda_id', v_id, 'valor', v_dinheiro - v_troco), null);
+    end if;
 
     return v_id;
   end
@@ -654,21 +666,26 @@ begin
         v_dinheiro := v_dinheiro + v_valor;
       end if;
     end loop;
-
-    if abs(v_soma - v_total) > 0.01 then
-      raise exception 'A soma dos pagamentos (%) nao bate com o total da venda (%)', v_soma, v_total;
+    if v_soma < v_total then
+      raise exception 'Pagamento insuficiente';
     end if;
-    if v_dinheiro > 0 then
-      v_troco := v_dinheiro - (v_total - (v_soma - v_dinheiro));
-      if v_troco > 0 then
-        insert into public.caixa_movimentos (sessao_id, tipo, valor, motivo, criado_por)
-        values (p_sessao_id, 'troco', -v_troco, 'Troco da venda #' || v_numero, auth.uid())
-        returning id into v_mov;
-      end if;
+    v_troco := v_soma - v_total;
+    if v_troco > v_dinheiro then
+      raise exception 'Troco maior que o dinheiro recebido';
     end if;
 
-    perform public.registrar_auditoria('vendas', v_id, 'venda_registrada', null,
-      jsonb_build_object('numero', v_numero, 'total', v_total, 'forma_pagamento', p_pagamentos), null);
+    update public.vendas
+       set subtotal = v_subtotal, desconto_total = v_subtotal - v_total, total = v_total, troco = v_troco,
+           desconto_autorizado_por = v_sup
+     where id = v_id;
+
+    if v_dinheiro - v_troco > 0 then
+      insert into public.caixa_movimentos (sessao_id, tipo, valor, motivo, documento_id, criado_por)
+      values (p_sessao_id, 'venda_dinheiro', v_dinheiro - v_troco, 'Venda ' || v_numero, v_id, auth.uid())
+      returning id into v_mov;
+      perform public.registrar_auditoria('caixa_movimentos', v_mov, 'venda_dinheiro_caixa', null,
+        jsonb_build_object('sessao_id', p_sessao_id, 'venda_id', v_id, 'valor', v_dinheiro - v_troco), null);
+    end if;
 
     return v_id;
   end
