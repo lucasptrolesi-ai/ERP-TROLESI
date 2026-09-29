@@ -2,6 +2,14 @@
 
 Histórico de decisões de escopo e arquitetura, na ordem em que foram tomadas. Decisões revistas ficam marcadas como tal, não apagadas.
 
+## 2026-10-01 — Localização física da peça no catálogo Varejo (carrinho/gaveta/bandeja/gancho)
+
+Pedido do usuário: um campo na hora de cadastrar/editar peça no catálogo Varejo pra informar onde ela fica guardada fisicamente na loja — exemplo dado: "carrinho 1, gaveta 2, bandeja 1, gancho 8".
+
+**Correção** (migration `20261001000001_localizacao_peca_catalogo_varejo.sql`): `catalogo_variacoes` ganha `localizacao jsonb` (default `{}`, mesmo padrão já usado em `atributos`). `cadastrar_produto_catalogo()` mantém a assinatura (`text, text, jsonb`) — só passa a aceitar `localizacao` por variação dentro do jsonb, `create or replace` preserva os grants sem precisar derrubar nada. `editar_produto_catalogo()` ganhou `p_localizacao` (novo último parâmetro, default `{}`) — precisou derrubar a assinatura antiga antes de recriar (mesmo cuidado já registrado nas migrations de estoque negativo e desconto/acréscimo: parâmetro novo cria função sobrecarregada e perde os grants automáticos do Supabase).
+
+**Front-end**: reaproveitado tal e qual o parser de texto livre "chave valor, chave valor" já usado no campo Atributos (`parseAtributos`/`formatarAtributos`, extraído antes pra `src/lib/varejo/atributos.ts`) — sem parser novo, só mais um campo usando o mesmo. Formulário de peça (`peca-catalogo-form.tsx`) ganhou o campo "Localização (opcional)" com dica de exemplo; tabela do catálogo (`catalogo-varejo-view.tsx`) ganhou a coluna "Localização" pra achar a peça de relance.
+
 ## 2026-09-30 — Desconto/acréscimo do carrinho no PDV Varejo
 
 Pedido do usuário: um lugar no PDV Varejo pra aplicar desconto ou acréscimo no carrinho inteiro (não só por peça, que já existe editando o preço de cada item), em percentual ou em valor — mesmo par de campos %/R$ já usado no PDV Atacado (`novo-pedido.tsx`), onde digitar o % calcula o R$ automaticamente e o R$ é o valor que realmente vale.

@@ -19,7 +19,7 @@ export default async function CatalogoVarejoPage() {
   const [{ data: variacoes }, { data: depositos }] = await Promise.all([
     supabase
       .from("catalogo_variacoes")
-      .select("id, produto_id, sku, atributos, preco_venda, preco_minimo, foto_url, ativo, catalogo_produtos(nome, categoria)")
+      .select("id, produto_id, sku, atributos, preco_venda, preco_minimo, foto_url, localizacao, ativo, catalogo_produtos(nome, categoria)")
       .order("criado_em", { ascending: false }),
     supabase.from("depositos").select("id, nome").eq("ativo", true).order("nome"),
   ]);
@@ -36,6 +36,7 @@ export default async function CatalogoVarejoPage() {
       preco_venda: v.preco_venda,
       preco_minimo: v.preco_minimo,
       foto_url: v.foto_url,
+      localizacao: (v.localizacao ?? {}) as Record<string, string>,
       ativo: v.ativo,
     };
   });

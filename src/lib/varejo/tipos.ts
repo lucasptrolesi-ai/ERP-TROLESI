@@ -71,5 +71,6 @@ export type LinhaCatalogo = {
   preco_venda: number;
   preco_minimo: number | null;
   foto_url: string | null;
+  localizacao: Record<string, string>;
   ativo: boolean;
 };

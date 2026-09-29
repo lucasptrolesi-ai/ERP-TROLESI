@@ -6,6 +6,7 @@ import { cadastrarProdutoCatalogo, registrarEntradaEstoque } from "@/lib/actions
 import { Modal } from "@/components/modal";
 import { FotoComZoom } from "@/components/foto-com-zoom";
 import { LeitorCodigoModal } from "@/components/leitor-codigo-modal";
+import { formatarAtributos } from "@/lib/varejo/atributos";
 import { PecaCatalogoForm } from "./peca-catalogo-form";
 import type { LinhaCatalogo, VariacaoNova } from "@/lib/varejo/tipos";
 
@@ -72,6 +73,7 @@ export function CatalogoVarejoView({
               <th className="px-4 py-2.5" />
               <th className="px-4 py-2.5">Produto</th>
               <th className="px-4 py-2.5">SKU</th>
+              <th className="px-4 py-2.5">Localização</th>
               <th className="px-4 py-2.5">Preço</th>
               <th className="px-4 py-2.5">Mínimo</th>
               <th className="px-4 py-2.5" />
@@ -97,6 +99,7 @@ export function CatalogoVarejoView({
                   {!l.ativo && <span className="ml-2 text-[0.65rem] text-text-soft">(inativa)</span>}
                 </td>
                 <td className="px-4 py-2.5 font-mono text-xs text-text-soft">#{l.sku}</td>
+                <td className="px-4 py-2.5 text-xs text-text-soft">{formatarAtributos(l.localizacao) || "—"}</td>
                 <td className="px-4 py-2.5">{formatarMoeda(l.preco_venda)}</td>
                 <td className="px-4 py-2.5">{l.preco_minimo != null ? formatarMoeda(l.preco_minimo) : "—"}</td>
                 <td className="px-4 py-2.5 text-right">
@@ -108,7 +111,7 @@ export function CatalogoVarejoView({
             ))}
             {linhas.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-4 py-6 text-center text-text-soft">
+                <td colSpan={7} className="px-4 py-6 text-center text-text-soft">
                   Nenhum produto cadastrado ainda.
                 </td>
               </tr>

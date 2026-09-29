@@ -175,6 +175,7 @@ export async function cadastrarPecaCatalogo(
   precoMinimo: number | null,
   foto: File | null,
   fotoUrlDoCelular: string | null,
+  localizacaoTexto: string,
 ): Promise<{ erro?: string }> {
   if (nome.trim() === "") return { erro: "Informe o nome do produto." };
   if (!Number.isFinite(precoVenda) || precoVenda <= 0) return { erro: "Informe o preço de venda." };
@@ -200,6 +201,7 @@ export async function cadastrarPecaCatalogo(
         preco_venda: precoVenda,
         preco_minimo: precoMinimo,
         foto_url: fotoUrl,
+        localizacao: parseAtributos(localizacaoTexto),
       },
     ],
   });
@@ -223,6 +225,7 @@ export async function editarPecaCatalogo(
   foto: File | null,
   fotoUrlAtual: string | null,
   ativo: boolean,
+  localizacaoTexto: string,
 ): Promise<{ erro?: string }> {
   if (nome.trim() === "") return { erro: "Informe o nome do produto." };
   if (!Number.isFinite(precoVenda) || precoVenda <= 0) return { erro: "Informe o preço de venda." };
@@ -246,6 +249,7 @@ export async function editarPecaCatalogo(
     p_preco_minimo: precoMinimo,
     p_foto_url: fotoUrl,
     p_ativo: ativo,
+    p_localizacao: parseAtributos(localizacaoTexto),
   });
   if (error) return { erro: mensagem(error) };
   revalidatePath("/varejo/catalogo");

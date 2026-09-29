@@ -37,6 +37,7 @@ export function PecaCatalogoForm({
     const categoria = String(formData.get("categoria") ?? "").trim();
     const sku = String(formData.get("codigo_interno") ?? "").trim();
     const atributos = String(formData.get("atributos") ?? "").trim();
+    const localizacao = String(formData.get("localizacao") ?? "").trim();
     const precoVenda = Number(String(formData.get("preco_venda") ?? "0").replace(",", "."));
     const precoMinimoTexto = String(formData.get("preco_minimo") ?? "").trim();
     const precoMinimo = precoMinimoTexto === "" ? null : Number(precoMinimoTexto.replace(",", "."));
@@ -59,8 +60,9 @@ export function PecaCatalogoForm({
             arquivoFoto,
             fotoUrlAtual,
             ativo,
+            localizacao,
           )
-        : await cadastrarPecaCatalogo(nome, categoria, sku, atributos, precoVenda, precoMinimo, arquivoFoto, fotoUrlAtual);
+        : await cadastrarPecaCatalogo(nome, categoria, sku, atributos, precoVenda, precoMinimo, arquivoFoto, fotoUrlAtual, localizacao);
       if (resultado.erro) {
         setErro(resultado.erro);
         return;
@@ -86,6 +88,13 @@ export function PecaCatalogoForm({
           defaultValue={formatarAtributos(peca?.atributos)}
           semCaixaAlta
         />
+        <FormField
+          label="Localização (opcional)"
+          name="localizacao"
+          defaultValue={formatarAtributos(peca?.localizacao)}
+          semCaixaAlta
+        />
+        <p className="-mt-2 text-[0.7rem] text-text-soft">Ex: carrinho 1, gaveta 2, bandeja 1, gancho 8</p>
         <div className="grid grid-cols-2 gap-3">
           <FormField
             label="Preço de venda (R$)"
