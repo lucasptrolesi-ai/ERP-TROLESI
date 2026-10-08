@@ -68,6 +68,7 @@ export const REGRAS_ROTAS: readonly RegraRota[] = [
   { prefixo: "/varejo/catalogo", operacao: "VAREJO", papeis: ["admin", "estoque"] },
   { prefixo: "/varejo/supervisores", operacao: "VAREJO", papeis: ["admin"] },
   { prefixo: "/varejo/dashboard", operacao: "VAREJO", papeis: ["admin"] },
+  { prefixo: "/varejo/financeiro", operacao: "VAREJO", papeis: ["admin"] },
 ];
 
 function normalizar(caminho: string): string {

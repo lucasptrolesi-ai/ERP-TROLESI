@@ -2,6 +2,27 @@
 
 Histórico de decisões de escopo e arquitetura, na ordem em que foram tomadas. Decisões revistas ficam marcadas como tal, não apagadas.
 
+## 2026-10-08 — Controle Financeiro do Varejo (módulo novo, Fases 1-5)
+
+Usuário trouxe um documento detalhado pedindo um módulo de margem/ponto de equilíbrio/precificação pra loja física do Varejo (Rua Major Belo Lisboa, Itajubá/MG, abertura prevista novembro/2026), hoje mantido numa planilha/página separada fora do ERP. Pedido `/goal` ("execute e me entregue pronto e revisado") — autorização pra trabalhar de forma autônoma, sem pausar pra aprovação entre fases.
+
+**Mapeamento prévio do repositório** (antes de qualquer código): catálogo/PDV do Varejo não tinham nenhuma fórmula de markup embutida (`catalogo_variacoes.preco_venda`/`preco_minimo` são valores absolutos cadastrados), e `venda_itens.custo_unitario` já grava o custo congelado de cada venda desde o início do PDV Varejo (20260921000005) — não precisou da migração de backfill que o documento original previa. Achado o gap real: `custo_medio_variacao()` existe mas está revogada de `authenticated`, então nada na aplicação conseguia ler custo/margem pela API.
+
+**Duas decisões tomadas com o usuário (AskUserQuestion) antes de desenhar o schema:**
+1. "Cupom com teto ligado ao 2,8×" do documento não existe no PDV Varejo — mapeado pra trava de `preco_minimo` com PIN de supervisor, que já existe hoje. Nenhum cupom novo foi criado.
+2. O fator de custo 2,8× não virou uma coluna própria em `varejo_config` — é lido direto de `parametros_multiplicador` (chave `TRANSFERENCIA_ATACADO_VAREJO`), já usado pela transferência de estoque Atacado→Varejo. Fonte única, sem risco de os dois números dessincronizarem.
+
+**O que foi construído:**
+- **Motor de cálculo** (`src/lib/varejo/financeiro.ts`, puro, sem acesso a banco): custo, preço sugerido (arredondado pra ,90), markup mínimo, preço mínimo, piso de prejuízo, apuração mensal (faturamento, custo, despesas variáveis, gastos, salários, resultado, ponto de equilíbrio), saldo de caixa acumulado, recuperação de investimento, mescla PDV×vendas manuais (PDV sempre prevalece no mesmo dia). 20 testes unitários cobrindo exatamente os 17 casos do documento + os 3 extras de vigência/mesclagem.
+- **Migration `20261008000001_fundacao_financeiro_varejo.sql`**: 6 tabelas novas (`varejo_config` insert-only com vigência, `varejo_gastos`, `varejo_equipe`, `varejo_movimentos_caixa`, `varejo_investimento_inicial`, `varejo_vendas_manuais`), todas isoladas por `operacao_id` e travadas pra só funcionar na operação VAREJO (trigger `exigir_financeiro_varejo`, achado necessário: sem ele um admin no contexto Atacado conseguiria gravar linha financeira "do Atacado" sem RLS acusar nada, já que a policy de escopo só compara `operacao_id` contra a operação atual, não contra um código fixo). Auditoria automática via trigger genérico (`auditar_financeiro_varejo`) em vez de function por tabela — menos código, mesmo resultado. **Nenhuma function de leitura nova**: admin já lê `vendas`/`venda_itens`/`parametros_multiplicador` direto, mesmo padrão do `/relatorios`.
+- **Migration `20261008000002_piso_prejuizo_pdv_varejo.sql`**: `registrar_venda()` ganha a trava "item abaixo do piso de prejuízo bloqueia a venda, sem autorização possível" (diferente da trava de `preco_minimo`, que aceita PIN por poder ser decisão comercial válida). Mesma assinatura de sempre (create or replace preserva os grants, sem precisar derrubar nada desta vez). Sem configuração financeira cadastrada, o comportamento continua idêntico ao de hoje — a trava só entra em vigor depois que o dono configura o módulo.
+- **Telas** (`/varejo/financeiro`, menu "Controle Financeiro", admin-only): Resumo do mês (barra de progresso do ponto de equilíbrio, KPIs), Lançamentos (CRUD de gastos/equipe/movimentos/investimento/vendas manuais, cada um auditado), Histórico mensal com exportação CSV (Blob simples, sem lib nova), Configuração (nova vigência a cada alteração, nunca edita a anterior) com importador do JSON da planilha antiga, Revisar preços (lista peças abaixo do mínimo calculado ou no prejuízo).
+- **Calculadora de preço no cadastro** (`/varejo/catalogo`): campo "Código do Atacado" opcional, mostra custo/sugerido/mínimo/piso em tempo real — só pro admin (perfil estoque, que também cadastra peça nesta tela, não vê isso, por ser dado de custo/margem).
+
+**Não construído nesta leva** (documento previa, ficou pra depois): nenhum item — as 5 fases do documento original foram cobertas. Ponto de atenção: a "calculadora de preço" e "revisar preços" dependem de uma função `markup mínimo` cuja referência de faturamento usa projeção (ponto de equilíbrio teórico) enquanto a loja não tiver 3 meses fechados de histórico real — é o comportamento que o próprio documento pede, não uma simplificação.
+
+**Sem mockup prévio** — autorizado por `/goal`, mesma exceção já registrada nesta sessão pra Central do Admin e Catálogo Varejo (composição de componentes já aprovados: `FormField`, `Modal`, `KpiCard`, padrão de tabela/lista admin-only).
+
 ## 2026-10-01 — Localização física da peça no catálogo Varejo (carrinho/gaveta/bandeja/gancho)
 
 Pedido do usuário: um campo na hora de cadastrar/editar peça no catálogo Varejo pra informar onde ela fica guardada fisicamente na loja — exemplo dado: "carrinho 1, gaveta 2, bandeja 1, gancho 8".

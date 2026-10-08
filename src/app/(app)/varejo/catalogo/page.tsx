@@ -1,8 +1,11 @@
 import { getPerfilAtual } from "@/lib/supabase/auth";
 import { getContextoSessao } from "@/lib/supabase/contexto";
 import { createClient } from "@/lib/supabase/server";
+import { buscarCalculadoraPreco, type CalculadoraPreco } from "@/lib/varejo/financeiro-dados";
 import { CatalogoVarejoView } from "./catalogo-varejo-view";
 import type { LinhaCatalogo } from "@/lib/varejo/tipos";
+
+export type { CalculadoraPreco };
 
 export default async function CatalogoVarejoPage() {
   const perfil = await getPerfilAtual();
@@ -41,7 +44,20 @@ export default async function CatalogoVarejoPage() {
     };
   });
 
-  return <CatalogoVarejoView linhas={linhas} depositos={(depositos ?? []) as { id: string; nome: string }[]} />;
+  // Calculadora de preço (Controle Financeiro, Fase 5) -- só pro dono: custo/margem nunca vão pro
+  // perfil estoque, mesmo esse tendo acesso ao resto desta tela.
+  let calculadora: CalculadoraPreco | undefined;
+  if (perfil.papel === "admin") {
+    calculadora = (await buscarCalculadoraPreco(supabase)) ?? undefined;
+  }
+
+  return (
+    <CatalogoVarejoView
+      linhas={linhas}
+      depositos={(depositos ?? []) as { id: string; nome: string }[]}
+      calculadora={calculadora}
+    />
+  );
 }
 
 function Aviso({ texto }: { texto: string }) {

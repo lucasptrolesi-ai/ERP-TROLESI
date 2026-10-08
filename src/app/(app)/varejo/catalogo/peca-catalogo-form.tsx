@@ -5,9 +5,12 @@ import { Modal } from "@/components/modal";
 import { FormField } from "@/components/form-field";
 import { CampoFotoProduto } from "@/components/campo-foto-produto";
 import { CampoCodigoProduto } from "@/components/campo-codigo-produto";
+import { formatarMoeda } from "@/lib/formatar-moeda";
 import { cadastrarPecaCatalogo, editarPecaCatalogo } from "@/lib/actions/varejo";
 import { formatarAtributos } from "@/lib/varejo/atributos";
+import { calcularCusto, calcularPisoDePrejuizo, calcularPrecoMinimo, calcularPrecoSugerido } from "@/lib/varejo/financeiro";
 import type { LinhaCatalogo } from "@/lib/varejo/tipos";
+import type { CalculadoraPreco } from "./page";
 
 /** Cadastro de peça do catálogo Varejo, no mesmo sistema do PDV Eventos (pedido do usuário,
  * 2026-09-29): foto (arquivo local ou pareamento com a câmera do celular via QR) e código bipado
@@ -19,6 +22,7 @@ export function PecaCatalogoForm({
   peca,
   skusExistentes,
   codigoInicial,
+  calculadora,
 }: {
   aberto: boolean;
   onFechar: () => void;
@@ -27,6 +31,9 @@ export function PecaCatalogoForm({
   // Preenche o campo Código numa peça NOVA (peca null) — usado pelo fluxo "ler código pra
   // cadastrar": o código já bipado vem pronto, só falta completar nome/preço/foto.
   codigoInicial?: string;
+  // Controle Financeiro do Varejo, Fase 5 — só vem preenchido pro admin (nunca pro perfil estoque,
+  // que também cadastra peça nesta tela, mas não deve ver custo/margem).
+  calculadora?: CalculadoraPreco;
 }) {
   const [erro, setErro] = useState<string | null>(null);
   const [pendente, iniciar] = useTransition();
@@ -95,6 +102,9 @@ export function PecaCatalogoForm({
           semCaixaAlta
         />
         <p className="-mt-2 text-[0.7rem] text-text-soft">Ex: carrinho 1, gaveta 2, bandeja 1, gancho 8</p>
+
+        {calculadora && <CalculadoraDePreco calculadora={calculadora} />}
+
         <div className="grid grid-cols-2 gap-3">
           <FormField
             label="Preço de venda (R$)"
@@ -135,5 +145,46 @@ export function PecaCatalogoForm({
         </button>
       </form>
     </Modal>
+  );
+}
+
+/** Calculadora de apoio (Controle Financeiro do Varejo, Fase 5): o "código" do Atacado (número que já
+ * define custo/preço lá) não é um campo salvo aqui — é só uma conta rápida pra saber quanto cobrar
+ * antes de preencher o preço de venda acima. Não muda nada sozinho; o dono sempre decide e digita o
+ * preço final nos campos de verdade. */
+function CalculadoraDePreco({ calculadora }: { calculadora: CalculadoraPreco }) {
+  const [codigoTexto, setCodigoTexto] = useState("");
+  const codigo = Number(codigoTexto.replace(",", "."));
+  const valido = codigoTexto.trim() !== "" && Number.isFinite(codigo) && codigo > 0;
+
+  const { config, fatorCusto, markupMinimo } = calculadora;
+  const custo = valido ? calcularCusto(codigo, fatorCusto) : null;
+  const sugerido = valido ? calcularPrecoSugerido(codigo, config.fator_venda_padrao, config.preco_piso_entrada, config.arredondar_90) : null;
+  const piso = custo != null ? calcularPisoDePrejuizo(custo, config.despesas_variaveis_pct) : null;
+  const minimo = custo != null && markupMinimo.viavel ? calcularPrecoMinimo(custo, markupMinimo.markup) : null;
+
+  return (
+    <div className="flex flex-col gap-2 rounded-lg border border-dashed border-line bg-cream p-3">
+      <label className="flex flex-col gap-1 text-sm">
+        <span className="text-xs font-semibold uppercase tracking-wide text-text-soft">Calculadora — código do Atacado (opcional)</span>
+        <input
+          type="text"
+          inputMode="decimal"
+          value={codigoTexto}
+          onChange={(e) => setCodigoTexto(e.target.value)}
+          placeholder="Ex: 10"
+          className="w-32 rounded-lg border border-line bg-surface px-3 py-1.5 text-sm"
+        />
+      </label>
+      {valido && custo != null && (
+        <p className="text-xs text-text-soft">
+          Custo <strong className="text-ink">{formatarMoeda(custo)}</strong> · Sugerido{" "}
+          <strong className="text-ink">{sugerido != null ? formatarMoeda(sugerido) : "—"}</strong> · Mínimo{" "}
+          <strong className="text-ink">{minimo != null ? formatarMoeda(minimo) : "inviável com os parâmetros atuais"}</strong> · Piso de prejuízo{" "}
+          <strong className="text-crit">{piso != null ? formatarMoeda(piso) : "—"}</strong>
+        </p>
+      )}
+      <p className="text-[0.65rem] text-text-soft">Só uma conta de apoio — não preenche nem trava nada sozinho. Digite o preço de verdade abaixo.</p>
+    </div>
   );
 }

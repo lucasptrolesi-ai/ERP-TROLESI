@@ -61,6 +61,55 @@ export type ResultadoFechamento = { valor_informado: number; valor_esperado: num
 
 export type VariacaoNova = { sku: string; atributos: string; preco_venda: number; preco_minimo: number | null };
 
+// --- Controle Financeiro do Varejo ----------------------------------------------------------------
+
+export type ConfigFinanceira = {
+  id: string;
+  vigente_desde: string;
+  fator_venda_padrao: number;
+  fator_venda_min: number;
+  fator_venda_max: number;
+  despesas_variaveis_pct: number;
+  lucro_desejado_pct: number;
+  dias_abertos_mes: number;
+  encargos_clt_pct: number;
+  caixa_inicial: number;
+  mes_abertura: string;
+  preco_piso_entrada: number;
+  arredondar_90: boolean;
+};
+
+export type GastoVarejo = {
+  id: string;
+  descricao: string;
+  tipo: "mensal" | "compra";
+  valor: number;
+  mes_inicio: string;
+  mes_fim: string | null;
+  parcelas: number | null;
+};
+
+export type MembroEquipeVarejo = {
+  id: string;
+  nome: string;
+  salario: number;
+  somar_encargos: boolean;
+  mes_inicio: string;
+  mes_fim: string | null;
+};
+
+export type MovimentoCaixaVarejo = { id: string; data: string; tipo: "entrada" | "saida"; descricao: string; valor: number };
+
+export type InvestimentoInicialVarejo = { id: string; data: string; descricao: string; valor: number };
+
+export type VendaManualVarejo = {
+  id: string;
+  data: string;
+  faturamento: number;
+  numero_vendas: number;
+  origem: "manual" | "importacao";
+};
+
 export type LinhaCatalogo = {
   variacao_id: string;
   produto_id: string;

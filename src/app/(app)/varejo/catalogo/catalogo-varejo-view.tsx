@@ -9,13 +9,16 @@ import { LeitorCodigoModal } from "@/components/leitor-codigo-modal";
 import { formatarAtributos } from "@/lib/varejo/atributos";
 import { PecaCatalogoForm } from "./peca-catalogo-form";
 import type { LinhaCatalogo, VariacaoNova } from "@/lib/varejo/tipos";
+import type { CalculadoraPreco } from "./page";
 
 export function CatalogoVarejoView({
   linhas,
   depositos,
+  calculadora,
 }: {
   linhas: LinhaCatalogo[];
   depositos: { id: string; nome: string }[];
+  calculadora?: CalculadoraPreco;
 }) {
   const [novoAberto, setNovoAberto] = useState(false);
   const [entradaVariacao, setEntradaVariacao] = useState<LinhaCatalogo | null>(null);
@@ -140,6 +143,7 @@ export function CatalogoVarejoView({
           peca={pecaEditando}
           skusExistentes={skusExistentes}
           codigoInicial={codigoParaNovaPeca}
+          calculadora={calculadora}
         />
       )}
 
