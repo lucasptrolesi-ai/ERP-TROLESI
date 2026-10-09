@@ -7,6 +7,7 @@ import {
   calcularPrecoMinimo,
   calcularPrecoSugerido,
   custoEquipeNoMes,
+  faturamentoReferenciaProjetado,
   margemContribuicaoTeorica,
   mesclarFaturamentoDiario,
   recuperacaoDoInvestimento,
@@ -57,6 +58,34 @@ describe("precificação", () => {
 
   it("piso de prejuízo = custo ÷ (1 - despesas variáveis)", () => {
     expect(calcularPisoDePrejuizo(28, 0.1)).toBeCloseTo(31.11, 2);
+  });
+
+  describe("faturamento de referência projetado (sem histórico de vendas ainda)", () => {
+    // Bug real encontrado em produção (2026-10-09): usar a margem teórica inteira como faturamento
+    // de referência fazia o markup mínimo pré-abertura EXPLODIR acima do markup padrão (preço
+    // mínimo > preço sugerido, um paradoxo). Caso real: código 8,4, fator de venda 10,1 (markup
+    // padrão ≈3,6071), despesas variáveis 10%, lucro desejado 15%, gastos fixos R$3.600/mês.
+    it("sem desconto do lucro desejado no denominador, o markup mínimo passava do padrão (bug corrigido)", () => {
+      const margemTeoricaCheia = margemContribuicaoTeorica(10.1 / 2.8, 0.1); // ≈0,6228, SEM descontar lucro
+      const faturamentoErrado = 3600 / margemTeoricaCheia; // fórmula antiga, com bug
+      const markupErrado = calcularMarkupMinimo(0.1, 3600, faturamentoErrado, 0.15);
+      expect(markupErrado.viavel).toBe(true);
+      if (markupErrado.viavel) expect(markupErrado.markup).toBeGreaterThan(10.1 / 2.8); // > markup padrão: o bug
+    });
+
+    it("descontando o lucro desejado, o markup mínimo converge pro markup padrão (preço mínimo = preço sugerido)", () => {
+      const markupPadrao = 10.1 / 2.8;
+      const faturamento = faturamentoReferenciaProjetado(3600, markupPadrao, 0.1, 0.15);
+      expect(faturamento).not.toBeNull();
+      const markup = calcularMarkupMinimo(0.1, 3600, faturamento!, 0.15);
+      expect(markup.viavel).toBe(true);
+      if (markup.viavel) expect(markup.markup).toBeCloseTo(markupPadrao, 4);
+    });
+
+    it("inviável (null) quando o lucro desejado sozinho já supera a margem teórica", () => {
+      // markup padrão baixo + lucro desejado alto -> margem teórica - lucro fica <= 0.
+      expect(faturamentoReferenciaProjetado(3600, 1.5, 0.1, 0.5)).toBeNull();
+    });
   });
 
   it("despesas variáveis em 100% ou mais -- piso vira Infinity, não 0 silencioso", () => {

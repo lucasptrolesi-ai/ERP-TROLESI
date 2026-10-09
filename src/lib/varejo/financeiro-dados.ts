@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { calcularMarkupMinimo, custoEquipeNoMes, margemContribuicaoTeorica, mesSeguinte, valorNoMes, vigenteNoMes, type MarkupMinimo } from "@/lib/varejo/financeiro";
+import { calcularMarkupMinimo, custoEquipeNoMes, faturamentoReferenciaProjetado, mesSeguinte, valorNoMes, vigenteNoMes, type MarkupMinimo } from "@/lib/varejo/financeiro";
 import type { ConfigFinanceira, GastoVarejo, MembroEquipeVarejo } from "@/lib/varejo/tipos";
 
 export type CalculadoraPreco = { fatorCusto: number; config: ConfigFinanceira; markupMinimo: MarkupMinimo };
@@ -79,9 +79,12 @@ export async function buscarCalculadoraPreco(
   const faturamentoReferencia =
     valoresMensais.length > 0
       ? valoresMensais.reduce((s, v) => s + v, 0) / valoresMensais.length
-      : gastosFixosTotais / margemContribuicaoTeorica(config.fator_venda_padrao / fatorCusto, config.despesas_variaveis_pct);
+      : faturamentoReferenciaProjetado(gastosFixosTotais, config.fator_venda_padrao / fatorCusto, config.despesas_variaveis_pct, config.lucro_desejado_pct);
 
-  const markupMinimo = calcularMarkupMinimo(config.despesas_variaveis_pct, gastosFixosTotais, faturamentoReferencia, config.lucro_desejado_pct);
+  const markupMinimo =
+    faturamentoReferencia === null
+      ? ({ viavel: false } as const)
+      : calcularMarkupMinimo(config.despesas_variaveis_pct, gastosFixosTotais, faturamentoReferencia, config.lucro_desejado_pct);
 
   return { fatorCusto, config, markupMinimo };
 }

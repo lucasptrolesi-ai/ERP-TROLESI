@@ -2,6 +2,14 @@
 
 Histórico de decisões de escopo e arquitetura, na ordem em que foram tomadas. Decisões revistas ficam marcadas como tal, não apagadas.
 
+## 2026-10-09 (cont. 2) — Bug na fórmula de markup mínimo pré-abertura (preço mínimo > preço sugerido)
+
+Achado calculando um exemplo pedido pelo usuário (código 8,4, com a Configuração real já salva: fator de venda 10,1, despesas variáveis 10%, lucro desejado 15%, gasto fixo de outubro R$3.600 só de aluguel): o preço mínimo saía em R$184,91, **acima** do preço sugerido de R$84,90 — um paradoxo (o piso não pode ser maior que a sugestão).
+
+**Causa raiz**: sem nenhum mês fechado de venda real (loja ainda não abriu), o "faturamento de referência" usado na fórmula de markup mínimo era projetado como `gastos fixos ÷ margem de contribuição teórica inteira` — e essa margem teórica é definida usando o MESMO markup padrão que a fórmula de markup mínimo depois tenta bater, usando o lucro desejado por cima. Algebricamente isso cancela quase tudo e deixa o resultado dependente só de `1/markupPadrão − lucroDesejado`, que explode pra qualquer lucro desejado > 0 combinado com um markup padrão não muito alto — não é uma coincidência rara, acontece sempre nesse cenário (loja sem histórico de venda), pra qualquer configuração com lucro desejado > 0.
+
+**Correção** (`src/lib/varejo/financeiro.ts`): nova função pura `faturamentoReferenciaProjetado(gastosFixosTotais, markupPadrao, despesasVariaveisPct, lucroDesejadoPct)` — já desconta o lucro desejado no denominador da projeção. Resultado: sem histórico de venda real, o markup mínimo converge matematicamente pro próprio markup padrão (preço mínimo ≈ preço sugerido) — o que faz sentido: sem dado de venda nenhum, não há base pra sugerir um piso diferente do preço que a loja já pratica. Assim que existir histórico real (3 meses fechados), o cálculo passa a ser independente de novo e funciona como sempre funcionou. Testado em `financeiro.test.ts`, incluindo um teste que reproduz o bug antigo lado a lado com o comportamento corrigido.
+
 ## 2026-10-09 (cont.) — Bug real em produção: `<input type="month">` não funciona no Safari
 
 Usuário reportou "nada acontece" ao tentar cadastrar um gasto no Controle Financeiro, já com as duas migrations aplicadas. Diagnosticado pelos logs reais do Supabase (`query_logs`, não suposição): `POST /rest/v1/varejo_gastos` voltando 400 com `error=22007` (SQLSTATE de data mal formatada no Postgres).

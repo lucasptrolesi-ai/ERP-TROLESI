@@ -78,6 +78,26 @@ export function calcularPrecoMinimo(custo: number, markupMinimo: number): number
   return arredondarMoeda(custo * markupMinimo);
 }
 
+/**
+ * Faturamento de referência projetado — só usado quando ainda não existem 3 meses fechados de
+ * histórico real de vendas (loja recém-aberta). Tem que descontar o lucro desejado do denominador
+ * aqui, não só depois em calcularMarkupMinimo: se não descontar, o termo `gastosFixosTotais /
+ * faturamentoReferencia` do markup mínimo vira algebricamente igual à margem teórica inteira, e
+ * insistir no lucro desejado POR CIMA disso faz o markup mínimo explodir (teste real: código 8,4,
+ * fator 10,1, despesas 10%, lucro 15%, gastos 3.600 -> mínimo R$184 contra um sugerido de R$84 , sem
+ * essa correção). Descontando aqui, o resultado converge pro próprio markup padrão (sem dado real
+ * ainda, o mínimo vira igual ao sugerido — não tem base pra ser diferente disso).
+ */
+export function faturamentoReferenciaProjetado(
+  gastosFixosTotais: number,
+  markupPadrao: number,
+  despesasVariaveisPct: number,
+  lucroDesejadoPct: number,
+): number | null {
+  const margem = margemContribuicaoTeorica(markupPadrao, despesasVariaveisPct) - lucroDesejadoPct;
+  return margem > 0 ? gastosFixosTotais / margem : null;
+}
+
 /** Abaixo disso a venda dá prejuízo direto (nem cobre a despesa variável proporcional). Despesas
  * variáveis em 100% ou mais (config pathológica) tornam qualquer preço insuficiente -- Infinity em
  * vez de um "piso" de 0 silencioso, pra quem chamar poder tratar como "impossível", não "sem piso". */
