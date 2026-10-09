@@ -102,6 +102,14 @@ describe("2026-10-08 — Controle Financeiro do Varejo: piso de prejuízo no PDV
   it.todo("despesas variáveis configuradas em 100% ou mais dá erro explícito na hora de vender, em vez de desligar a trava silenciosamente");
 });
 
+describe("2026-10-09 — Dívida com o Atacado por cadastro direto no Varejo (implementado em SQL, sem teste de integração)", () => {
+  it.todo(
+    "registrar_compra_atacado_varejo calcula custo = código × multiplicador_vigente e amarra entrada de estoque + dívida na mesma transação (migration 20261009000001; cenário conferido manualmente — código 8,4 — na conversa com o dono)",
+  );
+  it.todo("só admin registra compra do Atacado (papel estoque/vendedor não acessa custo nem dívida)");
+  it.todo("marcar uma dívida como paga/em aberto exige pago_em coerente com o status (check constraint) e fica auditado");
+});
+
 describe("Código Ventilador (investigado em 2026-07-21: sem evidência de uso real nos 44 produtos migrados do GMax — feature permanece não implementada)", () => {
   it.todo(
     "se uma evidência real de uso aparecer no futuro: código Ventilador nunca aparece em comprovante ou tela visível ao cliente, mesmo quando ativado por permissão",

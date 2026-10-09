@@ -2,6 +2,7 @@ export function FormField({
   label,
   name,
   defaultValue,
+  value,
   type = "text",
   required,
   maxLength,
@@ -16,6 +17,10 @@ export function FormField({
   label: string;
   name: string;
   defaultValue?: string | number | null;
+  // Controlado (value + onChange) só quando o chamador precisa reagir/preencher o campo por fora
+  // (ex: auto-preenchimento a partir de outro campo) -- o resto do app continua não-controlado
+  // (defaultValue), sem precisar mudar nada nos outros usos já existentes.
+  value?: string | number | null;
   type?: string;
   required?: boolean;
   maxLength?: number;
@@ -57,7 +62,7 @@ export function FormField({
         id={name}
         name={name}
         type={type}
-        defaultValue={defaultValue ?? undefined}
+        {...(value !== undefined ? { value: value ?? "" } : { defaultValue: defaultValue ?? undefined })}
         required={required}
         maxLength={maxLength}
         autoComplete={autoComplete}

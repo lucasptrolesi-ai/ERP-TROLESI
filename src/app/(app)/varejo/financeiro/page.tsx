@@ -25,6 +25,7 @@ import { buscarCalculadoraPreco } from "@/lib/varejo/financeiro-dados";
 import { FinanceiroVarejoView } from "./financeiro-varejo-view";
 import type {
   ConfigFinanceira,
+  DividaAtacadoVarejo,
   GastoVarejo,
   InvestimentoInicialVarejo,
   MembroEquipeVarejo,
@@ -72,6 +73,7 @@ export default async function FinanceiroVarejoPage({ searchParams }: { searchPar
     { data: vendasManuais },
     { data: vendas },
     { data: multiplicadores },
+    { data: dividasBrutas },
   ] = await Promise.all([
     supabase.from("varejo_config").select("*").order("vigente_desde"),
     supabase.from("varejo_gastos").select("*").order("mes_inicio"),
@@ -81,7 +83,29 @@ export default async function FinanceiroVarejoPage({ searchParams }: { searchPar
     supabase.from("varejo_vendas_manuais").select("*").order("data"),
     supabase.from("vendas").select("id, criada_em, total").eq("status", "concluida"),
     supabase.from("parametros_multiplicador").select("valor, vigente_de, vigente_ate").eq("chave", "TRANSFERENCIA_ATACADO_VAREJO"),
+    supabase
+      .from("varejo_dividas_atacado")
+      .select("id, variacao_id, codigo_atacado, quantidade, custo_unitario, custo_total, status, pago_em, criado_em, catalogo_variacoes(sku, catalogo_produtos(nome))")
+      .order("criado_em", { ascending: false }),
   ]);
+
+  const dividasAtacado: DividaAtacadoVarejo[] = (dividasBrutas ?? []).map((d) => {
+    const variacao = Array.isArray(d.catalogo_variacoes) ? d.catalogo_variacoes[0] : d.catalogo_variacoes;
+    const produto = variacao ? (Array.isArray(variacao.catalogo_produtos) ? variacao.catalogo_produtos[0] : variacao.catalogo_produtos) : null;
+    return {
+      id: d.id,
+      variacao_id: d.variacao_id,
+      produto_nome: produto?.nome ?? "",
+      sku: variacao?.sku ?? "",
+      codigo_atacado: d.codigo_atacado,
+      quantidade: d.quantidade,
+      custo_unitario: d.custo_unitario,
+      custo_total: d.custo_total,
+      status: d.status,
+      pago_em: d.pago_em,
+      criado_em: d.criado_em,
+    };
+  });
 
   const vendaIds = (vendas ?? []).map((v) => v.id as string);
   const [{ data: itensVendidos }, calculadora] = await Promise.all([
@@ -114,6 +138,7 @@ export default async function FinanceiroVarejoPage({ searchParams }: { searchPar
         diasComVendaNoPdv={[]}
         revisao={[]}
         metaPorDia={null}
+        dividasAtacado={dividasAtacado}
       />
     );
   }
@@ -278,6 +303,7 @@ export default async function FinanceiroVarejoPage({ searchParams }: { searchPar
       diasComVendaNoPdv={[...dias]}
       revisao={revisao}
       metaPorDia={metaPorDia}
+      dividasAtacado={dividasAtacado}
     />
   );
 }

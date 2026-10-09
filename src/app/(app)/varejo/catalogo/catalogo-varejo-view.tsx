@@ -144,6 +144,7 @@ export function CatalogoVarejoView({
           skusExistentes={skusExistentes}
           codigoInicial={codigoParaNovaPeca}
           calculadora={calculadora}
+          depositoId={depositos[0]?.id}
         />
       )}
 

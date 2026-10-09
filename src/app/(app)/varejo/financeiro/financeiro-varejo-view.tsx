@@ -25,6 +25,7 @@ import {
   editarMovimentoCaixa,
   editarVendaManual,
   importarControleAntigo,
+  marcarDividaAtacado,
   type DadosGasto,
   type DadosInvestimentoInicial,
   type DadosMembroEquipe,
@@ -33,6 +34,7 @@ import {
 } from "@/lib/actions/varejo-financeiro";
 import type {
   ConfigFinanceira,
+  DividaAtacadoVarejo,
   GastoVarejo,
   InvestimentoInicialVarejo,
   MembroEquipeVarejo,
@@ -54,9 +56,10 @@ type Props = {
   diasComVendaNoPdv: string[];
   revisao: ItemRevisao[];
   metaPorDia: number | null;
+  dividasAtacado: DividaAtacadoVarejo[];
 };
 
-type Aba = "resumo" | "lancamentos" | "historico" | "configuracao" | "revisar";
+type Aba = "resumo" | "lancamentos" | "historico" | "configuracao" | "revisar" | "dividas";
 
 export function FinanceiroVarejoView(props: Props) {
   const [aba, setAba] = useState<Aba>("resumo");
@@ -79,16 +82,21 @@ export function FinanceiroVarejoView(props: Props) {
       </div>
 
       <div className="flex gap-1 border-b border-line text-sm font-semibold">
-        {(["resumo", "lancamentos", "historico", "revisar", "configuracao"] as Aba[]).map((item) => (
+        {(["resumo", "lancamentos", "historico", "revisar", "dividas", "configuracao"] as Aba[]).map((item) => (
           <button
             key={item}
             type="button"
             onClick={() => setAba(item)}
             className={`rounded-t-lg px-4 py-2 ${aba === item ? "border-b-2 border-rose-deep text-rose-deep" : "text-text-soft"}`}
           >
-            {{ resumo: "Resumo", lancamentos: "Lançamentos", historico: "Histórico", revisar: "Revisar preços", configuracao: "Configuração" }[item]}
+            {{ resumo: "Resumo", lancamentos: "Lançamentos", historico: "Histórico", revisar: "Revisar preços", dividas: "Dívidas com o Atacado", configuracao: "Configuração" }[item]}
             {item === "revisar" && props.revisao.length > 0 && (
               <span className="ml-1.5 rounded-full bg-crit px-1.5 py-0.5 text-[0.65rem] text-white">{props.revisao.length}</span>
+            )}
+            {item === "dividas" && props.dividasAtacado.some((d) => d.status === "em_aberto") && (
+              <span className="ml-1.5 rounded-full bg-warn px-1.5 py-0.5 text-[0.65rem] text-white">
+                {props.dividasAtacado.filter((d) => d.status === "em_aberto").length}
+              </span>
             )}
           </button>
         ))}
@@ -98,6 +106,7 @@ export function FinanceiroVarejoView(props: Props) {
       {aba === "lancamentos" && <AbaLancamentos {...props} />}
       {aba === "historico" && <AbaHistorico historico={props.historico} />}
       {aba === "revisar" && <AbaRevisarPrecos revisao={props.revisao} />}
+      {aba === "dividas" && <AbaDividasAtacado dividas={props.dividasAtacado} />}
       {aba === "configuracao" && <AbaConfiguracao config={props.config} />}
     </div>
   );
@@ -147,6 +156,85 @@ function AbaRevisarPrecos({ revisao }: { revisao: ItemRevisao[] }) {
         </table>
       </div>
     </div>
+  );
+}
+
+// --- Dívidas com o Atacado ---------------------------------------------------------------------
+// Lançadas direto no cadastro da peça (código x fator, "Veio do Atacado?") -- só a baixa/reabertura
+// acontece aqui, nada se cria nesta aba (não é SecaoCrud: a criação é lá no catálogo).
+
+function AbaDividasAtacado({ dividas }: { dividas: DividaAtacadoVarejo[] }) {
+  const emAberto = dividas.filter((d) => d.status === "em_aberto");
+  const totalEmAberto = emAberto.reduce((s, d) => s + d.custo_total, 0);
+
+  if (dividas.length === 0) {
+    return <Aviso texto="Nenhuma compra do Atacado lançada ainda — use o botão 'Veio do Atacado?' no cadastro de uma peça nova no catálogo." />;
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <KpiCard label="Em aberto com o Atacado" valor={formatarMoeda(totalEmAberto)} nota={`${emAberto.length} compra(s)`} tom={totalEmAberto > 0 ? "warn" : "ok"} />
+      </div>
+      <div className="overflow-x-auto rounded-[14px] border border-line bg-surface shadow-sm">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-line text-left text-text-soft">
+              <th className="px-3 py-2">Peça</th>
+              <th className="px-3 py-2">SKU</th>
+              <th className="px-3 py-2">Código</th>
+              <th className="px-3 py-2">Qtd</th>
+              <th className="px-3 py-2">Custo total</th>
+              <th className="px-3 py-2">Data</th>
+              <th className="px-3 py-2">Situação</th>
+              <th className="px-3 py-2" />
+            </tr>
+          </thead>
+          <tbody>
+            {dividas.map((d) => (
+              <tr key={d.id} className="border-b border-line last:border-0">
+                <td className="px-3 py-2 font-medium">{d.produto_nome}</td>
+                <td className="px-3 py-2 font-mono text-xs text-text-soft">#{d.sku}</td>
+                <td className="px-3 py-2">{d.codigo_atacado}</td>
+                <td className="px-3 py-2">{d.quantidade}</td>
+                <td className="px-3 py-2">{formatarMoeda(d.custo_total)}</td>
+                <td className="px-3 py-2 text-xs text-text-soft">{d.criado_em.slice(0, 10)}</td>
+                <td className="px-3 py-2">
+                  <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${d.status === "pago" ? "bg-ok-bg text-ok" : "bg-warn-bg text-warn"}`}>
+                    {d.status === "pago" ? "Pago" : "Em aberto"}
+                  </span>
+                </td>
+                <td className="px-3 py-2 text-right">
+                  <BotaoMarcarDivida id={d.id} pago={d.status === "pago"} />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function BotaoMarcarDivida({ id, pago }: { id: string; pago: boolean }) {
+  const [pendente, iniciar] = useTransition();
+  const [erro, setErro] = useState<string | null>(null);
+
+  function alternar() {
+    setErro(null);
+    iniciar(async () => {
+      const resultado = await marcarDividaAtacado(id, !pago);
+      if (resultado.erro) setErro(resultado.erro);
+    });
+  }
+
+  return (
+    <span className="flex flex-col items-end gap-1">
+      <button type="button" onClick={alternar} disabled={pendente} className="text-xs font-semibold text-rose-deep underline decoration-dotted disabled:opacity-60">
+        {pendente ? "Salvando…" : pago ? "Marcar em aberto" : "Marcar como pago"}
+      </button>
+      {erro && <span className="text-xs text-crit">{erro}</span>}
+    </span>
   );
 }
 

@@ -394,3 +394,11 @@ export async function importarControleAntigo(jsonTexto: string): Promise<{ erro?
   atualizarTelas();
   return { resumo: partes.length ? `Importado: ${partes.join(", ")}.` : "Nada para importar." };
 }
+
+// --- Dívidas com o Atacado (lançadas no cadastro da peça, migration 20261009000001) ----------------
+// Só a baixa/reabertura mora aqui -- a criação acontece junto do cadastro da peça
+// (registrar_compra_atacado_varejo, chamado por cadastrarPecaCatalogo em actions/varejo.ts).
+
+export async function marcarDividaAtacado(id: string, pago: boolean): Promise<{ erro?: string }> {
+  return editar("varejo_dividas_atacado", id, { status: pago ? "pago" : "em_aberto", pago_em: pago ? new Date().toISOString() : null });
+}

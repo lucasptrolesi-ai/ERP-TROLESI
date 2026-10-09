@@ -110,6 +110,23 @@ export type VendaManualVarejo = {
   origem: "manual" | "importacao";
 };
 
+// Compra registrada no cadastro direto da peça no Varejo (código do Atacado x fator), com o quanto
+// fica devendo -- ledger paralelo, isolado do contas_pagar/transferencias oficial (decisão do dono,
+// 2026-10-09: ele não transfere do Atacado, cadastra peça nova direto no Varejo).
+export type DividaAtacadoVarejo = {
+  id: string;
+  variacao_id: string;
+  produto_nome: string;
+  sku: string;
+  codigo_atacado: number;
+  quantidade: number;
+  custo_unitario: number;
+  custo_total: number;
+  status: "em_aberto" | "pago";
+  pago_em: string | null;
+  criado_em: string;
+};
+
 export type LinhaCatalogo = {
   variacao_id: string;
   produto_id: string;

@@ -162,6 +162,17 @@ export async function cadastrarProdutoCatalogo(
   return {};
 }
 
+// Compra do Atacado lançada junto no cadastro da peça (pedido do dono, 2026-10-09): ele digita o
+// "código" do Atacado (ex: 8,4) em vez de usar a transferência formal — o custo/entrada de
+// estoque/dívida saem tudo de um RPC só (registrar_compra_atacado_varejo, migration
+// 20261009000001), encadeado logo depois que a peça existe.
+export type CompraAtacadoNaCadastro = {
+  codigoAtacado: number;
+  quantidade: number;
+  status: "em_aberto" | "pago";
+  depositoId: string;
+};
+
 /** Cadastro de UMA peça de cada vez — mesmo fluxo do PDV Eventos (bipar código, foto local ou pelo
  * celular): cria o produto (pai) já com sua primeira variação. sku em branco vira número sequencial
  * sozinho (trigger definir_sku_variacao_catalogo, migration 20260929000001) — o componente
@@ -176,6 +187,7 @@ export async function cadastrarPecaCatalogo(
   foto: File | null,
   fotoUrlDoCelular: string | null,
   localizacaoTexto: string,
+  compraAtacado: CompraAtacadoNaCadastro | null = null,
 ): Promise<{ erro?: string }> {
   if (nome.trim() === "") return { erro: "Informe o nome do produto." };
   if (!Number.isFinite(precoVenda) || precoVenda <= 0) return { erro: "Informe o preço de venda." };
@@ -191,7 +203,7 @@ export async function cadastrarPecaCatalogo(
     fotoUrl = resultado.url ?? fotoUrl;
   }
 
-  const { error } = await supabase.rpc("cadastrar_produto_catalogo", {
+  const { data: produtoId, error } = await supabase.rpc("cadastrar_produto_catalogo", {
     p_nome: nome,
     p_categoria: categoria,
     p_variacoes: [
@@ -206,7 +218,28 @@ export async function cadastrarPecaCatalogo(
     ],
   });
   if (error) return { erro: mensagem(error) };
+
+  if (compraAtacado) {
+    const { data: variacao } = await supabase
+      .from("catalogo_variacoes")
+      .select("id")
+      .eq("produto_id", produtoId as string)
+      .limit(1)
+      .maybeSingle();
+    if (variacao) {
+      const { error: erroCompra } = await supabase.rpc("registrar_compra_atacado_varejo", {
+        p_variacao_id: variacao.id,
+        p_deposito_id: compraAtacado.depositoId,
+        p_codigo_atacado: compraAtacado.codigoAtacado,
+        p_quantidade: compraAtacado.quantidade,
+        p_status: compraAtacado.status,
+      });
+      if (erroCompra) return { erro: `Peça cadastrada, mas falhou ao registrar a compra do Atacado: ${mensagem(erroCompra)}` };
+    }
+  }
+
   revalidatePath("/varejo/catalogo");
+  revalidatePath("/varejo/financeiro", "layout");
   return {};
 }
 
