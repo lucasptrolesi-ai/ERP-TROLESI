@@ -43,7 +43,7 @@
 begin;
 
 -- >>> MODO (troque so esta linha): 'ensaio' | 'aplicar' | 'desfazer'
-select set_config('app.modo_migration', 'ensaio', true);
+select set_config('app.modo_migration', 'aplicar', true);
 set local lock_timeout = '15s';
 
 do $modo$
@@ -415,10 +415,9 @@ begin
     raise notice 'T8 pulado (negacao de leitura/escrita): nenhum profile com papel vendedor encontrado.';
   end if;
 
-  -- limpa os residuos que nao se autolimparam (venda manual e config ficam; o rollback do $down$ apaga a tabela inteira)
-  delete from public.varejo_gastos where id = v_gasto_id;
-  delete from public.varejo_vendas_manuais where data = '2026-11-05';
-  delete from public.varejo_config where vigente_desde = '2026-11-01';
+  -- Nao precisa limpar nada aqui: a transacao inteira do ensaio e desfeita no final (o $cmp$ sempre
+  -- aborta de proposito), entao qualquer residuo some sozinho -- e varejo_config nem aceitaria um
+  -- delete explicito mesmo que tentasse (insert-only de proposito, confirmado no T5 acima).
 
   execute 'reset role';
   perform set_config('request.jwt.claims', '', true);

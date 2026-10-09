@@ -327,13 +327,11 @@ begin
                      'app_metadata', jsonb_build_object('operacao_id', v_varejo))::text, true);
   execute 'set local role authenticated';
 
-  -- Config financeira de teste: despesas variaveis 10% -> piso de prejuizo de um item a custo 28 e 31,11.
-  insert into public.varejo_config (vigente_desde, mes_abertura, despesas_variaveis_pct)
-    values ('2026-01-01', '2026-01-01', 0.10) returning id into v_config_id;
-
   -- Peca sintetica: custo 28,00 (entrada de estoque), preco de tabela 100, preco minimo bem baixo
   -- (1,00) pra nao disparar a trava JA EXISTENTE de desconto_abaixo_piso -- isola o teste na trava
-  -- nova.
+  -- nova. Ainda SEM nenhuma varejo_config cadastrada neste ponto -- varejo_config e insert-only de
+  -- proposito (sem update/delete), entao o teste de "modulo nao configurado" (T1) precisa vir
+  -- ANTES de qualquer insert, nao depois com um delete (que nem seria permitido pelo grant).
   insert into public.catalogo_produtos (nome, categoria) values ('ZZ ENSAIO PISO PREJUIZO', 'ANEL') returning id into v_prod;
   insert into public.catalogo_variacoes (produto_id, sku, preco_venda, preco_minimo) values (v_prod, 'ZZ-PISOPREJ-' || substr(gen_random_uuid()::text, 1, 8), 100, 1.00) returning id into v_var;
   execute 'set constraints all immediate';
@@ -347,7 +345,16 @@ begin
     v_sessao := public.abrir_sessao_caixa(v_caixa, 100);
   end if;
 
-  -- T1. Preco de 20,00 (< piso de prejuizo 31,11) -> bloqueia, sem autorizacao possivel
+  -- T1. Sem nenhuma configuracao financeira cadastrada ainda, o comportamento antigo vale: preco de
+  -- 20,00 (bem abaixo de qualquer piso que viesse a existir) passa normalmente.
+  perform public.registrar_venda(v_sessao, jsonb_build_array(jsonb_build_object('variacao_id', v_var, 'quantidade', 1, 'preco_unitario', 20)),
+    jsonb_build_array(jsonb_build_object('forma', 'pix', 'valor', 20)));
+
+  -- Cadastra a primeira vigencia: despesas variaveis 10% -> piso de prejuizo de um item a custo 28 e 31,11.
+  insert into public.varejo_config (vigente_desde, mes_abertura, despesas_variaveis_pct)
+    values ('2026-01-01', '2026-01-01', 0.10) returning id into v_config_id;
+
+  -- T2. Preco de 20,00 (< piso de prejuizo 31,11) -> agora bloqueia, sem autorizacao possivel
   v_ok := false;
   begin
     perform public.registrar_venda(v_sessao, jsonb_build_array(jsonb_build_object('variacao_id', v_var, 'quantidade', 1, 'preco_unitario', 20)),
@@ -356,23 +363,18 @@ begin
     v_ok := true;
     v_erro := sqlerrm;
   end;
-  if not v_ok then raise exception 'TESTE FALHOU [T1]: vendeu a 20,00 abaixo do piso de prejuizo sem bloquear'; end if;
-  if v_erro not like '%piso de prejuizo%' then raise exception 'TESTE FALHOU [T1]: erro inesperado: %', v_erro; end if;
+  if not v_ok then raise exception 'TESTE FALHOU [T2]: vendeu a 20,00 abaixo do piso de prejuizo sem bloquear'; end if;
+  if v_erro not like '%piso de prejuizo%' then raise exception 'TESTE FALHOU [T2]: erro inesperado: %', v_erro; end if;
 
-  -- T2. Preco de 35,00 (>= piso de prejuizo 31,11) -> passa, sem pedir PIN nenhum
+  -- T3. Preco de 35,00 (>= piso de prejuizo 31,11) -> passa, sem pedir PIN nenhum
   perform public.registrar_venda(v_sessao, jsonb_build_array(jsonb_build_object('variacao_id', v_var, 'quantidade', 1, 'preco_unitario', 35)),
     jsonb_build_array(jsonb_build_object('forma', 'pix', 'valor', 35)));
 
-  -- T3. Sem configuracao financeira cadastrada (apaga o teste acima), o comportamento antigo volta:
-  -- o mesmo preco de 20,00 que bloqueava no T1 agora passa normalmente (modulo nao configurado).
-  delete from public.varejo_config where id = v_config_id;
-  perform public.registrar_venda(v_sessao, jsonb_build_array(jsonb_build_object('variacao_id', v_var, 'quantidade', 1, 'preco_unitario', 20)),
-    jsonb_build_array(jsonb_build_object('forma', 'pix', 'valor', 20)));
-
-  -- T4. Despesas variaveis em 100% (config pathologica, nenhum preco cobriria o custo) -> erro
-  -- explicito na hora, e nao um "piso de prejuizo" silenciosamente desligado.
+  -- T4. Nova vigencia com despesas variaveis em 100% (config pathologica, nenhum preco cobriria o
+  -- custo) -- supera a vigencia anterior por ter vigente_desde mais recente (mesmo jeito que o dono
+  -- usaria de verdade pra atualizar a config, sem apagar o historico) -> erro explicito na hora.
   insert into public.varejo_config (vigente_desde, mes_abertura, despesas_variaveis_pct)
-    values ('2026-03-01', '2026-01-01', 1) returning id into v_config_id;
+    values ('2026-02-01', '2026-01-01', 1) returning id into v_config_id;
   v_ok := false;
   begin
     perform public.registrar_venda(v_sessao, jsonb_build_array(jsonb_build_object('variacao_id', v_var, 'quantidade', 1, 'preco_unitario', 50)),
@@ -383,12 +385,11 @@ begin
   end;
   if not v_ok then raise exception 'TESTE FALHOU [T4]: vendeu com despesas variaveis em 100%% sem erro nenhum'; end if;
   if v_erro not like '%despesas variaveis em 100%' then raise exception 'TESTE FALHOU [T4]: erro inesperado: %', v_erro; end if;
-  delete from public.varejo_config where id = v_config_id;
 
   execute 'reset role';
   perform set_config('request.jwt.claims', '', true);
 
-  raise notice 'TESTES DE COMPORTAMENTO OK: T1 a T4 (piso de prejuizo bloqueia com config, preco acima passa, sem config volta ao comportamento antigo, despesas variaveis 100%% da erro explicito).';
+  raise notice 'TESTES DE COMPORTAMENTO OK: T1 a T4 (sem config vale o antigo, config bloqueia abaixo do piso, preco acima passa, nova vigencia com 100%% da erro explicito).';
 end $teste$;
 
 -- DESFAZER (modos ensaio e desfazer) ------------------------------------------------------------
