@@ -622,7 +622,7 @@ begin
     raise exception E'ENSAIO FALHOU: o rollback nao devolveu o estado inicial.\n%', left(v_dif, 3000);
   end if;
 
-  raise exception 'ENSAIO OK: piso de prejuizo no PDV Varejo (Fase 5 do Controle Financeiro), testado (T1 a T3) e desfeito identico ao inicial. Nada foi gravado (transacao abortada de proposito).';
+  raise exception 'ENSAIO OK: piso de prejuizo no PDV Varejo (Fase 5 do Controle Financeiro), testado (T1 a T4) e desfeito identico ao inicial. Nada foi gravado (transacao abortada de proposito).';
 end $cmp$;
 
 -- Daqui para baixo so roda nos modos aplicar e desfazer.
