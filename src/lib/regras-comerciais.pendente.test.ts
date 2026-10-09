@@ -95,6 +95,13 @@ describe("PDV Eventos — criar_venda_evento (implementado em SQL, sem teste de 
   it.todo("forma_pagamento fora da whitelist (dinheiro/pix/cartao_vista/cartao_parcelado) é rejeitada");
 });
 
+describe("2026-10-08 — Controle Financeiro do Varejo: piso de prejuízo no PDV (implementado em SQL, sem teste de integração)", () => {
+  it.todo(
+    "vender abaixo do piso de prejuízo (custo ÷ (1 - despesas variáveis)) bloqueia a venda sempre, sem autorização possível (implementado em registrar_venda, migration 20261008000002; fórmula pura testada em financeiro.test.ts, falta teste de integração do bloqueio em SQL)",
+  );
+  it.todo("despesas variáveis configuradas em 100% ou mais dá erro explícito na hora de vender, em vez de desligar a trava silenciosamente");
+});
+
 describe("Código Ventilador (investigado em 2026-07-21: sem evidência de uso real nos 44 produtos migrados do GMax — feature permanece não implementada)", () => {
   it.todo(
     "se uma evidência real de uso aparecer no futuro: código Ventilador nunca aparece em comprovante ou tela visível ao cliente, mesmo quando ativado por permissão",

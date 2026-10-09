@@ -2,6 +2,31 @@
 
 Histórico de decisões de escopo e arquitetura, na ordem em que foram tomadas. Decisões revistas ficam marcadas como tal, não apagadas.
 
+## 2026-10-09 — Code-review do Controle Financeiro do Varejo (gate da regra 2 do CLAUDE.md)
+
+`/code-review medium` rodado sobre o módulo inteiro (motor, 2 migrations, telas, actions) antes de considerar a entrega de 2026-10-08 pronta — nenhuma das duas migrations tinha sido aplicada em produção ainda, então deu pra corrigir tudo sem reaplicar nada.
+
+**Um achado "crítico" foi investigado e refutado, não aplicado**: um ângulo da revisão apontou que colunas `numeric` do Postgres viriam como string via PostgREST/supabase-js, o que faria `+`/`+=` direto em campo de banco virar concatenação de texto em vários pontos do motor. Testado direto no banco (`to_json(1500.00::numeric)` e `row_to_json`) antes de mexer em qualquer linha: o resultado é `number` de verdade, não string — PostgREST serializa `numeric` via `to_json` do próprio Postgres, que não faz essa conversão (diferente de `bigint` acima do limite seguro do JS, que é um problema real mas não se aplica a nenhuma coluna tocada aqui). Nenhuma mudança foi feita por causa desse achado.
+
+**Achados reais, corrigidos:**
+- `calcularMes()` (`src/lib/varejo/financeiro.ts`): num mês sem nenhuma venda ainda, a margem de contribuição usava `1 - despesasVariaveisPct` direto, ignorando o custo da peça por completo — superestimava a margem e subestimava o ponto de equilíbrio em até ~30%. Agora recebe `margemTeoricaFallback` (calculado pelo chamador via `margemContribuicaoTeorica(markup, despesasVariaveisPct)`), igual ao que já era usado em `financeiro-dados.ts`.
+- `calcularPisoDePrejuizo()`: despesas variáveis configuradas em 100% ou mais causava divisão por zero, virando `0` silencioso (arredondarMoeda trata `Infinity` como 0) em vez de sinalizar "impossível". Agora devolve `Infinity`; `registrar_venda()` (migration `20261008000002`) passou a recusar a venda com erro explícito nesse caso, em vez de simplesmente desligar a trava sem avisar.
+- Calculadora de preço no cadastro (`peca-catalogo-form.tsx`): o campo "Código do Atacado" usava `Number(texto.replace(",","."))` em vez do `lerMoeda` já usado no resto do app — "1.200" virava 1,2 em vez de 1200 (mesma ambiguidade de separador de milhar que `lerMoeda` já resolve, documentada no próprio `dinheiro.ts`).
+- `diasComVendaNoPdv` (tela do Controle Financeiro): só considerava vendas do PDV do mês selecionado, então o aviso "esse dia já tem venda no PDV" não aparecia pra uma venda manual de outro mês sendo editada na mesma tela.
+- `registrar_venda()`: a leitura de `varejo_config` rodava uma vez por item do carrinho em vez de uma vez por venda (a config não muda no meio da transação) — corrigido antes mesmo da migration ir pro ar.
+
+**Limpeza de qualidade (sem mudança de comportamento):**
+- `metaPorDiaRestante()` existia no motor sem nenhum lugar que a chamasse — agora alimenta um KPI novo no Resumo ("Meta por dia, resto do mês"), só no mês corrente.
+- `baixarArquivo` (download de arquivo) estava copiado em 3 arquivos (`estoque-view.tsx`, `estoque-evento.tsx`, e de novo na exportação CSV nova) — extraído pra `src/lib/baixar-arquivo.ts`.
+- As 4 funções `validarGasto`/`validarMembro`/`validarMovimento`/`validarInvestimento` (`varejo-financeiro.ts`) repetiam a mesma checagem "texto obrigatório + valor > 0" — consolidadas em `validarTextoEValor`.
+- As 5 seções de lançamento (`SecaoGastos`/`SecaoEquipe`/`SecaoMovimentosCaixa`/`SecaoInvestimentoInicial`/`SecaoVendasManuais`) repetiam a mesma mecânica de modal/criar/editar/apagar — consolidadas num `SecaoCrud<T,D>` genérico, cada seção só declara colunas + campos do formulário.
+- `buscarCalculadoraPreco()` consultava de novo 4 tabelas que a página do Controle Financeiro já tinha acabado de buscar — passou a aceitar os dados já carregados, só busca sozinha quando quem chama (o cadastro do catálogo) não os tem.
+- `custoMensalMembro`/encargos CLT estava reimplementado inline em `financeiro-dados.ts` em vez de reusar `custoEquipeNoMes` do motor — consolidado.
+
+Seguindo a regra 9 do CLAUDE.md: a norma "regra implementada só em SQL vira `it.todo` em `regras-comerciais.pendente.test.ts`" também valia pra trava de piso de prejuízo (SQL-only) — faltava, adicionada.
+
+Nenhuma das duas migrations do Controle Financeiro tinha sido aplicada ainda quando esta revisão aconteceu — só a migration `20261008000002` (piso de prejuízo) precisou de ajuste de verdade no SQL; `20261008000001` (schema) ficou igual.
+
 ## 2026-10-08 — Controle Financeiro do Varejo (módulo novo, Fases 1-5)
 
 Usuário trouxe um documento detalhado pedindo um módulo de margem/ponto de equilíbrio/precificação pra loja física do Varejo (Rua Major Belo Lisboa, Itajubá/MG, abertura prevista novembro/2026), hoje mantido numa planilha/página separada fora do ERP. Pedido `/goal` ("execute e me entregue pronto e revisado") — autorização pra trabalhar de forma autônoma, sem pausar pra aprovação entre fases.

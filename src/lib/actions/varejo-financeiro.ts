@@ -55,6 +55,21 @@ function primeiroDiaDoMes(mes: string): string {
   return `${ano}-${mesNum}-01`;
 }
 
+/** Validação comum a gastos/equipe/movimentos/investimento: um texto obrigatório (descrição ou nome)
+ * + um valor em dinheiro maior que zero. Cada lançamento só acrescenta a regra que for exclusiva dele
+ * por cima (ex: parcelas em compra parcelada). */
+function validarTextoEValor(
+  texto: string,
+  valorTexto: string,
+  rotuloTexto: string,
+  rotuloValor = "um valor maior que zero",
+): { erro?: string; valor?: number } {
+  if (texto.trim() === "") return { erro: `Informe ${rotuloTexto}.` };
+  const valor = lerMoeda(valorTexto);
+  if (valor === null || valor <= 0) return { erro: `Informe ${rotuloValor}.` };
+  return { valor };
+}
+
 // --- Configuração (vigência, insert-only) -------------------------------------------------------
 
 export async function criarVigenciaConfig(dados: {
@@ -105,13 +120,12 @@ export type DadosGasto = {
 };
 
 function validarGasto(dados: DadosGasto): { erro?: string; valor?: number } {
-  if (dados.descricao.trim() === "") return { erro: "Informe a descrição." };
-  const valor = lerMoeda(dados.valorTexto);
-  if (valor === null || valor <= 0) return { erro: "Informe um valor maior que zero." };
+  const v = validarTextoEValor(dados.descricao, dados.valorTexto, "a descrição");
+  if (v.erro) return v;
   if (dados.tipo === "compra" && (!dados.parcelas || dados.parcelas < 1)) {
     return { erro: "Compra parcelada precisa do número de parcelas." };
   }
-  return { valor };
+  return v;
 }
 
 export async function criarGasto(dados: DadosGasto): Promise<{ erro?: string }> {
@@ -155,10 +169,8 @@ export type DadosMembroEquipe = {
 };
 
 function validarMembro(dados: DadosMembroEquipe): { erro?: string; salario?: number } {
-  if (dados.nome.trim() === "") return { erro: "Informe o nome." };
-  const salario = lerMoeda(dados.salarioTexto);
-  if (salario === null || salario <= 0) return { erro: "Informe um salário maior que zero." };
-  return { salario };
+  const v = validarTextoEValor(dados.nome, dados.salarioTexto, "o nome", "um salário maior que zero");
+  return v.erro ? { erro: v.erro } : { salario: v.valor };
 }
 
 export async function criarMembroEquipe(dados: DadosMembroEquipe): Promise<{ erro?: string }> {
@@ -194,10 +206,7 @@ export async function apagarMembroEquipe(id: string): Promise<{ erro?: string }>
 export type DadosMovimentoCaixa = { data: string; tipo: "entrada" | "saida"; descricao: string; valorTexto: string };
 
 function validarMovimento(dados: DadosMovimentoCaixa): { erro?: string; valor?: number } {
-  if (dados.descricao.trim() === "") return { erro: "Informe a descrição." };
-  const valor = lerMoeda(dados.valorTexto);
-  if (valor === null || valor <= 0) return { erro: "Informe um valor maior que zero." };
-  return { valor };
+  return validarTextoEValor(dados.descricao, dados.valorTexto, "a descrição");
 }
 
 export async function criarMovimentoCaixa(dados: DadosMovimentoCaixa): Promise<{ erro?: string }> {
@@ -221,10 +230,7 @@ export async function apagarMovimentoCaixa(id: string): Promise<{ erro?: string 
 export type DadosInvestimentoInicial = { data: string; descricao: string; valorTexto: string };
 
 function validarInvestimento(dados: DadosInvestimentoInicial): { erro?: string; valor?: number } {
-  if (dados.descricao.trim() === "") return { erro: "Informe a descrição." };
-  const valor = lerMoeda(dados.valorTexto);
-  if (valor === null || valor <= 0) return { erro: "Informe um valor maior que zero." };
-  return { valor };
+  return validarTextoEValor(dados.descricao, dados.valorTexto, "a descrição");
 }
 
 export async function criarInvestimentoInicial(dados: DadosInvestimentoInicial): Promise<{ erro?: string }> {

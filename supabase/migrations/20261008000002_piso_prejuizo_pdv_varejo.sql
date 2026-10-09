@@ -124,6 +124,18 @@ begin
     values (v_numero, p_sessao_id, v_dep, auth.uid(), nullif(trim(p_cliente_nome), ''), nullif(trim(p_cliente_documento), ''), p_idempotency_key)
     returning id into v_id;
 
+    -- Piso de prejuizo (Controle Financeiro do Varejo, Fase 5, 2026-10-08): busca a configuracao
+    -- financeira vigente UMA SO VEZ (nao muda no meio da transacao -- nao precisa repetir por item,
+    -- diferente de custo_medio_variacao, que esse sim e por peca). Despesas variaveis em 100% ou
+    -- mais e erro de configuracao (nenhum preco cobriria o custo por formula nenhuma) -- avisa
+    -- explicito em vez de silenciosamente deixar de aplicar a trava.
+    select vc.despesas_variaveis_pct into v_desp_var from public.varejo_config vc
+     where vc.operacao_id = v_op and vc.vigente_desde <= current_date
+     order by vc.vigente_desde desc limit 1;
+    if v_desp_var is not null and v_desp_var >= 1 then
+      raise exception 'Configuracao financeira com despesas variaveis em 100%% ou mais -- nenhum preco cobre o custo, corrija a configuracao antes de vender';
+    end if;
+
     for v_item in select e from jsonb_array_elements(p_itens) e loop
       v_var := (v_item ->> 'variacao_id')::uuid;
       v_qtd := (v_item ->> 'quantidade')::integer;
@@ -162,12 +174,9 @@ begin
       -- Piso de prejuizo (Controle Financeiro do Varejo, Fase 5, 2026-10-08): vender abaixo do que a
       -- despesa variavel cobre e prejuizo na certa, nao desconto -- bloqueia sempre, sem autorizacao
       -- possivel (diferente do preco abaixo do preco_minimo acima, que pode ser decisao comercial
-      -- valida e por isso aceita PIN). So verifica quando ha configuracao financeira cadastrada --
-      -- sem config (modulo ainda nao configurado), mantem o comportamento de sempre.
-      select vc.despesas_variaveis_pct into v_desp_var from public.varejo_config vc
-       where vc.operacao_id = v_op and vc.vigente_desde <= current_date
-       order by vc.vigente_desde desc limit 1;
-      if v_desp_var is not null and v_desp_var < 1 then
+      -- valida e por isso aceita PIN). v_desp_var ja veio lido (e validado < 1) antes do loop; sem
+      -- config cadastrada ainda (v_desp_var null), mantem o comportamento de sempre.
+      if v_desp_var is not null then
         v_piso_prejuizo := public.arredondar_moeda(v_custo / (1 - v_desp_var));
         if v_prat < v_piso_prejuizo then
           raise exception 'Preco abaixo do piso de prejuizo (minimo: %) -- venda bloqueada', v_piso_prejuizo;
@@ -360,10 +369,26 @@ begin
   perform public.registrar_venda(v_sessao, jsonb_build_array(jsonb_build_object('variacao_id', v_var, 'quantidade', 1, 'preco_unitario', 20)),
     jsonb_build_array(jsonb_build_object('forma', 'pix', 'valor', 20)));
 
+  -- T4. Despesas variaveis em 100% (config pathologica, nenhum preco cobriria o custo) -> erro
+  -- explicito na hora, e nao um "piso de prejuizo" silenciosamente desligado.
+  insert into public.varejo_config (vigente_desde, mes_abertura, despesas_variaveis_pct)
+    values ('2026-03-01', '2026-01-01', 1) returning id into v_config_id;
+  v_ok := false;
+  begin
+    perform public.registrar_venda(v_sessao, jsonb_build_array(jsonb_build_object('variacao_id', v_var, 'quantidade', 1, 'preco_unitario', 50)),
+      jsonb_build_array(jsonb_build_object('forma', 'pix', 'valor', 50)));
+  exception when others then
+    v_ok := true;
+    v_erro := sqlerrm;
+  end;
+  if not v_ok then raise exception 'TESTE FALHOU [T4]: vendeu com despesas variaveis em 100%% sem erro nenhum'; end if;
+  if v_erro not like '%despesas variaveis em 100%' then raise exception 'TESTE FALHOU [T4]: erro inesperado: %', v_erro; end if;
+  delete from public.varejo_config where id = v_config_id;
+
   execute 'reset role';
   perform set_config('request.jwt.claims', '', true);
 
-  raise notice 'TESTES DE COMPORTAMENTO OK: T1 a T3 (piso de prejuizo bloqueia com config, preco acima passa, sem config volta ao comportamento antigo).';
+  raise notice 'TESTES DE COMPORTAMENTO OK: T1 a T4 (piso de prejuizo bloqueia com config, preco acima passa, sem config volta ao comportamento antigo, despesas variaveis 100%% da erro explicito).';
 end $teste$;
 
 -- DESFAZER (modos ensaio e desfazer) ------------------------------------------------------------

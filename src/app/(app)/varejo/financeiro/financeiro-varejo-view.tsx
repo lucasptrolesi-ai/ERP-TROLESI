@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { formatarMoeda } from "@/lib/formatar-moeda";
+import { baixarTexto } from "@/lib/baixar-arquivo";
 import { KpiCard } from "@/components/kpi-card";
 import { Modal } from "@/components/modal";
 import { FormField } from "@/components/form-field";
@@ -52,6 +53,7 @@ type Props = {
   vendasManuais: VendaManualVarejo[];
   diasComVendaNoPdv: string[];
   revisao: ItemRevisao[];
+  metaPorDia: number | null;
 };
 
 type Aba = "resumo" | "lancamentos" | "historico" | "configuracao" | "revisar";
@@ -133,7 +135,7 @@ function AbaRevisarPrecos({ revisao }: { revisao: ItemRevisao[] }) {
                 <td className="px-3 py-2">{formatarMoeda(item.preco_venda)}</td>
                 <td className="px-3 py-2">{formatarMoeda(item.custo)}</td>
                 <td className="px-3 py-2">{item.precoMinimoComputado != null ? formatarMoeda(item.precoMinimoComputado) : "inviável"}</td>
-                <td className="px-3 py-2">{formatarMoeda(item.pisoDePrejuizo)}</td>
+                <td className="px-3 py-2">{Number.isFinite(item.pisoDePrejuizo) ? formatarMoeda(item.pisoDePrejuizo) : "inviável"}</td>
                 <td className="px-3 py-2">
                   <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${item.status === "prejuizo" ? "bg-crit-bg text-crit" : "bg-warn-bg text-warn"}`}>
                     {item.status === "prejuizo" ? "Prejuízo" : "Abaixo do mínimo"}
@@ -150,7 +152,7 @@ function AbaRevisarPrecos({ revisao }: { revisao: ItemRevisao[] }) {
 
 // --- Resumo ---------------------------------------------------------------------------------------
 
-function AbaResumo({ config, resumo }: Props) {
+function AbaResumo({ config, resumo, metaPorDia }: Props) {
   if (!config || !resumo) {
     return (
       <Aviso texto="Nenhuma configuração cadastrada ainda. Vá em Configuração e lance a primeira vigência (gastos fixos, salário, fator de venda) pra começar a ver o resumo." />
@@ -192,6 +194,14 @@ function AbaResumo({ config, resumo }: Props) {
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <KpiCard label="Vendas no mês" valor={String(resumo.numeroVendas)} nota="cupons concluídos" />
         <KpiCard label="Ticket médio" valor={resumo.ticketMedio != null ? formatarMoeda(resumo.ticketMedio) : "—"} nota="por venda" />
+        {metaPorDia != null && (
+          <KpiCard
+            label="Meta por dia (resto do mês)"
+            valor={metaPorDia > 0 ? formatarMoeda(metaPorDia) : "Batido"}
+            nota={metaPorDia > 0 ? "pra fechar o ponto de equilíbrio" : "ponto de equilíbrio já coberto"}
+            tom={metaPorDia > 0 ? "warn" : "ok"}
+          />
+        )}
         <KpiCard label="Margem de contribuição" valor={`${(resumo.margemContribuicaoPct * 100).toFixed(1)}%`} nota="após custo + despesas variáveis" />
         <KpiCard label="Devido ao Atacado" valor={formatarMoeda(resumo.devidoAoAtacado)} nota="custo das peças vendidas no mês" />
         <KpiCard label="Gastos + salários" valor={formatarMoeda(resumo.gastosMensais + resumo.salarios)} nota="fixo do mês" />
@@ -241,14 +251,7 @@ function AbaHistorico({ historico }: { historico: LinhaHistorico[] }) {
         (h.recuperacaoPct * 100).toFixed(1),
       ].join(","),
     );
-    const csv = [cabecalho.join(","), ...linhas].join("\n");
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "controle-financeiro-varejo.csv";
-    a.click();
-    URL.revokeObjectURL(url);
+    baixarTexto([cabecalho.join(","), ...linhas].join("\n"), "controle-financeiro-varejo.csv");
   }
 
   if (historico.length === 0) return <Aviso texto="Sem histórico ainda — cadastre a configuração inicial na aba Configuração." />;
@@ -464,34 +467,58 @@ function BotaoApagar({ aoConfirmar }: { aoConfirmar: () => Promise<{ erro?: stri
   );
 }
 
-function SecaoGastos({ gastos }: { gastos: GastoVarejo[] }) {
+/**
+ * Seção genérica de lançamento (lista + modal de criar/editar + apagar) — as 5 seções da aba
+ * Lançamentos têm a mesma mecânica (abrir/fechar modal, criar vs editar, erro/pendente, tabela com
+ * Editar/Apagar); só o conjunto de campos e as 3 server actions mudam de uma pra outra.
+ */
+function SecaoCrud<T extends { id: string }, D>({
+  titulo,
+  itens,
+  colunas,
+  tituloNovo,
+  tituloEditar,
+  extrairDados,
+  criar,
+  editar,
+  apagar,
+  renderForm,
+}: {
+  titulo: string;
+  itens: T[];
+  colunas: { cabecalho: string; render: (item: T) => React.ReactNode }[];
+  tituloNovo: string;
+  tituloEditar: string;
+  extrairDados: (formData: FormData) => D;
+  criar: (dados: D) => Promise<{ erro?: string }>;
+  editar: (id: string, dados: D) => Promise<{ erro?: string }>;
+  apagar: (id: string) => Promise<{ erro?: string }>;
+  renderForm: (editando: T | null) => React.ReactNode;
+}) {
   const [aberto, setAberto] = useState(false);
-  const [editando, setEditando] = useState<GastoVarejo | null>(null);
+  const [editando, setEditando] = useState<T | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [pendente, iniciar] = useTransition();
 
+  function fechar() {
+    setAberto(false);
+    setEditando(null);
+    setErro(null);
+  }
+
   function salvar(formData: FormData) {
     setErro(null);
-    const tipo = String(formData.get("tipo")) as DadosGasto["tipo"];
-    const dados: DadosGasto = {
-      descricao: String(formData.get("descricao") ?? ""),
-      tipo,
-      valorTexto: String(formData.get("valor") ?? ""),
-      mesInicio: `${formData.get("mes_inicio")}`,
-      mesFim: tipo === "mensal" ? (String(formData.get("mes_fim") || "") || null) : null,
-      parcelas: tipo === "compra" ? Number(formData.get("parcelas")) : null,
-    };
+    const dados = extrairDados(formData);
     iniciar(async () => {
-      const resultado = editando ? await editarGasto(editando.id, dados) : await criarGasto(dados);
+      const resultado = editando ? await editar(editando.id, dados) : await criar(dados);
       if (resultado.erro) return setErro(resultado.erro);
-      setAberto(false);
-      setEditando(null);
+      fechar();
     });
   }
 
   return (
     <Secao
-      titulo="Gastos fixos e compras"
+      titulo={titulo}
       acao={
         <button type="button" onClick={() => { setEditando(null); setAberto(true); }} className="text-xs font-semibold text-rose-deep underline decoration-dotted">
           + Novo
@@ -499,23 +526,60 @@ function SecaoGastos({ gastos }: { gastos: GastoVarejo[] }) {
       }
     >
       <TabelaSimples
-        colunas={["Descrição", "Tipo", "Valor", "Início", "Fim/Parcelas", ""]}
-        linhas={gastos.map((g) => [
-          g.descricao,
-          g.tipo === "mensal" ? "Mensal" : "Compra",
-          formatarMoeda(g.valor),
-          g.mes_inicio.slice(0, 7),
-          g.tipo === "mensal" ? (g.mes_fim ? g.mes_fim.slice(0, 7) : "contínuo") : `${g.parcelas}x`,
+        colunas={[...colunas.map((c) => c.cabecalho), ""]}
+        linhas={itens.map((item) => [
+          ...colunas.map((c) => c.render(item)),
           <span key="acoes" className="flex justify-end gap-2">
-            <button type="button" onClick={() => { setEditando(g); setAberto(true); }} className="text-xs font-semibold text-rose-deep underline decoration-dotted">
+            <button type="button" onClick={() => { setEditando(item); setAberto(true); }} className="text-xs font-semibold text-rose-deep underline decoration-dotted">
               Editar
             </button>
-            <BotaoApagar aoConfirmar={() => apagarGasto(g.id)} />
+            <BotaoApagar aoConfirmar={() => apagar(item.id)} />
           </span>,
         ])}
       />
-      <Modal aberto={aberto} onFechar={() => { setAberto(false); setEditando(null); }} titulo={editando ? "Editar gasto" : "Novo gasto"}>
+      <Modal aberto={aberto} onFechar={fechar} titulo={editando ? tituloEditar : tituloNovo}>
         <form key={editando?.id ?? "novo"} action={salvar} className="flex flex-col gap-3">
+          {renderForm(editando)}
+          {erro && <p className="text-sm text-crit">{erro}</p>}
+          <button type="submit" disabled={pendente} className="rounded-full bg-gradient-to-br from-gold-start to-gold-end py-2.5 text-sm font-semibold text-gold-ink disabled:opacity-60">
+            {pendente ? "Salvando…" : "Salvar"}
+          </button>
+        </form>
+      </Modal>
+    </Secao>
+  );
+}
+
+function SecaoGastos({ gastos }: { gastos: GastoVarejo[] }) {
+  return (
+    <SecaoCrud<GastoVarejo, DadosGasto>
+      titulo="Gastos fixos e compras"
+      itens={gastos}
+      tituloNovo="Novo gasto"
+      tituloEditar="Editar gasto"
+      criar={criarGasto}
+      editar={editarGasto}
+      apagar={apagarGasto}
+      colunas={[
+        { cabecalho: "Descrição", render: (g) => g.descricao },
+        { cabecalho: "Tipo", render: (g) => (g.tipo === "mensal" ? "Mensal" : "Compra") },
+        { cabecalho: "Valor", render: (g) => formatarMoeda(g.valor) },
+        { cabecalho: "Início", render: (g) => g.mes_inicio.slice(0, 7) },
+        { cabecalho: "Fim/Parcelas", render: (g) => (g.tipo === "mensal" ? (g.mes_fim ? g.mes_fim.slice(0, 7) : "contínuo") : `${g.parcelas}x`) },
+      ]}
+      extrairDados={(formData) => {
+        const tipo = String(formData.get("tipo")) as DadosGasto["tipo"];
+        return {
+          descricao: String(formData.get("descricao") ?? ""),
+          tipo,
+          valorTexto: String(formData.get("valor") ?? ""),
+          mesInicio: `${formData.get("mes_inicio")}`,
+          mesFim: tipo === "mensal" ? String(formData.get("mes_fim") || "") || null : null,
+          parcelas: tipo === "compra" ? Number(formData.get("parcelas")) : null,
+        };
+      }}
+      renderForm={(editando) => (
+        <>
           <FormField label="Descrição" name="descricao" defaultValue={editando?.descricao} required />
           <label className="flex flex-col gap-1 text-sm">
             <span className="text-xs font-semibold uppercase tracking-wide text-text-soft">Tipo</span>
@@ -530,66 +594,38 @@ function SecaoGastos({ gastos }: { gastos: GastoVarejo[] }) {
             <FormField label="Fim (mensal, opcional) / Parcelas (compra)" name="mes_fim" type="month" defaultValue={editando?.mes_fim?.slice(0, 7)} />
           </div>
           <FormField label="Parcelas (só compra)" name="parcelas" type="number" min={1} defaultValue={editando?.parcelas ?? undefined} />
-          {erro && <p className="text-sm text-crit">{erro}</p>}
-          <button type="submit" disabled={pendente} className="rounded-full bg-gradient-to-br from-gold-start to-gold-end py-2.5 text-sm font-semibold text-gold-ink disabled:opacity-60">
-            {pendente ? "Salvando…" : "Salvar"}
-          </button>
-        </form>
-      </Modal>
-    </Secao>
+        </>
+      )}
+    />
   );
 }
 
 function SecaoEquipe({ equipe }: { equipe: MembroEquipeVarejo[] }) {
-  const [aberto, setAberto] = useState(false);
-  const [editando, setEditando] = useState<MembroEquipeVarejo | null>(null);
-  const [erro, setErro] = useState<string | null>(null);
-  const [pendente, iniciar] = useTransition();
-
-  function salvar(formData: FormData) {
-    setErro(null);
-    const dados: DadosMembroEquipe = {
-      nome: String(formData.get("nome") ?? ""),
-      salarioTexto: String(formData.get("salario") ?? ""),
-      somarEncargos: formData.get("somar_encargos") === "on",
-      mesInicio: `${formData.get("mes_inicio")}`,
-      mesFim: String(formData.get("mes_fim") || "") || null,
-    };
-    iniciar(async () => {
-      const resultado = editando ? await editarMembroEquipe(editando.id, dados) : await criarMembroEquipe(dados);
-      if (resultado.erro) return setErro(resultado.erro);
-      setAberto(false);
-      setEditando(null);
-    });
-  }
-
   return (
-    <Secao
+    <SecaoCrud<MembroEquipeVarejo, DadosMembroEquipe>
       titulo="Equipe e pró-labore"
-      acao={
-        <button type="button" onClick={() => { setEditando(null); setAberto(true); }} className="text-xs font-semibold text-rose-deep underline decoration-dotted">
-          + Novo
-        </button>
-      }
-    >
-      <TabelaSimples
-        colunas={["Nome", "Custo mensal", "Encargos", "Início", "Fim", ""]}
-        linhas={equipe.map((m) => [
-          m.nome,
-          formatarMoeda(m.salario),
-          m.somar_encargos ? "Soma" : "Já incluso",
-          m.mes_inicio.slice(0, 7),
-          m.mes_fim ? m.mes_fim.slice(0, 7) : "contínuo",
-          <span key="acoes" className="flex justify-end gap-2">
-            <button type="button" onClick={() => { setEditando(m); setAberto(true); }} className="text-xs font-semibold text-rose-deep underline decoration-dotted">
-              Editar
-            </button>
-            <BotaoApagar aoConfirmar={() => apagarMembroEquipe(m.id)} />
-          </span>,
-        ])}
-      />
-      <Modal aberto={aberto} onFechar={() => { setAberto(false); setEditando(null); }} titulo={editando ? "Editar membro" : "Novo membro"}>
-        <form key={editando?.id ?? "novo"} action={salvar} className="flex flex-col gap-3">
+      itens={equipe}
+      tituloNovo="Novo membro"
+      tituloEditar="Editar membro"
+      criar={criarMembroEquipe}
+      editar={editarMembroEquipe}
+      apagar={apagarMembroEquipe}
+      colunas={[
+        { cabecalho: "Nome", render: (m) => m.nome },
+        { cabecalho: "Custo mensal", render: (m) => formatarMoeda(m.salario) },
+        { cabecalho: "Encargos", render: (m) => (m.somar_encargos ? "Soma" : "Já incluso") },
+        { cabecalho: "Início", render: (m) => m.mes_inicio.slice(0, 7) },
+        { cabecalho: "Fim", render: (m) => (m.mes_fim ? m.mes_fim.slice(0, 7) : "contínuo") },
+      ]}
+      extrairDados={(formData) => ({
+        nome: String(formData.get("nome") ?? ""),
+        salarioTexto: String(formData.get("salario") ?? ""),
+        somarEncargos: formData.get("somar_encargos") === "on",
+        mesInicio: `${formData.get("mes_inicio")}`,
+        mesFim: String(formData.get("mes_fim") || "") || null,
+      })}
+      renderForm={(editando) => (
+        <>
           <FormField label="Nome" name="nome" defaultValue={editando?.nome} required />
           <FormField label="Custo mensal total (R$)" name="salario" defaultValue={editando?.salario} required />
           <label className="flex items-center gap-2 text-sm">
@@ -600,64 +636,36 @@ function SecaoEquipe({ equipe }: { equipe: MembroEquipeVarejo[] }) {
             <FormField label="Início" name="mes_inicio" type="month" defaultValue={editando?.mes_inicio.slice(0, 7)} required />
             <FormField label="Fim (opcional)" name="mes_fim" type="month" defaultValue={editando?.mes_fim?.slice(0, 7)} />
           </div>
-          {erro && <p className="text-sm text-crit">{erro}</p>}
-          <button type="submit" disabled={pendente} className="rounded-full bg-gradient-to-br from-gold-start to-gold-end py-2.5 text-sm font-semibold text-gold-ink disabled:opacity-60">
-            {pendente ? "Salvando…" : "Salvar"}
-          </button>
-        </form>
-      </Modal>
-    </Secao>
+        </>
+      )}
+    />
   );
 }
 
 function SecaoMovimentosCaixa({ movimentos }: { movimentos: MovimentoCaixaVarejo[] }) {
-  const [aberto, setAberto] = useState(false);
-  const [editando, setEditando] = useState<MovimentoCaixaVarejo | null>(null);
-  const [erro, setErro] = useState<string | null>(null);
-  const [pendente, iniciar] = useTransition();
-
-  function salvar(formData: FormData) {
-    setErro(null);
-    const dados: DadosMovimentoCaixa = {
-      data: String(formData.get("data") ?? ""),
-      tipo: String(formData.get("tipo")) as DadosMovimentoCaixa["tipo"],
-      descricao: String(formData.get("descricao") ?? ""),
-      valorTexto: String(formData.get("valor") ?? ""),
-    };
-    iniciar(async () => {
-      const resultado = editando ? await editarMovimentoCaixa(editando.id, dados) : await criarMovimentoCaixa(dados);
-      if (resultado.erro) return setErro(resultado.erro);
-      setAberto(false);
-      setEditando(null);
-    });
-  }
-
   return (
-    <Secao
+    <SecaoCrud<MovimentoCaixaVarejo, DadosMovimentoCaixa>
       titulo="Movimentos de caixa (fora de venda)"
-      acao={
-        <button type="button" onClick={() => { setEditando(null); setAberto(true); }} className="text-xs font-semibold text-rose-deep underline decoration-dotted">
-          + Novo
-        </button>
-      }
-    >
-      <TabelaSimples
-        colunas={["Data", "Tipo", "Descrição", "Valor", ""]}
-        linhas={movimentos.map((m) => [
-          m.data,
-          m.tipo === "entrada" ? "Entrada" : "Saída",
-          m.descricao,
-          formatarMoeda(m.valor),
-          <span key="acoes" className="flex justify-end gap-2">
-            <button type="button" onClick={() => { setEditando(m); setAberto(true); }} className="text-xs font-semibold text-rose-deep underline decoration-dotted">
-              Editar
-            </button>
-            <BotaoApagar aoConfirmar={() => apagarMovimentoCaixa(m.id)} />
-          </span>,
-        ])}
-      />
-      <Modal aberto={aberto} onFechar={() => { setAberto(false); setEditando(null); }} titulo={editando ? "Editar movimento" : "Novo movimento"}>
-        <form key={editando?.id ?? "novo"} action={salvar} className="flex flex-col gap-3">
+      itens={movimentos}
+      tituloNovo="Novo movimento"
+      tituloEditar="Editar movimento"
+      criar={criarMovimentoCaixa}
+      editar={editarMovimentoCaixa}
+      apagar={apagarMovimentoCaixa}
+      colunas={[
+        { cabecalho: "Data", render: (m) => m.data },
+        { cabecalho: "Tipo", render: (m) => (m.tipo === "entrada" ? "Entrada" : "Saída") },
+        { cabecalho: "Descrição", render: (m) => m.descricao },
+        { cabecalho: "Valor", render: (m) => formatarMoeda(m.valor) },
+      ]}
+      extrairDados={(formData) => ({
+        data: String(formData.get("data") ?? ""),
+        tipo: String(formData.get("tipo")) as DadosMovimentoCaixa["tipo"],
+        descricao: String(formData.get("descricao") ?? ""),
+        valorTexto: String(formData.get("valor") ?? ""),
+      })}
+      renderForm={(editando) => (
+        <>
           <FormField label="Data" name="data" type="date" defaultValue={editando?.data} required />
           <label className="flex flex-col gap-1 text-sm">
             <span className="text-xs font-semibold uppercase tracking-wide text-text-soft">Tipo</span>
@@ -668,143 +676,85 @@ function SecaoMovimentosCaixa({ movimentos }: { movimentos: MovimentoCaixaVarejo
           </label>
           <FormField label="Descrição" name="descricao" defaultValue={editando?.descricao} required />
           <FormField label="Valor (R$)" name="valor" defaultValue={editando?.valor} required />
-          {erro && <p className="text-sm text-crit">{erro}</p>}
-          <button type="submit" disabled={pendente} className="rounded-full bg-gradient-to-br from-gold-start to-gold-end py-2.5 text-sm font-semibold text-gold-ink disabled:opacity-60">
-            {pendente ? "Salvando…" : "Salvar"}
-          </button>
-        </form>
-      </Modal>
-    </Secao>
+        </>
+      )}
+    />
   );
 }
 
 function SecaoInvestimentoInicial({ investimentos }: { investimentos: InvestimentoInicialVarejo[] }) {
-  const [aberto, setAberto] = useState(false);
-  const [editando, setEditando] = useState<InvestimentoInicialVarejo | null>(null);
-  const [erro, setErro] = useState<string | null>(null);
-  const [pendente, iniciar] = useTransition();
   const total = investimentos.reduce((s, i) => s + i.valor, 0);
-
-  function salvar(formData: FormData) {
-    setErro(null);
-    const dados: DadosInvestimentoInicial = {
-      data: String(formData.get("data") ?? ""),
-      descricao: String(formData.get("descricao") ?? ""),
-      valorTexto: String(formData.get("valor") ?? ""),
-    };
-    iniciar(async () => {
-      const resultado = editando ? await editarInvestimentoInicial(editando.id, dados) : await criarInvestimentoInicial(dados);
-      if (resultado.erro) return setErro(resultado.erro);
-      setAberto(false);
-      setEditando(null);
-    });
-  }
-
   return (
-    <Secao
+    <SecaoCrud<InvestimentoInicialVarejo, DadosInvestimentoInicial>
       titulo={`Investimento inicial (total: ${formatarMoeda(total)})`}
-      acao={
-        <button type="button" onClick={() => { setEditando(null); setAberto(true); }} className="text-xs font-semibold text-rose-deep underline decoration-dotted">
-          + Novo
-        </button>
-      }
-    >
-      <TabelaSimples
-        colunas={["Data", "Descrição", "Valor", ""]}
-        linhas={investimentos.map((i) => [
-          i.data,
-          i.descricao,
-          formatarMoeda(i.valor),
-          <span key="acoes" className="flex justify-end gap-2">
-            <button type="button" onClick={() => { setEditando(i); setAberto(true); }} className="text-xs font-semibold text-rose-deep underline decoration-dotted">
-              Editar
-            </button>
-            <BotaoApagar aoConfirmar={() => apagarInvestimentoInicial(i.id)} />
-          </span>,
-        ])}
-      />
-      <Modal aberto={aberto} onFechar={() => { setAberto(false); setEditando(null); }} titulo={editando ? "Editar investimento" : "Novo investimento"}>
-        <form key={editando?.id ?? "novo"} action={salvar} className="flex flex-col gap-3">
+      itens={investimentos}
+      tituloNovo="Novo investimento"
+      tituloEditar="Editar investimento"
+      criar={criarInvestimentoInicial}
+      editar={editarInvestimentoInicial}
+      apagar={apagarInvestimentoInicial}
+      colunas={[
+        { cabecalho: "Data", render: (i) => i.data },
+        { cabecalho: "Descrição", render: (i) => i.descricao },
+        { cabecalho: "Valor", render: (i) => formatarMoeda(i.valor) },
+      ]}
+      extrairDados={(formData) => ({
+        data: String(formData.get("data") ?? ""),
+        descricao: String(formData.get("descricao") ?? ""),
+        valorTexto: String(formData.get("valor") ?? ""),
+      })}
+      renderForm={(editando) => (
+        <>
           <FormField label="Data" name="data" type="date" defaultValue={editando?.data} required />
           <FormField label="Descrição" name="descricao" defaultValue={editando?.descricao} required />
           <FormField label="Valor (R$)" name="valor" defaultValue={editando?.valor} required />
-          {erro && <p className="text-sm text-crit">{erro}</p>}
-          <button type="submit" disabled={pendente} className="rounded-full bg-gradient-to-br from-gold-start to-gold-end py-2.5 text-sm font-semibold text-gold-ink disabled:opacity-60">
-            {pendente ? "Salvando…" : "Salvar"}
-          </button>
-        </form>
-      </Modal>
-    </Secao>
+        </>
+      )}
+    />
   );
 }
 
 function SecaoVendasManuais({ vendas, diasComVendaNoPdv }: { vendas: VendaManualVarejo[]; diasComVendaNoPdv: string[] }) {
-  const [aberto, setAberto] = useState(false);
-  const [editando, setEditando] = useState<VendaManualVarejo | null>(null);
-  const [erro, setErro] = useState<string | null>(null);
-  const [pendente, iniciar] = useTransition();
   const diasPdv = new Set(diasComVendaNoPdv);
-
-  function salvar(formData: FormData) {
-    setErro(null);
-    const dados: DadosVendaManual = {
-      data: String(formData.get("data") ?? ""),
-      faturamentoTexto: String(formData.get("faturamento") ?? ""),
-      numeroVendas: Number(formData.get("numero_vendas")),
-    };
-    iniciar(async () => {
-      const resultado = editando ? await editarVendaManual(editando.id, dados) : await criarVendaManual(dados);
-      if (resultado.erro) return setErro(resultado.erro);
-      setAberto(false);
-      setEditando(null);
-    });
-  }
-
-  const dataDoForm = editando?.data;
-  const avisoPdv = dataDoForm && diasPdv.has(dataDoForm);
-
   return (
-    <Secao
-      titulo="Vendas manuais (dia sem PDV ou importação)"
-      acao={
-        <button type="button" onClick={() => { setEditando(null); setAberto(true); }} className="text-xs font-semibold text-rose-deep underline decoration-dotted">
-          + Novo
-        </button>
-      }
-    >
-      <TabelaSimples
-        colunas={["Data", "Faturamento", "Vendas", "Origem", ""]}
-        linhas={vendas.map((v) => [
-          v.data,
-          <span key="fat" className={diasPdv.has(v.data) ? "text-text-soft line-through" : ""}>
-            {formatarMoeda(v.faturamento)}
-          </span>,
-          v.numero_vendas,
-          v.origem === "manual" ? "Manual" : "Importação",
-          <span key="acoes" className="flex justify-end gap-2">
-            <button type="button" onClick={() => { setEditando(v); setAberto(true); }} className="text-xs font-semibold text-rose-deep underline decoration-dotted">
-              Editar
-            </button>
-            <BotaoApagar aoConfirmar={() => apagarVendaManual(v.id)} />
-          </span>,
-        ])}
+    <div className="flex flex-col gap-2">
+      <SecaoCrud<VendaManualVarejo, DadosVendaManual>
+        titulo="Vendas manuais (dia sem PDV ou importação)"
+        itens={vendas}
+        tituloNovo="Nova venda manual"
+        tituloEditar="Editar venda manual"
+        criar={criarVendaManual}
+        editar={editarVendaManual}
+        apagar={apagarVendaManual}
+        colunas={[
+          { cabecalho: "Data", render: (v) => v.data },
+          {
+            cabecalho: "Faturamento",
+            render: (v) => <span className={diasPdv.has(v.data) ? "text-text-soft line-through" : ""}>{formatarMoeda(v.faturamento)}</span>,
+          },
+          { cabecalho: "Vendas", render: (v) => v.numero_vendas },
+          { cabecalho: "Origem", render: (v) => (v.origem === "manual" ? "Manual" : "Importação") },
+        ]}
+        extrairDados={(formData) => ({
+          data: String(formData.get("data") ?? ""),
+          faturamentoTexto: String(formData.get("faturamento") ?? ""),
+          numeroVendas: Number(formData.get("numero_vendas")),
+        })}
+        renderForm={(editando) => (
+          <>
+            <FormField label="Data" name="data" type="date" defaultValue={editando?.data} required />
+            {editando && diasPdv.has(editando.data) && (
+              <p className="text-xs text-warn">Esse dia já tem venda no PDV — essa linha manual será ignorada no cálculo.</p>
+            )}
+            <FormField label="Faturamento do dia (R$)" name="faturamento" defaultValue={editando?.faturamento} required />
+            <FormField label="Número de vendas" name="numero_vendas" type="number" min={0} defaultValue={editando?.numero_vendas} required />
+          </>
+        )}
       />
       {diasComVendaNoPdv.length > 0 && (
         <p className="text-xs text-text-soft">Dias riscados já têm venda real no PDV este mês — o PDV prevalece no cálculo, a venda manual é ignorada.</p>
       )}
-      <Modal aberto={aberto} onFechar={() => { setAberto(false); setEditando(null); }} titulo={editando ? "Editar venda manual" : "Nova venda manual"}>
-        <form key={editando?.id ?? "novo"} action={salvar} className="flex flex-col gap-3">
-          <FormField label="Data" name="data" type="date" defaultValue={editando?.data} required />
-          {avisoPdv && <p className="text-xs text-warn">Esse dia já tem venda no PDV — essa linha manual será ignorada no cálculo.</p>}
-          <FormField label="Faturamento do dia (R$)" name="faturamento" defaultValue={editando?.faturamento} required />
-          <FormField label="Número de vendas" name="numero_vendas" type="number" min={0} defaultValue={editando?.numero_vendas} required />
-          {erro && <p className="text-sm text-crit">{erro}</p>}
-          <button type="submit" disabled={pendente} className="rounded-full bg-gradient-to-br from-gold-start to-gold-end py-2.5 text-sm font-semibold text-gold-ink disabled:opacity-60">
-            {pendente ? "Salvando…" : "Salvar"}
-          </button>
-        </form>
-      </Modal>
-    </Secao>
+    </div>
   );
 }
 

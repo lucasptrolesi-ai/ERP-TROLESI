@@ -6,6 +6,7 @@ import { FormField } from "@/components/form-field";
 import { CampoFotoProduto } from "@/components/campo-foto-produto";
 import { CampoCodigoProduto } from "@/components/campo-codigo-produto";
 import { formatarMoeda } from "@/lib/formatar-moeda";
+import { lerMoeda } from "@/lib/dinheiro";
 import { cadastrarPecaCatalogo, editarPecaCatalogo } from "@/lib/actions/varejo";
 import { formatarAtributos } from "@/lib/varejo/atributos";
 import { calcularCusto, calcularPisoDePrejuizo, calcularPrecoMinimo, calcularPrecoSugerido } from "@/lib/varejo/financeiro";
@@ -154,12 +155,15 @@ export function PecaCatalogoForm({
  * preço final nos campos de verdade. */
 function CalculadoraDePreco({ calculadora }: { calculadora: CalculadoraPreco }) {
   const [codigoTexto, setCodigoTexto] = useState("");
-  const codigo = Number(codigoTexto.replace(",", "."));
-  const valido = codigoTexto.trim() !== "" && Number.isFinite(codigo) && codigo > 0;
+  // Mesmo parser de número usado no resto do app (lerMoeda) — não um Number() cru: "1.200" tem que
+  // virar 1200, não 1.2 (mesma ambiguidade de separador de milhar que lerMoeda já resolve).
+  const lido = lerMoeda(codigoTexto);
+  const codigo = lido !== null && lido > 0 ? lido : null;
+  const valido = codigo !== null;
 
   const { config, fatorCusto, markupMinimo } = calculadora;
-  const custo = valido ? calcularCusto(codigo, fatorCusto) : null;
-  const sugerido = valido ? calcularPrecoSugerido(codigo, config.fator_venda_padrao, config.preco_piso_entrada, config.arredondar_90) : null;
+  const custo = codigo !== null ? calcularCusto(codigo, fatorCusto) : null;
+  const sugerido = codigo !== null ? calcularPrecoSugerido(codigo, config.fator_venda_padrao, config.preco_piso_entrada, config.arredondar_90) : null;
   const piso = custo != null ? calcularPisoDePrejuizo(custo, config.despesas_variaveis_pct) : null;
   const minimo = custo != null && markupMinimo.viavel ? calcularPrecoMinimo(custo, markupMinimo.markup) : null;
 
@@ -181,7 +185,7 @@ function CalculadoraDePreco({ calculadora }: { calculadora: CalculadoraPreco }) 
           Custo <strong className="text-ink">{formatarMoeda(custo)}</strong> · Sugerido{" "}
           <strong className="text-ink">{sugerido != null ? formatarMoeda(sugerido) : "—"}</strong> · Mínimo{" "}
           <strong className="text-ink">{minimo != null ? formatarMoeda(minimo) : "inviável com os parâmetros atuais"}</strong> · Piso de prejuízo{" "}
-          <strong className="text-crit">{piso != null ? formatarMoeda(piso) : "—"}</strong>
+          <strong className="text-crit">{piso != null && Number.isFinite(piso) ? formatarMoeda(piso) : "—"}</strong>
         </p>
       )}
       <p className="text-[0.65rem] text-text-soft">Só uma conta de apoio — não preenche nem trava nada sozinho. Digite o preço de verdade abaixo.</p>

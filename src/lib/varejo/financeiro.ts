@@ -78,8 +78,11 @@ export function calcularPrecoMinimo(custo: number, markupMinimo: number): number
   return arredondarMoeda(custo * markupMinimo);
 }
 
-/** Abaixo disso a venda dá prejuízo direto (nem cobre a despesa variável proporcional). */
+/** Abaixo disso a venda dá prejuízo direto (nem cobre a despesa variável proporcional). Despesas
+ * variáveis em 100% ou mais (config pathológica) tornam qualquer preço insuficiente -- Infinity em
+ * vez de um "piso" de 0 silencioso, pra quem chamar poder tratar como "impossível", não "sem piso". */
 export function calcularPisoDePrejuizo(custo: number, despesasVariaveisPct: number): number {
+  if (despesasVariaveisPct >= 1) return Infinity;
   return arredondarMoeda(custo / (1 - despesasVariaveisPct));
 }
 
@@ -142,6 +145,10 @@ export type EntradaMes = {
   numeroVendas: number;
   custoDasPecas: number;
   despesasVariaveisPct: number;
+  // Margem usada só quando faturamento = 0 (mês sem venda nenhuma ainda) -- o chamador passa
+  // margemContribuicaoTeorica(markup, despesasVariaveisPct), pra não ignorar o custo da peça
+  // (1 - despesasVariaveisPct sozinho super-estimaria a margem, como se não houvesse custo algum).
+  margemTeoricaFallback: number;
   gastosMensais: number;
   salarios: number;
   movimentosCaixa: number; // entradas - saídas, já líquido
@@ -164,10 +171,10 @@ export type ResultadoMes = {
 };
 
 export function calcularMes(entrada: EntradaMes, diasAbertosMes: number): ResultadoMes {
-  const { faturamento, numeroVendas, custoDasPecas, despesasVariaveisPct, gastosMensais, salarios, compras } = entrada;
+  const { faturamento, numeroVendas, custoDasPecas, despesasVariaveisPct, margemTeoricaFallback, gastosMensais, salarios, compras } = entrada;
   const despesasVariaveis = arredondarMoeda(faturamento * despesasVariaveisPct);
   const margemContribuicaoPct =
-    faturamento > 0 ? (faturamento - custoDasPecas - despesasVariaveis) / faturamento : 1 - despesasVariaveisPct;
+    faturamento > 0 ? (faturamento - custoDasPecas - despesasVariaveis) / faturamento : margemTeoricaFallback;
   const pontoDeEquilibrio = margemContribuicaoPct > 0 ? (gastosMensais + salarios) / margemContribuicaoPct : Infinity;
   const resultado = arredondarMoeda(faturamento - custoDasPecas - despesasVariaveis - gastosMensais - salarios);
   void compras; // compras não entram no resultado do mês (só no caixa) — mantido na entrada p/ clareza de contrato

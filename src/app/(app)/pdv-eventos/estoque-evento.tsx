@@ -5,6 +5,7 @@ import JsBarcode from "jsbarcode";
 import { formatarMoeda } from "@/lib/formatar-moeda";
 import { filtra } from "@/lib/filtra";
 import { exportarEtiquetasExcel } from "@/lib/actions/etiquetas-excel";
+import { baixarArquivoBase64 } from "@/lib/baixar-arquivo";
 import { FotoComZoom } from "@/components/foto-com-zoom";
 import { LeitorCodigoModal } from "@/components/leitor-codigo-modal";
 import { ProdutoEventoForm } from "./produto-evento-form";
@@ -13,16 +14,7 @@ import { EntradaOuroModal } from "./entrada-ouro-modal";
 import { prefixoCodigo } from "@/lib/prefixo-codigo";
 import type { ProdutoEvento, ProdutoParaImportar } from "@/lib/types";
 
-function baixarArquivo(base64: string, nomeArquivo: string) {
-  const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
-  const blob = new Blob([bytes], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = nomeArquivo;
-  link.click();
-  URL.revokeObjectURL(url);
-}
+const TIPO_XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 
 function statusEstoque(quantidade: number): { rotulo: string; classe: string } {
   if (quantidade <= 0) return { rotulo: "Sem estoque", classe: "bg-crit-bg text-crit" };
@@ -104,7 +96,7 @@ export function EstoqueEvento({
         setErroExportacao(resultado.erro ?? "Não foi possível gerar a planilha.");
         return;
       }
-      baixarArquivo(resultado.base64, "etiquetas-pdv-eventos.xlsx");
+      baixarArquivoBase64(resultado.base64, "etiquetas-pdv-eventos.xlsx", TIPO_XLSX);
     });
   }
 

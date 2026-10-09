@@ -6,8 +6,10 @@ import {
   calcularPisoDePrejuizo,
   calcularPrecoMinimo,
   custoEquipeNoMes,
+  margemContribuicaoTeorica,
   mesSeguinte,
   mesclarFaturamentoDiario,
+  metaPorDiaRestante,
   recuperacaoDoInvestimento,
   saldoDeCaixa,
   statusDoPreco,
@@ -82,11 +84,20 @@ export default async function FinanceiroVarejoPage({ searchParams }: { searchPar
   ]);
 
   const vendaIds = (vendas ?? []).map((v) => v.id as string);
-  const { data: itensVendidos } = vendaIds.length
-    ? await supabase.from("venda_itens").select("venda_id, quantidade, custo_unitario").in("venda_id", vendaIds)
-    : { data: [] as { venda_id: string; quantidade: number; custo_unitario: number }[] };
+  const [{ data: itensVendidos }, calculadora] = await Promise.all([
+    vendaIds.length
+      ? supabase.from("venda_itens").select("venda_id, quantidade, custo_unitario").in("venda_id", vendaIds)
+      : Promise.resolve({ data: [] as { venda_id: string; quantidade: number; custo_unitario: number }[] }),
+    buscarCalculadoraPreco(supabase, {
+      configs: configs as ConfigFinanceira[] | null,
+      gastos: gastos as GastoVarejo[] | null,
+      equipe: equipe as MembroEquipeVarejo[] | null,
+      multiplicadores,
+    }),
+  ]);
 
   const mesSelecionado: Mes = mesParam && /^\d{4}-\d{2}$/.test(mesParam) ? `${mesParam}-01` : mesAtual();
+  const hojeEMesAtual = mesSelecionado === mesAtual();
 
   if (!configs || configs.length === 0) {
     return (
@@ -102,6 +113,7 @@ export default async function FinanceiroVarejoPage({ searchParams }: { searchPar
         vendasManuais={vendasManuais ?? []}
         diasComVendaNoPdv={[]}
         revisao={[]}
+        metaPorDia={null}
       />
     );
   }
@@ -182,6 +194,7 @@ export default async function FinanceiroVarejoPage({ searchParams }: { searchPar
       numeroVendas,
       custoDasPecas,
       despesasVariaveisPct: config.despesas_variaveis_pct,
+      margemTeoricaFallback: margemContribuicaoTeorica(markup, config.despesas_variaveis_pct),
       gastosMensais,
       salarios,
       movimentosCaixa: movimentosDoMes,
@@ -205,10 +218,23 @@ export default async function FinanceiroVarejoPage({ searchParams }: { searchPar
   }
 
   const resumo = historico.length ? historico[historico.length - 1] : null;
-  const dias = new Set((vendas ?? []).map((v) => (v.criada_em as string).slice(0, 10)).filter((d) => d.slice(0, 7) === mesSelecionado.slice(0, 7)));
+  // Todos os dias com venda no PDV (não só do mês selecionado): a aba Lançamentos lista vendas
+  // manuais de qualquer mês, e o aviso "esse dia já tem venda no PDV" precisa valer pra qualquer uma.
+  const dias = new Set((vendas ?? []).map((v) => (v.criada_em as string).slice(0, 10)));
+
+  // Meta de faturamento por dia restante -- só faz sentido olhando o mês corrente, em andamento.
+  let metaPorDia: number | null = null;
+  if (hojeEMesAtual && resumo && Number.isFinite(resumo.pontoDeEquilibrio)) {
+    const hoje = new Date();
+    const diasNoMes = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0).getDate();
+    const diasCorridosRestantes = diasNoMes - hoje.getDate() + 1;
+    const configAtual = vigenteNoMes(configs as ConfigFinanceira[], mesSelecionado);
+    if (configAtual) {
+      metaPorDia = metaPorDiaRestante(resumo.pontoDeEquilibrio, resumo.faturamento, diasCorridosRestantes, configAtual.dias_abertos_mes, diasNoMes);
+    }
+  }
 
   // Revisar preços: produtos ativos com custo conhecido, abaixo do mínimo ou vendendo no prejuízo.
-  const calculadora = await buscarCalculadoraPreco(supabase);
   const revisao: ItemRevisao[] = [];
   if (calculadora) {
     const [{ data: variacoesAtivas }, { data: entradasEstoque }] = await Promise.all([
@@ -251,6 +277,7 @@ export default async function FinanceiroVarejoPage({ searchParams }: { searchPar
       vendasManuais={(vendasManuais ?? []) as VendaManualVarejo[]}
       diasComVendaNoPdv={[...dias]}
       revisao={revisao}
+      metaPorDia={metaPorDia}
     />
   );
 }

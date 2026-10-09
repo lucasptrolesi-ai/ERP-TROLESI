@@ -59,6 +59,11 @@ describe("precificação", () => {
     expect(calcularPisoDePrejuizo(28, 0.1)).toBeCloseTo(31.11, 2);
   });
 
+  it("despesas variáveis em 100% ou mais -- piso vira Infinity, não 0 silencioso", () => {
+    expect(calcularPisoDePrejuizo(28, 1)).toBe(Infinity);
+    expect(calcularPisoDePrejuizo(28, 1.2)).toBe(Infinity);
+  });
+
   it("preço gravado nunca muda ao recalcular o sugerido com outro fator — a função nem recebe o preço atual como parâmetro", () => {
     const sugeridoAntigo = calcularPrecoSugerido(10, 10.1, 19.9, true);
     const sugeridoNovo = calcularPrecoSugerido(10, 11.2, 19.9, true);
@@ -101,15 +106,46 @@ describe("apuração mensal", () => {
   it("ponto de equilíbrio = (gastos + salários) / margem de contribuição", () => {
     const margem = margemContribuicaoTeorica(3.607, 0.1);
     const mes = calcularMes(
-      { faturamento: 0, numeroVendas: 0, custoDasPecas: 0, despesasVariaveisPct: 0.1, gastosMensais: 5100, salarios: 0, movimentosCaixa: 0, compras: 0 },
+      {
+        faturamento: 0,
+        numeroVendas: 0,
+        custoDasPecas: 0,
+        despesasVariaveisPct: 0.1,
+        margemTeoricaFallback: margem,
+        gastosMensais: 5100,
+        salarios: 0,
+        movimentosCaixa: 0,
+        compras: 0,
+      },
       26,
     );
-    // calcularMes usa a margem real (aqui 0, sem faturamento, cai no fallback teórico 1-variaveis);
-    // o ponto de equilíbrio do caso de teste do documento usa a margem teórica de markup 3,607 —
-    // reproduzido aqui chamando a fórmula direta pra validar o número do documento:
-    const pontoDeEquilibrio = 5100 / margem;
-    expect(pontoDeEquilibrio).toBeCloseTo(8189.33, 1);
+    // Sem faturamento no mês, calcularMes usa a margem teórica passada pelo chamador (não uma conta
+    // própria) -- por isso o ponto de equilíbrio sai certo mesmo com faturamento = 0.
+    expect(mes.pontoDeEquilibrio).toBeCloseTo(8189.33, 1);
     expect(mes.gastosMensais).toBe(5100);
+  });
+
+  it("sem faturamento, a margem teórica considera o custo (markup) -- não só 1 menos despesas variáveis", () => {
+    // Bug corrigido: o fallback antigo usava 1 - despesasVariaveisPct direto (ignorando o custo da
+    // peça por completo), inflando a margem e subestimando o ponto de equilíbrio num mês sem venda.
+    const margemComCusto = margemContribuicaoTeorica(3.607, 0.1); // ~0,6228
+    const margemIngenuaAntiga = 1 - 0.1; // 0,90 -- o que o bug produzia
+    expect(margemComCusto).toBeLessThan(margemIngenuaAntiga);
+    const mes = calcularMes(
+      {
+        faturamento: 0,
+        numeroVendas: 0,
+        custoDasPecas: 0,
+        despesasVariaveisPct: 0.1,
+        margemTeoricaFallback: margemComCusto,
+        gastosMensais: 5100,
+        salarios: 0,
+        movimentosCaixa: 0,
+        compras: 0,
+      },
+      26,
+    );
+    expect(mes.margemContribuicaoPct).toBeCloseTo(margemComCusto, 6);
   });
 
   it("dia com venda no PDV ignora a venda manual do mesmo dia", () => {
