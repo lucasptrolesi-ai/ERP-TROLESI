@@ -63,7 +63,7 @@ export function FinanceiroVarejoView(props: Props) {
   const router = useRouter();
 
   function mudarMes(mes: string) {
-    router.push(`/varejo/financeiro?mes=${mes}`);
+    router.push(`/varejo/financeiro?mes=${mes.slice(0, 7)}`);
   }
 
   return (
@@ -71,8 +71,8 @@ export function FinanceiroVarejoView(props: Props) {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-lg font-semibold">Controle Financeiro do Varejo</h1>
         <input
-          type="month"
-          value={props.mesSelecionado.slice(0, 7)}
+          type="date"
+          value={props.mesSelecionado}
           onChange={(e) => mudarMes(e.target.value)}
           className="rounded-lg border border-line bg-surface px-3 py-2 text-sm"
         />
@@ -345,8 +345,8 @@ function AbaConfiguracao({ config }: { config: ConfigFinanceira | null }) {
         <p className="text-sm font-semibold">Nova vigência</p>
         <p className="text-xs text-text-soft">Alterar aqui recalcula sugestões e metas — nunca muda o preço já gravado em nenhuma peça.</p>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-          <FormField label="Vigente desde" name="vigente_desde" type="month" defaultValue={config?.vigente_desde.slice(0, 7)} required />
-          <FormField label="Mês de abertura" name="mes_abertura" type="month" defaultValue={config?.mes_abertura.slice(0, 7)} required />
+          <FormField label="Vigente desde" name="vigente_desde" type="date" defaultValue={config?.vigente_desde} required />
+          <FormField label="Mês de abertura" name="mes_abertura" type="date" defaultValue={config?.mes_abertura} required />
           <FormField label="Dias abertos/mês" name="dias_abertos_mes" type="number" min={1} max={31} defaultValue={config?.dias_abertos_mes ?? 26} required />
           <FormField label="Fator de venda padrão" name="fator_venda_padrao" type="number" step="0.0001" min={0} defaultValue={config?.fator_venda_padrao ?? 10.1} required />
           <FormField label="Fator de venda mínimo" name="fator_venda_min" type="number" step="0.0001" min={0} defaultValue={config?.fator_venda_min ?? 9.0} required />
@@ -590,8 +590,8 @@ function SecaoGastos({ gastos }: { gastos: GastoVarejo[] }) {
           </label>
           <FormField label="Valor (R$)" name="valor" defaultValue={editando?.valor} required />
           <div className="grid grid-cols-2 gap-3">
-            <FormField label="Início" name="mes_inicio" type="month" defaultValue={editando?.mes_inicio.slice(0, 7)} required />
-            <FormField label="Fim (mensal, opcional) / Parcelas (compra)" name="mes_fim" type="month" defaultValue={editando?.mes_fim?.slice(0, 7)} />
+            <FormField label="Início" name="mes_inicio" type="date" defaultValue={editando?.mes_inicio} required />
+            <FormField label="Fim (mensal, opcional) / Parcelas (compra)" name="mes_fim" type="date" defaultValue={editando?.mes_fim} />
           </div>
           <FormField label="Parcelas (só compra)" name="parcelas" type="number" min={1} defaultValue={editando?.parcelas ?? undefined} />
         </>
@@ -633,8 +633,8 @@ function SecaoEquipe({ equipe }: { equipe: MembroEquipeVarejo[] }) {
             Somar encargos CLT por cima (desmarcado = valor já é o custo total)
           </label>
           <div className="grid grid-cols-2 gap-3">
-            <FormField label="Início" name="mes_inicio" type="month" defaultValue={editando?.mes_inicio.slice(0, 7)} required />
-            <FormField label="Fim (opcional)" name="mes_fim" type="month" defaultValue={editando?.mes_fim?.slice(0, 7)} />
+            <FormField label="Início" name="mes_inicio" type="date" defaultValue={editando?.mes_inicio} required />
+            <FormField label="Fim (opcional)" name="mes_fim" type="date" defaultValue={editando?.mes_fim} />
           </div>
         </>
       )}

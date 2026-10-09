@@ -2,6 +2,16 @@
 
 Histórico de decisões de escopo e arquitetura, na ordem em que foram tomadas. Decisões revistas ficam marcadas como tal, não apagadas.
 
+## 2026-10-09 (cont.) — Bug real em produção: `<input type="month">` não funciona no Safari
+
+Usuário reportou "nada acontece" ao tentar cadastrar um gasto no Controle Financeiro, já com as duas migrations aplicadas. Diagnosticado pelos logs reais do Supabase (`query_logs`, não suposição): `POST /rest/v1/varejo_gastos` voltando 400 com `error=22007` (SQLSTATE de data mal formatada no Postgres).
+
+**Causa raiz**: todos os seis campos de mês da tela (`vigente_desde`, `mes_abertura`, `mes_inicio`/`mes_fim` de gastos e de equipe) usavam `<input type="month">` — e **Safari (desktop e iOS) não suporta esse tipo de input**: ele degrada silenciosamente pra um campo de texto comum, sem date picker e sem validar o formato "AAAA-MM" mesmo com `required`. Qualquer texto que o navegador deixasse passar virava uma data inválida na hora de gravar. Era o primeiro `type="month"` do projeto inteiro — nenhuma tela antiga tinha pisado nessa casca de banana.
+
+**Correção**: trocado por `<input type="date">` em todo lugar (suportado de verdade em todo navegador) — o parser que já existia (`primeiroDiaDoMes`, que só olha os dois primeiros pedaços separados por `-`) já aceita uma data completa "AAAA-MM-DD" sem precisar de nenhuma mudança além da troca do tipo do campo e do `defaultValue` (que passou a receber a data completa vinda do banco, em vez do `.slice(0, 7)` que um `type="date"` não aceitaria como valor válido). O usuário escolhe qualquer dia do mês desejado no seletor — só o mês importa, o dia é descartado na gravação.
+
+**Nota de processo**: esta tela não tinha sido testada visualmente num navegador de verdade antes de ser dada como concluída (só lint/build/test automatizado) — exatamente o tipo de lacuna que a regra "testar no navegador" do projeto existe pra evitar. Ficou registrado aqui pra não se repetir.
+
 ## 2026-10-09 — Code-review do Controle Financeiro do Varejo (gate da regra 2 do CLAUDE.md)
 
 `/code-review medium` rodado sobre o módulo inteiro (motor, 2 migrations, telas, actions) antes de considerar a entrega de 2026-10-08 pronta — nenhuma das duas migrations tinha sido aplicada em produção ainda, então deu pra corrigir tudo sem reaplicar nada.
