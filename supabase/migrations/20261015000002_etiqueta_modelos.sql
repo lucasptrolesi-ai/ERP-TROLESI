@@ -205,11 +205,17 @@ begin
     }
   ]'::jsonb;
 
+  -- carimbar_operacao() recusa operacao_id explicito fora de uma sessao autenticada normal (ele
+  -- preenche sozinho, via operacao_atual()) -- este insert roda direto no corpo da migration, sem
+  -- sessao nenhuma, entao precisa do mesmo escape hatch que transferir_estoque() ja usa pra gravar
+  -- operacao_id na mao (app.transferencia), so pelo tempo deste insert.
+  perform set_config('app.transferencia', 'on', true);
   insert into public.etiqueta_modelos
     (operacao_id, nome, largura_mm, altura_mm, dpi, velocidade, escuro, areas_imprimiveis, elementos, padrao_varejo, ativo, criado_por)
   values
     (v_varejo, 'Joia rabicho', 95, 12, 203.2, 2, 5, v_areas, v_elementos, true, true, v_lucas)
   returning id into v_modelo_id;
+  perform set_config('app.transferencia', 'off', true);
 end $up$;
 
 -- VERIFICAR estrutura (modos ensaio e aplicar) ---------------------------------------------------
