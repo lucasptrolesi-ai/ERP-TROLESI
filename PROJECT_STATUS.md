@@ -2,12 +2,19 @@
 
 _Atualizado em 2026-10-15._
 
-## 2026-10-15 — Etiqueta de joia 95×12mm (Elgin L42 Pro Full) — pendente aplicar migration + configurar print-agent
+## 2026-10-15 (cont. 2) — Módulo Etiquetas, Fase A pronta — pendente aplicar migration; Fase B (editor visual) é a próxima
 
-Tela "Imprimir etiqueta" pronta em `/varejo/catalogo` (código, testes, `/code-review medium`, build — tudo passando). **Pendente antes de funcionar de ponta a ponta:**
-1. Lucas aplicar `supabase/migrations/20261015000001_solicitacoes_etiqueta_varejo.sql` (ensaio → aplicar, SQL Editor do Supabase).
-2. Criar a fila CUPS `Elgin_L42` na Mac da loja (`lpadmin`, ver `print-agent/README.md`) e confirmar `IMPRESSORA_ETIQUETA` no `.env`.
-3. Rodar `npm install` em `print-agent/` (nova dependência `qrcode`) e reiniciar o agente.
+Schema + motor genérico de ZPL (`modeloParaZpl`) + tela `/etiquetas` (Modelos, só leitura) + `/etiquetas/lote` (lote básico) + "Imprimir etiqueta" do cadastro migrado pro modelo padrão — tudo testado (`/code-review medium` com achados reais corrigidos), build limpo. Ver `DECISIONS.md`/`CHANGELOG.md` (2026-10-15, "Módulo Etiquetas, Fase A") pro detalhe técnico.
+
+**Pendente antes de funcionar de ponta a ponta:**
+1. Lucas aplicar `supabase/migrations/20261015000002_etiqueta_modelos.sql` (ensaio → aplicar, SQL Editor do Supabase) — a `20261015000001` de baixo já está aplicada.
+2. Nada novo pro print-agent nesta fase — ele só ficou mais simples (não monta ZPL mais, só envia). A fila CUPS `Elgin_L42` já configurada na entrada anterior continua valendo.
+
+**Próxima tarefa**: Fase B do plano aprovado — editor visual de modelo (arrastar/soltar elementos) e tela de Histórico. Esperando o usuário revisar a Fase A (pedido explícito do plano: "parar e mostrar" entre fases) antes de começar.
+
+## 2026-10-15 — Etiqueta de joia 95×12mm (Elgin L42 Pro Full) — primeira versão, substituída pelo Módulo Etiquetas acima
+
+Tela "Imprimir etiqueta" pronta em `/varejo/catalogo` (código, testes, `/code-review medium`, build — tudo passando). Esta entrada ficou **superada** pela entrada do Módulo Etiquetas logo acima no mesmo dia — o template fixo virou o modelo semente "Joia rabicho" dentro do motor genérico, e o print-agent não monta mais ZPL (passou a só enviar).
 
 Ver `DECISIONS.md`/`CHANGELOG.md` (2026-10-15) pro porquê de cada escolha técnica — é a 3ª tentativa de etiqueta do projeto, as duas anteriores (Argox, agosto/2026) foram abandonadas.
 

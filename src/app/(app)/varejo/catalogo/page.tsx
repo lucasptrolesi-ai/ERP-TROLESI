@@ -4,8 +4,10 @@ import { createClient } from "@/lib/supabase/server";
 import { buscarCalculadoraPreco, type CalculadoraPreco } from "@/lib/varejo/financeiro-dados";
 import { CatalogoVarejoView } from "./catalogo-varejo-view";
 import type { LinhaCatalogo } from "@/lib/varejo/tipos";
+import type { ModeloEtiqueta } from "@/lib/etiquetas/zpl";
 
 export type { CalculadoraPreco };
+export type ModeloComId = ModeloEtiqueta & { id: string };
 
 export default async function CatalogoVarejoPage() {
   const perfil = await getPerfilAtual();
@@ -19,12 +21,15 @@ export default async function CatalogoVarejoPage() {
   }
 
   const supabase = await createClient();
-  const [{ data: variacoes }, { data: depositos }] = await Promise.all([
+  const [{ data: variacoes }, { data: depositos }, { data: modeloPadrao }] = await Promise.all([
     supabase
       .from("catalogo_variacoes")
       .select("id, produto_id, sku, atributos, preco_venda, preco_minimo, foto_url, localizacao, ativo, catalogo_produtos(nome, categoria)")
       .order("criado_em", { ascending: false }),
     supabase.from("depositos").select("id, nome").eq("ativo", true).order("nome"),
+    // Módulo Etiquetas (2026-10-15) -- modal "Imprimir etiqueta" usa o modelo padrão do Varejo.
+    // Acesso de admin e estoque (mesma dupla de papéis que já cadastra peça aqui), não só admin.
+    supabase.from("etiqueta_modelos").select("*").eq("padrao_varejo", true).maybeSingle(),
   ]);
 
   const linhas: LinhaCatalogo[] = (variacoes ?? []).map((v) => {
@@ -56,6 +61,7 @@ export default async function CatalogoVarejoPage() {
       linhas={linhas}
       depositos={(depositos ?? []) as { id: string; nome: string }[]}
       calculadora={calculadora}
+      modeloEtiqueta={(modeloPadrao as ModeloComId | null) ?? undefined}
     />
   );
 }

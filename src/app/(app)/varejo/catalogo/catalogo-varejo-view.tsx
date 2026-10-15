@@ -10,16 +10,18 @@ import { formatarAtributos, parseAtributos } from "@/lib/varejo/atributos";
 import { PecaCatalogoForm } from "./peca-catalogo-form";
 import { ImprimirEtiquetaModal, type PecaParaEtiqueta } from "./imprimir-etiqueta-modal";
 import type { LinhaCatalogo, VariacaoNova } from "@/lib/varejo/tipos";
-import type { CalculadoraPreco } from "./page";
+import type { CalculadoraPreco, ModeloComId } from "./page";
 
 export function CatalogoVarejoView({
   linhas,
   depositos,
   calculadora,
+  modeloEtiqueta,
 }: {
   linhas: LinhaCatalogo[];
   depositos: { id: string; nome: string }[];
   calculadora?: CalculadoraPreco;
+  modeloEtiqueta?: ModeloComId;
 }) {
   const [novoAberto, setNovoAberto] = useState(false);
   const [entradaVariacao, setEntradaVariacao] = useState<LinhaCatalogo | null>(null);
@@ -186,7 +188,17 @@ export function CatalogoVarejoView({
       {entradaVariacao && (
         <EntradaEstoqueModal variacao={entradaVariacao} depositos={depositos} onFechar={() => setEntradaVariacao(null)} />
       )}
-      {etiquetaPara && <ImprimirEtiquetaModal peca={etiquetaPara} onFechar={() => setEtiquetaPara(null)} />}
+      {etiquetaPara && modeloEtiqueta && (
+        <ImprimirEtiquetaModal peca={etiquetaPara} modelo={modeloEtiqueta} onFechar={() => setEtiquetaPara(null)} />
+      )}
+      {etiquetaPara && !modeloEtiqueta && (
+        <Modal aberto onFechar={() => setEtiquetaPara(null)} titulo="Imprimir etiqueta">
+          <p className="text-sm text-text-soft">
+            Nenhum modelo de etiqueta cadastrado ainda. Peça pra um admin cadastrar o modelo padrão do Varejo em{" "}
+            <span className="font-semibold text-ink">Etiquetas</span>.
+          </p>
+        </Modal>
+      )}
     </div>
   );
 }

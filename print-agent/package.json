@@ -8,7 +8,6 @@
     "start": "node agent.js"
   },
   "dependencies": {
-    "usb": "^2.18.0",
-    "qrcode": "^1.5.4"
+    "usb": "^2.18.0"
   }
 }

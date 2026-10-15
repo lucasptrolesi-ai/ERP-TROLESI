@@ -69,12 +69,11 @@ const MAQUINA = os.hostname();
 const COLUNAS = 48; // confirmado na prática pra Elgin i8 58mm (48mm úteis)
 const INTERVALO_POLLING_MS = Number(process.env.INTERVALO_POLLING_MS) || 2000;
 
-// Etiqueta de joia (95×12mm, Elgin L42 Pro Full) — fila separada (solicitacoes_etiqueta),
-// protocolo totalmente diferente do cupom (ZPL via CUPS raw, não ESC/POS) e impressora diferente —
-// ver gerarZpl() em etiqueta-zpl.js e DECISIONS.md pra por que ZPL/^GFA e não PPLA/EPL2/^BQ (histórico
-// de 2 tentativas fracassadas com outra impressora, Argox). Fila do cupom (acima) e da etiqueta
-// (aqui embaixo) são processadas de forma independente — um erro numa nunca trava a outra.
-const etiquetaZpl = require("./etiqueta-zpl.js");
+// Etiqueta de joia — fila separada (solicitacoes_etiqueta), protocolo totalmente diferente do cupom
+// (ZPL via CUPS raw, não ESC/POS) e impressora diferente. O app monta o ZPL inteiro (motor genérico
+// de modelos, src/lib/etiquetas/zpl.ts) e grava pronto na coluna `zpl` — este agente só ENVIA, não
+// monta nada (ver DECISIONS.md "Módulo Etiquetas"). Fila do cupom (acima) e da etiqueta (aqui
+// embaixo) são processadas de forma independente — um erro numa nunca trava a outra.
 const IMPRESSORA_ETIQUETA = process.env.IMPRESSORA_ETIQUETA || "Elgin_L42";
 // Pasta onde o comprovante em PDF é salvo (pra encaminhar manualmente pro
 // cliente via WhatsApp, ver README.md) — organizada em <ano>/<mes>/
@@ -435,8 +434,8 @@ function enviarParaImpressoraUsb(buffer) {
   });
 }
 
-// Etiqueta de joia: entrega o ZPL já pronto (montado por etiquetaZpl.gerarZpl) direto pra fila CUPS
-// da Elgin L42 Pro Full em modo raw — "-o raw" é o que evita o macOS reprocessar/rasterizar o ZPL
+// Etiqueta: entrega o ZPL já pronto (montado pelo app, não aqui) direto pra fila CUPS da Elgin L42
+// Pro Full em modo raw — "-o raw" é o que evita o macOS reprocessar/rasterizar o ZPL
 // (o problema original que também afetava o cupom, ver topo do arquivo). A fila CUPS precisa ter
 // sido criada antes com um PPD "sample.drv/zebra.ppd" (ver README.md) — o driver oficial da Elgin
 // pra Mac não funciona no macOS 26/Apple Silicon, testado e descartado.
@@ -501,10 +500,7 @@ function buscarPendentes() {
 }
 
 function buscarPendentesEtiqueta() {
-  return requisicaoSupabase(
-    "/solicitacoes_etiqueta?status=eq.pendente&order=criado_em.asc&limit=5&select=id,linha1,preco,linha3,codigo,quantidade",
-    "GET",
-  );
+  return requisicaoSupabase("/solicitacoes_etiqueta?status=eq.pendente&order=criado_em.asc&limit=5&select=id,zpl", "GET");
 }
 
 function marcarEtiquetaComoImpressa(id) {
@@ -521,9 +517,31 @@ function marcarEtiquetaComoErro(id, mensagemErro) {
   });
 }
 
-// Mesmo espírito de processarPendentes() (cupom), mas mais simples: não tem segunda via (PDF), só
-// monta o ZPL e manda pra fila CUPS. Chamado separado no loop principal — um erro aqui (ex: fila CUPS
-// não existe, Elgin desligada) nunca impede o cupom de continuar imprimindo, e vice-versa.
+// Histórico do Módulo Etiquetas (etiqueta_impressoes) — uma linha por solicitação, criada pelo app
+// já em 'pendente' (ver src/lib/actions/etiquetas.ts) e atualizada aqui em paralelo com
+// solicitacoes_etiqueta, pra tela de Histórico poder mostrar pendente/impresso/erro sem precisar de
+// join. Se a solicitação for antiga (sem linha correspondente em etiqueta_impressoes), o PATCH some
+// sem alterar nada — não é erro, não precisa de tratamento especial.
+function marcarImpressaoComoImpressa(solicitacaoId) {
+  return requisicaoSupabase(`/etiqueta_impressoes?solicitacao_id=eq.${solicitacaoId}`, "PATCH", {
+    status: "impresso",
+    impresso_em: new Date().toISOString(),
+  });
+}
+
+function marcarImpressaoComoErro(solicitacaoId, mensagemErro) {
+  return requisicaoSupabase(`/etiqueta_impressoes?solicitacao_id=eq.${solicitacaoId}`, "PATCH", {
+    status: "erro",
+    erro: mensagemErro,
+  });
+}
+
+// Mesmo espírito de processarPendentes() (cupom), mas mais simples: não tem segunda via (PDF) e não
+// monta nada — o app já grava o ZPL pronto (Módulo Etiquetas, 2026-10-15: motor genérico de modelos
+// em src/lib/etiquetas/zpl.ts, não mais fixo a uma peça só) — este agente só ENVIA pra fila CUPS, o
+// mesmo espírito do modo "rede" do cupom (bytes crus, zero lógica de negócio aqui). Chamado separado
+// no loop principal — um erro aqui (ex: fila CUPS não existe, Elgin desligada) nunca impede o cupom
+// de continuar imprimindo, e vice-versa.
 async function processarPendentesEtiqueta() {
   let pendentes;
   try {
@@ -535,16 +553,17 @@ async function processarPendentesEtiqueta() {
 
   for (const solicitacao of pendentes) {
     try {
-      const zpl = etiquetaZpl.gerarZpl({
-        linha1: solicitacao.linha1,
-        preco: solicitacao.preco,
-        linha3: solicitacao.linha3,
-        codigo: solicitacao.codigo,
-        quantidade: solicitacao.quantidade,
-      });
-      await enviarZplParaImpressora(zpl);
+      if (!solicitacao.zpl) {
+        throw new Error("Solicitação sem ZPL pronto (zpl ausente) — recrie a solicitação pelo app.");
+      }
+      await enviarZplParaImpressora(solicitacao.zpl);
       await marcarEtiquetaComoImpressa(solicitacao.id);
-      console.log(`Etiqueta impressa: solicitação ${solicitacao.id} (código ${solicitacao.codigo}, ${solicitacao.quantidade}x)`);
+      try {
+        await marcarImpressaoComoImpressa(solicitacao.id);
+      } catch (erroHistorico) {
+        console.error(`Erro ao atualizar histórico da etiqueta (solicitação ${solicitacao.id}):`, erroHistorico.message);
+      }
+      console.log(`Etiqueta impressa: solicitação ${solicitacao.id}`);
     } catch (erro) {
       const mensagem = String((erro && erro.message) || erro);
       console.error(`Erro ao imprimir etiqueta (solicitação ${solicitacao.id}):`, mensagem);
@@ -552,6 +571,11 @@ async function processarPendentesEtiqueta() {
         await marcarEtiquetaComoErro(solicitacao.id, mensagem);
       } catch (erroAoMarcar) {
         console.error(`Erro ao marcar etiqueta ${solicitacao.id} como erro:`, erroAoMarcar.message);
+      }
+      try {
+        await marcarImpressaoComoErro(solicitacao.id, mensagem);
+      } catch (erroHistorico) {
+        console.error(`Erro ao atualizar histórico da etiqueta (solicitação ${solicitacao.id}):`, erroHistorico.message);
       }
     }
   }

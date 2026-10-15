@@ -17,6 +17,7 @@ const ITENS = [
   { href: "/varejo/pdv", label: "PDV Varejo", icone: "🛍️" },
   { href: "/varejo/caixa", label: "Caixa", icone: "💵" },
   { href: "/varejo/catalogo", label: "Catálogo Varejo", icone: "📒" },
+  { href: "/etiquetas", label: "Etiquetas", icone: "🏷️" },
   { href: "/varejo/supervisores", label: "Supervisores", icone: "🔐" },
   { href: "/varejo/dashboard", label: "Painel Varejo", icone: "🧮" },
   { href: "/varejo/financeiro", label: "Controle Financeiro", icone: "📐" },

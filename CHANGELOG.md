@@ -1,5 +1,15 @@
 # CHANGELOG — ERP Trolesi
 
+## 2026-10-15 (cont. 2) — Módulo Etiquetas, Fase A: editor de modelos tipo BarTender (schema + motor genérico + lote básico)
+
+- Motor genérico de ZPL (`src/lib/etiquetas/zpl.ts`, `modeloParaZpl`): modelo (tamanho/DPI/elementos) + dados da peça → ZPL completo. Suporta texto (fixo ou ligado a campo da peça, com fallback/prefixo/formato/encolher-se-não-couber), QR (bitmap `^GFA`), código de barras (Code128/ITF), linha/retângulo (`^GB`) e imagem (bitmap em cache). Substitui o gerador fixo da etiqueta "Joia rabicho" — reproduz o mesmo ZPL byte a byte (testado em snapshot).
+- Migration `20261015000002_etiqueta_modelos.sql`: tabelas `etiqueta_modelos` (um modelo padrão por operação) e `etiqueta_impressoes` (histórico), `solicitacoes_etiqueta` evoluída pra carregar o ZPL já pronto (`zpl`, `modelo_id`). Modelo semente "Joia rabicho" convertido pro formato de elementos.
+- Nova tela `/etiquetas` (Modelos, só leitura nesta fase — editor visual é a próxima) e `/etiquetas/lote` (busca, seleção, quantidade por peça, escolha de modelo, imprimir — "lote básico" do plano aprovado). Rota liberada pra admin/estoque, dentro do Varejo.
+- "Imprimir etiqueta" no cadastro do catálogo (`/varejo/catalogo`) passa a usar o modelo padrão do Varejo via o motor genérico, em vez do template fixo.
+- `print-agent/agent.js` simplificado: não monta mais ZPL nenhum (o app já manda pronto) — só envia pra fila CUPS e atualiza `solicitacoes_etiqueta`/`etiqueta_impressoes`. `print-agent/etiqueta-zpl.js` removido (dependência `qrcode` também saiu do print-agent).
+- `/code-review medium` rodado no fim da fase — achado real corrigido: edição do campo "Código no QR" na tela não alcançava o elemento do QR (só o texto ao lado), fazendo a etiqueta impressa divergir da pré-visualização. Mais 3 achados menores corrigidos (quantidade 0 travando o lote inteiro, histórico não-fatal, validação de entrada reposta). Ver `DECISIONS.md` pro detalhe de cada um.
+- Pendente: Lucas aplicar a migration (SQL Editor) — print-agent não precisa de nenhuma configuração nova pra esta fase (só segue enviando pra mesma fila CUPS `Elgin_L42` já configurada).
+
 ## 2026-10-15 — Etiqueta de joia 95×12mm (Elgin L42 Pro Full), imprimível direto do cadastro no Varejo
 
 - Nova tela "Imprimir etiqueta" em `/varejo/catalogo`: abre sozinha depois de cadastrar uma peça nova, ou pelo botão "Etiqueta" numa peça já existente. Campos (linha de cima, preço, linha de baixo, código do QR, quantidade) pré-preenchidos a partir da peça, mas editáveis, com pré-visualização ao vivo da etiqueta 95×12mm.

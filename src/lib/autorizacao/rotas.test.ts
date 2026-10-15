@@ -77,6 +77,15 @@ describe("decidirAcesso — papel", () => {
   });
 });
 
+describe("decidirAcesso — Módulo Etiquetas", () => {
+  it("admin e estoque acessam no Varejo; vendedor não; fora do Varejo é negado", () => {
+    expect(decidirAcesso("/etiquetas", adminNoVarejo).permitido).toBe(true);
+    expect(decidirAcesso("/etiquetas/lote", { ...adminNoVarejo, papel: "estoque" }).permitido).toBe(true);
+    expect(decidirAcesso("/etiquetas", { ...adminNoVarejo, papel: "vendedor" })).toEqual({ permitido: false, motivo: "papel" });
+    expect(decidirAcesso("/etiquetas", admin)).toMatchObject({ permitido: false, motivo: "operacao_errada" });
+  });
+});
+
 describe("destinoInicial", () => {
   it("cada operação abre na sua tela principal", () => {
     expect(destinoInicial("ATACADO")).toBe("/pedidos");

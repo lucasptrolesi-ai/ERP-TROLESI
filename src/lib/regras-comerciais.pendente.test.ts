@@ -118,6 +118,12 @@ describe("2026-10-15 — Etiqueta de joia 95×12mm no Varejo (implementado em SQ
   );
 });
 
+describe("2026-10-15 — Módulo Etiquetas, Fase A (implementado em SQL, sem teste de integração)", () => {
+  it.todo("só um modelo pode ser padrao_varejo por operação (índice único parcial, migration 20261015000002)");
+  it.todo("solicitacoes_etiqueta aceita zpl pronto OU os campos antigos (linha1/preco/codigo), nunca nenhum dos dois (check constraint)");
+  it.todo("só admin/estoque leem/criam etiqueta_modelos e etiqueta_impressoes; só o print-agent (service_role) marca status");
+});
+
 describe("Código Ventilador (investigado em 2026-07-21: sem evidência de uso real nos 44 produtos migrados do GMax — feature permanece não implementada)", () => {
   it.todo(
     "se uma evidência real de uso aparecer no futuro: código Ventilador nunca aparece em comprovante ou tela visível ao cliente, mesmo quando ativado por permissão",

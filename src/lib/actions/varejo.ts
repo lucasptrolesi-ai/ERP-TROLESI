@@ -258,50 +258,9 @@ export async function cadastrarPecaCatalogo(
   return { produtoId: produtoId as string, variacaoId: variacao?.id, sku: variacao?.sku };
 }
 
-// --- Etiqueta de joia (95×12mm, Elgin L42 Pro Full) -------------------------------------------------
-// Mesmo padrão do cupom térmico (ver src/lib/actions/impressao.ts): o app grava o pedido na fila
-// (solicitacoes_etiqueta), o print-agent (rodando na Mac da loja) consome e imprime de verdade via
-// ZPL/CUPS raw. O ZPL em si nunca é montado aqui — só no print-agent (print-agent/etiqueta-zpl.js) e,
-// pra pré-visualização/testes, em src/lib/etiquetas/zpl.ts.
-export type StatusEtiqueta = { status: "pendente" | "impresso" | "erro"; mensagem: string | null };
-
-export async function solicitarImpressaoEtiqueta(dados: {
-  produtoId: string;
-  variacaoId: string;
-  linha1: string;
-  preco: string;
-  linha3: string;
-  codigo: string;
-  quantidade: number;
-}): Promise<{ id: string } | { erro: string }> {
-  if (dados.codigo.trim() === "") return { erro: "Informe o código." };
-  if (!Number.isInteger(dados.quantidade) || dados.quantidade < 1) return { erro: "Quantidade inválida." };
-  const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("solicitacoes_etiqueta")
-    .insert({
-      produto_id: dados.produtoId,
-      variacao_id: dados.variacaoId,
-      linha1: dados.linha1.trim(),
-      preco: dados.preco.trim(),
-      linha3: dados.linha3.trim(),
-      codigo: dados.codigo.trim(),
-      quantidade: dados.quantidade,
-    })
-    .select("id")
-    .single();
-  if (error) return { erro: mensagem(error) };
-  return { id: data.id };
-}
-
-export async function buscarStatusEtiqueta(id: string): Promise<StatusEtiqueta> {
-  const supabase = await createClient();
-  const { data, error } = await supabase.from("solicitacoes_etiqueta").select("status, erro").eq("id", id).single();
-  if (error || !data) {
-    return { status: "erro", mensagem: error?.message ?? "Solicitação de etiqueta não encontrada." };
-  }
-  return { status: data.status, mensagem: data.erro };
-}
+// Etiqueta de joia: a partir do Módulo Etiquetas (2026-10-15), a criação/consulta de status mora em
+// src/lib/actions/etiquetas.ts (imprimirEtiquetas/buscarStatusEtiqueta) — motor genérico de modelos,
+// não mais fixo a esta peça. Ver DECISIONS.md "Módulo Etiquetas".
 
 /** Edição de uma peça já cadastrada — aberta pelo "Ler código" (bipou e achou) ou clicando no nome
  * na lista. Edita nome/categoria do produto (pai) junto com sku/atributos/preço/foto/ativo dessa
