@@ -110,6 +110,14 @@ describe("2026-10-09 — Dívida com o Atacado por cadastro direto no Varejo (im
   it.todo("marcar uma dívida como paga/em aberto exige pago_em coerente com o status (check constraint) e fica auditado");
 });
 
+describe("2026-10-15 — Etiqueta de joia 95×12mm no Varejo (implementado em SQL/print-agent, sem teste de integração)", () => {
+  it.todo("só admin/estoque criam solicitação de etiqueta (RLS de solicitacoes_etiqueta, migration 20261015000001)");
+  it.todo("o app nunca marca uma solicitação como impresso/erro — só o print-agent, via service_role, bypassando RLS");
+  it.todo(
+    "print-agent imprime a etiqueta via CUPS raw (lp -o raw) na fila configurada em IMPRESSORA_ETIQUETA, com ZPL gerado por etiqueta-zpl.js (3ª tentativa de etiqueta do projeto — as duas primeiras, com Argox, foram abandonadas; geometria/protocolo conferidos fisicamente desta vez, ver DECISIONS.md)",
+  );
+});
+
 describe("Código Ventilador (investigado em 2026-07-21: sem evidência de uso real nos 44 produtos migrados do GMax — feature permanece não implementada)", () => {
   it.todo(
     "se uma evidência real de uso aparecer no futuro: código Ventilador nunca aparece em comprovante ou tela visível ao cliente, mesmo quando ativado por permissão",

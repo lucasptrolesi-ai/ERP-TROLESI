@@ -92,8 +92,9 @@ loja.
 ## Instalação (Mac, modo `usb` — testado 2026-08-31)
 
 1. Copiar a pasta `print-agent/` (se ainda não estiver aqui) e rodar
-   `npm install` (única dependência: `usb`, tem binário pré-compilado,
-   não precisa de nada instalado no sistema).
+   `npm install` (dependências: `usb`, com binário pré-compilado, não
+   precisa de nada instalado no sistema; e `qrcode`, pura em JS, usada só
+   pela etiqueta de joia — ver seção própria abaixo).
 2. `cp .env.example .env`, preencher `NEXT_PUBLIC_SUPABASE_URL` e
    `SUPABASE_SERVICE_ROLE_KEY` (mesmo de cima) e definir
    `MODO_IMPRESSAO_CUPOM=usb`.
@@ -111,6 +112,59 @@ loja.
    `print-agent/agente.log` (gitignored). Carregar com
    `launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.trolesi.print-agent.plist`.
    Pra parar/desabilitar: `launchctl bootout gui/$(id -u)/com.trolesi.print-agent`.
+
+## Etiqueta de joia (95×12mm, Elgin L42 Pro Full — 2026-10-15)
+
+Fila separada da do cupom: `solicitacoes_etiqueta` em vez de
+`solicitacoes_impressao`, impressora diferente, protocolo diferente (ZPL,
+não ESC/POS). O app grava o pedido a partir da tela "Imprimir etiqueta"
+(`/varejo/catalogo`), este agente monta o ZPL (`etiqueta-zpl.js`) e manda
+pra fila CUPS da impressora.
+
+**Esta é a 3ª tentativa de etiqueta neste projeto** — as duas primeiras
+(Argox OS-214TT, PPLA/EPL2 cru) foram abandonadas depois de horas sem
+sucesso confiável (etiqueta em branco, dado vazando pra etiqueta vizinha,
+dimensão nunca confirmada — ver DECISIONS.md e migrations
+`20260814000001`/`20260817000001`/`20260825000001`/`20260825000002`). Esta
+é uma impressora e um protocolo diferentes, com a geometria medida na
+etiqueta física real antes do ZPL ser aprovado — não é a mesma aposta.
+
+### Instalação
+
+1. Impressora Elgin L42 Pro Full ligada via USB no Mac.
+2. Criar a fila CUPS em modo raw (o macOS não aceita fila "raw" pura —
+   usa-se um PPD genérico só pra habilitar o transporte, o conteúdo
+   continua cru):
+   ```
+   lpadmin -p Elgin_L42 -E -v usb://ELGIN/L42PRO%20FULL?serial=<serial> -m drv:///sample.drv/zebra.ppd
+   ```
+   (achar a URI exata com `lpinfo -v` com a impressora conectada).
+3. **Não instalar o driver oficial da Elgin pro Mac** — não funciona no
+   macOS 26/Apple Silicon, testado e descartado.
+4. `cp .env.example .env` (se ainda não tiver) e conferir
+   `IMPRESSORA_ETIQUETA` (nome da fila CUPS criada acima — default
+   `Elgin_L42`).
+5. `npm install` na pasta `print-agent/` (adiciona `qrcode`, usada pra
+   montar o bitmap `^GFA` do QR code — ver abaixo por que não é o comando
+   nativo `^BQ`).
+
+### Por que o QR vira bitmap (`^GFA`), não o comando nativo `^BQ`
+
+Testado fisicamente: na Elgin L42 Pro Full, `^BQ` imprime o QR uns 4mm
+abaixo da posição pedida em `^FO` e sai cortado na base da etiqueta — bug
+de implementação da própria impressora, não do ZPL. A solução foi gerar o
+QR como imagem (bitmap `^GFA`, escala de 3 dots por módulo) com a
+biblioteca `qrcode`, a mesma já usada no app principal
+(`src/lib/etiquetas/zpl.ts`) — o gerador de ZPL/QR está duplicado aqui
+(`etiqueta-zpl.js`, JS puro, sem build) e lá (TypeScript, testado com
+Vitest); um teste de consistência garante que as duas cópias produzem o
+mesmo ZPL pra mesma entrada. Mudar uma exige mudar a outra.
+
+### Geometria (não mexer sem reimprimir e remedir)
+
+Etiqueta física 95×12mm, 203dpi: preço à esquerda (2–25mm), QR + SKU no
+meio (24,5–43mm), alça tracejada sem impressão (46–85mm). Template ZPL
+completo em `etiqueta-zpl.js`/`src/lib/etiquetas/zpl.ts`.
 
 ## Limitações conhecidas
 

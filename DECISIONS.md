@@ -2,6 +2,22 @@
 
 Histórico de decisões de escopo e arquitetura, na ordem em que foram tomadas. Decisões revistas ficam marcadas como tal, não apagadas.
 
+## 2026-10-15 — Etiqueta de joia 95×12mm (Elgin L42 Pro Full): 3ª tentativa, desta vez funcionando
+
+Terceira vez que este projeto tenta imprimir etiqueta de joia a partir do ERP — as duas primeiras (ver `20260814000001`/`20260817000001`/`20260825000001`/`20260825000002` e `CHANGELOG.md`/commits de agosto/2026) usaram uma Argox OS-214TT com comando PPLA/EPL2 cru e foram abandonadas depois de horas sem resultado confiável: etiqueta em branco, dado vazando pra etiqueta vizinha, e — o problema raiz — a dimensão real da etiqueta nunca foi confirmada com certeza (testes com 44mm/43mm/41,63mm/95mm todos inconsistentes).
+
+**O que muda desta vez, e por quê não é a mesma aposta:**
+- Impressora diferente (Elgin L42 Pro Full, não a Argox) e protocolo diferente (ZPL, não PPLA/EPL2).
+- A geometria da etiqueta foi **medida com régua na etiqueta física real já impressa** antes desta migration existir — não suposta. O ZPL inteiro foi validado no papel (resultado final aprovado) antes de virar código.
+- Driver oficial da Elgin pro Mac **não funciona** no macOS 26/Apple Silicon — testado e descartado em favor de uma fila CUPS em modo raw (`lpadmin ... -m drv:///sample.drv/zebra.ppd`, `lp -o raw`), o mesmo princípio "bytes crus, sem rasterização" que já funciona pro cupom térmico desde 2026-08-31.
+- **QR code via bitmap (`^GFA`), não o comando nativo `^BQ`**: testado fisicamente que `^BQ` imprime ~4mm abaixo da posição pedida e corta na base nesta impressora — bug da própria impressora. O QR é gerado como imagem (biblioteca `qrcode`, escala de 3 dots por módulo, 63×63 dots/504 bytes pra um código de até 8 caracteres) em vez de delegado ao firmware.
+
+**Arquitetura**: mesmo padrão do cupom térmico (fila `solicitacoes_etiqueta` no Supabase, print-agent consome e imprime) — decisão consciente de reaproveitar um padrão que já funciona em produção, em vez de inventar um mecanismo novo. Diferença de schema: esta tabela já nasce com `operacao_id` (a arquitetura de operações não existia na tentativa original de agosto) e os grants seguem o padrão mais recente e mais estrito (`revoke all` + grant mínimo) em vez do grant mais solto que `solicitacoes_impressao` tinha originalmente.
+
+**Por que o gerador de ZPL está duplicado** (`src/lib/etiquetas/zpl.ts`, TypeScript/Vitest, e `print-agent/etiqueta-zpl.js`, JS puro): o print-agent roda isolado numa Mac da loja, instalado como pasta copiada (não faz parte do bundle do Next.js) — importar através da fronteira das duas pastas quebraria essa portabilidade. Um teste de consistência (`zpl.consistencia.test.ts`, usando `createRequire` pra carregar o `.js` direto num teste Vitest) garante que as duas cópias produzem o mesmo ZPL pra mesma entrada; mudar uma sem mudar a outra falha o teste.
+
+**Achado real no `/code-review medium` desta entrega**: o arquivo ZPL temporário estava sendo gravado em `fs.writeFile(..., "ascii")`, mas o template declara `^CI28` (pede à impressora pra interpretar texto como UTF-8) — "ascii" trunca qualquer acento pro byte baixo sozinho (`"é"` → `0xE9`), uma sequência UTF-8 inválida. Corrigido pra `"utf8"` (confirmado por reprodução direta: `fs.writeFileSync(p, "Anéis", "ascii")` grava `41 6e e9 69 73`, enquanto `"utf8"` grava `41 6e c3 a9 69 73`, o que `^CI28` espera). Texto puro ASCII sai idêntico nos dois, então nada que já funcionava quebrou.
+
 ## 2026-10-09 (cont. 3) — Dívida com o Atacado lançada no cadastro da peça no Varejo (NÃO usa a transferência formal)
 
 Pedido do dono: parar de usar `transferir_estoque`/`/transferencia` (mecanismo oficial intercompany, só acessível do contexto Atacado) pra receber peça nova no Varejo. Ele quer digitar o "código" do Atacado (ex: 10.0) direto no cadastro da peça no catálogo do Varejo, o sistema calcular custo (código × 2,8, mesmo multiplicador de `parametros_multiplicador`), sugerir preço de venda/mínimo pelo Controle Financeiro **sem ele precisar preencher na mão**, e registrar o quanto fica devendo (pago/em aberto) — tudo numa tela só.

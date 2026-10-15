@@ -173,6 +173,12 @@ export type CompraAtacadoNaCadastro = {
   depositoId: string;
 };
 
+// produtoId/variacaoId/sku só vêm preenchidos ao CRIAR uma peça nova (pra abrir a tela "Imprimir
+// etiqueta" em seguida, ver onPecaCriada em peca-catalogo-form.tsx) — editarPecaCatalogo também
+// devolve esse formato (sempre undefined) só pra manter o mesmo tipo nos dois lados do `peca ? ... :
+// ...` em peca-catalogo-form.tsx, sem precisar de type guard no chamador.
+export type ResultadoPecaCatalogo = { erro?: string; produtoId?: string; variacaoId?: string; sku?: string };
+
 /** Cadastro de UMA peça de cada vez — mesmo fluxo do PDV Eventos (bipar código, foto local ou pelo
  * celular): cria o produto (pai) já com sua primeira variação. sku em branco vira número sequencial
  * sozinho (trigger definir_sku_variacao_catalogo, migration 20260929000001) — o componente
@@ -188,7 +194,7 @@ export async function cadastrarPecaCatalogo(
   fotoUrlDoCelular: string | null,
   localizacaoTexto: string,
   compraAtacado: CompraAtacadoNaCadastro | null = null,
-): Promise<{ erro?: string }> {
+): Promise<ResultadoPecaCatalogo> {
   if (nome.trim() === "") return { erro: "Informe o nome do produto." };
   if (!Number.isFinite(precoVenda) || precoVenda <= 0) return { erro: "Informe o preço de venda." };
   const supabase = await createClient();
@@ -219,28 +225,82 @@ export async function cadastrarPecaCatalogo(
   });
   if (error) return { erro: mensagem(error) };
 
-  if (compraAtacado) {
-    const { data: variacao } = await supabase
-      .from("catalogo_variacoes")
-      .select("id")
-      .eq("produto_id", produtoId as string)
-      .limit(1)
-      .maybeSingle();
-    if (variacao) {
-      const { error: erroCompra } = await supabase.rpc("registrar_compra_atacado_varejo", {
-        p_variacao_id: variacao.id,
-        p_deposito_id: compraAtacado.depositoId,
-        p_codigo_atacado: compraAtacado.codigoAtacado,
-        p_quantidade: compraAtacado.quantidade,
-        p_status: compraAtacado.status,
-      });
-      if (erroCompra) return { erro: `Peça cadastrada, mas falhou ao registrar a compra do Atacado: ${mensagem(erroCompra)}` };
+  // sku em branco vira número sequencial sozinho (trigger, ver comentário acima) — busca de volta a
+  // variação recém-criada tanto pra encadear a compra do Atacado abaixo quanto pra devolver o sku de
+  // verdade pro chamador abrir a tela "Imprimir etiqueta" com o código que o PDV realmente bipa.
+  const { data: variacao } = await supabase
+    .from("catalogo_variacoes")
+    .select("id, sku")
+    .eq("produto_id", produtoId as string)
+    .limit(1)
+    .maybeSingle();
+
+  if (compraAtacado && variacao) {
+    const { error: erroCompra } = await supabase.rpc("registrar_compra_atacado_varejo", {
+      p_variacao_id: variacao.id,
+      p_deposito_id: compraAtacado.depositoId,
+      p_codigo_atacado: compraAtacado.codigoAtacado,
+      p_quantidade: compraAtacado.quantidade,
+      p_status: compraAtacado.status,
+    });
+    if (erroCompra) {
+      return {
+        erro: `Peça cadastrada, mas falhou ao registrar a compra do Atacado: ${mensagem(erroCompra)}`,
+        produtoId: produtoId as string,
+        variacaoId: variacao.id,
+        sku: variacao.sku,
+      };
     }
   }
 
   revalidatePath("/varejo/catalogo");
   revalidatePath("/varejo/financeiro", "layout");
-  return {};
+  return { produtoId: produtoId as string, variacaoId: variacao?.id, sku: variacao?.sku };
+}
+
+// --- Etiqueta de joia (95×12mm, Elgin L42 Pro Full) -------------------------------------------------
+// Mesmo padrão do cupom térmico (ver src/lib/actions/impressao.ts): o app grava o pedido na fila
+// (solicitacoes_etiqueta), o print-agent (rodando na Mac da loja) consome e imprime de verdade via
+// ZPL/CUPS raw. O ZPL em si nunca é montado aqui — só no print-agent (print-agent/etiqueta-zpl.js) e,
+// pra pré-visualização/testes, em src/lib/etiquetas/zpl.ts.
+export type StatusEtiqueta = { status: "pendente" | "impresso" | "erro"; mensagem: string | null };
+
+export async function solicitarImpressaoEtiqueta(dados: {
+  produtoId: string;
+  variacaoId: string;
+  linha1: string;
+  preco: string;
+  linha3: string;
+  codigo: string;
+  quantidade: number;
+}): Promise<{ id: string } | { erro: string }> {
+  if (dados.codigo.trim() === "") return { erro: "Informe o código." };
+  if (!Number.isInteger(dados.quantidade) || dados.quantidade < 1) return { erro: "Quantidade inválida." };
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("solicitacoes_etiqueta")
+    .insert({
+      produto_id: dados.produtoId,
+      variacao_id: dados.variacaoId,
+      linha1: dados.linha1.trim(),
+      preco: dados.preco.trim(),
+      linha3: dados.linha3.trim(),
+      codigo: dados.codigo.trim(),
+      quantidade: dados.quantidade,
+    })
+    .select("id")
+    .single();
+  if (error) return { erro: mensagem(error) };
+  return { id: data.id };
+}
+
+export async function buscarStatusEtiqueta(id: string): Promise<StatusEtiqueta> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("solicitacoes_etiqueta").select("status, erro").eq("id", id).single();
+  if (error || !data) {
+    return { status: "erro", mensagem: error?.message ?? "Solicitação de etiqueta não encontrada." };
+  }
+  return { status: data.status, mensagem: data.erro };
 }
 
 /** Edição de uma peça já cadastrada — aberta pelo "Ler código" (bipou e achou) ou clicando no nome
@@ -259,7 +319,7 @@ export async function editarPecaCatalogo(
   fotoUrlAtual: string | null,
   ativo: boolean,
   localizacaoTexto: string,
-): Promise<{ erro?: string }> {
+): Promise<ResultadoPecaCatalogo> {
   if (nome.trim() === "") return { erro: "Informe o nome do produto." };
   if (!Number.isFinite(precoVenda) || precoVenda <= 0) return { erro: "Informe o preço de venda." };
   const supabase = await createClient();

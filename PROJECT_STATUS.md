@@ -1,6 +1,17 @@
 # PROJECT_STATUS — ERP Trolesi
 
-_Atualizado em 2026-07-27._
+_Atualizado em 2026-10-15._
+
+## 2026-10-15 — Etiqueta de joia 95×12mm (Elgin L42 Pro Full) — pendente aplicar migration + configurar print-agent
+
+Tela "Imprimir etiqueta" pronta em `/varejo/catalogo` (código, testes, `/code-review medium`, build — tudo passando). **Pendente antes de funcionar de ponta a ponta:**
+1. Lucas aplicar `supabase/migrations/20261015000001_solicitacoes_etiqueta_varejo.sql` (ensaio → aplicar, SQL Editor do Supabase).
+2. Criar a fila CUPS `Elgin_L42` na Mac da loja (`lpadmin`, ver `print-agent/README.md`) e confirmar `IMPRESSORA_ETIQUETA` no `.env`.
+3. Rodar `npm install` em `print-agent/` (nova dependência `qrcode`) e reiniciar o agente.
+
+Ver `DECISIONS.md`/`CHANGELOG.md` (2026-10-15) pro porquê de cada escolha técnica — é a 3ª tentativa de etiqueta do projeto, as duas anteriores (Argox, agosto/2026) foram abandonadas.
+
+**Nota**: este arquivo ficou sem atualização entre 2026-07-27 e 2026-10-15 — bastante trabalho real aconteceu nesse intervalo (Controle Financeiro do Varejo, dívida com o Atacado, PDV Eventos, etc.) sem entrada correspondente aqui. `DECISIONS.md` foi mantido atualizado ao longo desse período; esta entrada não tenta reconstruir o histórico todo, só retoma o hábito de atualizar este arquivo a partir de agora.
 
 ## 2026-07-27 (cont. 2) — Vision AI restaurado
 

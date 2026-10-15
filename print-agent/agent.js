@@ -68,6 +68,14 @@ const COMPARTILHAMENTO_IMPRESSORA = process.env.IMPRESSORA_COMPARTILHAMENTO || "
 const MAQUINA = os.hostname();
 const COLUNAS = 48; // confirmado na prática pra Elgin i8 58mm (48mm úteis)
 const INTERVALO_POLLING_MS = Number(process.env.INTERVALO_POLLING_MS) || 2000;
+
+// Etiqueta de joia (95×12mm, Elgin L42 Pro Full) — fila separada (solicitacoes_etiqueta),
+// protocolo totalmente diferente do cupom (ZPL via CUPS raw, não ESC/POS) e impressora diferente —
+// ver gerarZpl() em etiqueta-zpl.js e DECISIONS.md pra por que ZPL/^GFA e não PPLA/EPL2/^BQ (histórico
+// de 2 tentativas fracassadas com outra impressora, Argox). Fila do cupom (acima) e da etiqueta
+// (aqui embaixo) são processadas de forma independente — um erro numa nunca trava a outra.
+const etiquetaZpl = require("./etiqueta-zpl.js");
+const IMPRESSORA_ETIQUETA = process.env.IMPRESSORA_ETIQUETA || "Elgin_L42";
 // Pasta onde o comprovante em PDF é salvo (pra encaminhar manualmente pro
 // cliente via WhatsApp, ver README.md) — organizada em <ano>/<mes>/
 // "Cliente - DD-MM.pdf", igual pedido explícito do usuário 2026-07-25.
@@ -427,6 +435,29 @@ function enviarParaImpressoraUsb(buffer) {
   });
 }
 
+// Etiqueta de joia: entrega o ZPL já pronto (montado por etiquetaZpl.gerarZpl) direto pra fila CUPS
+// da Elgin L42 Pro Full em modo raw — "-o raw" é o que evita o macOS reprocessar/rasterizar o ZPL
+// (o problema original que também afetava o cupom, ver topo do arquivo). A fila CUPS precisa ter
+// sido criada antes com um PPD "sample.drv/zebra.ppd" (ver README.md) — o driver oficial da Elgin
+// pra Mac não funciona no macOS 26/Apple Silicon, testado e descartado.
+function enviarZplParaImpressora(zpl) {
+  return new Promise((resolve, reject) => {
+    // utf8, não ascii: o template declara ^CI28 (o ZPL pede pra impressora interpretar ^FD como
+    // UTF-8) — gravar em "ascii" truncaria qualquer acento (ex: "é") pro byte baixo sozinho (0xE9),
+    // uma sequência UTF-8 inválida que a impressora não decodificaria corretamente. ASCII puro (sem
+    // acento) sai idêntico nos dois, então não quebra nada que já funcionava.
+    const arquivoTemp = path.join(os.tmpdir(), `etiqueta_erp_trolesi_${Date.now()}.zpl`);
+    fs.writeFile(arquivoTemp, zpl, "utf8", (erroEscrita) => {
+      if (erroEscrita) return reject(erroEscrita);
+      execFile("lp", ["-d", IMPRESSORA_ETIQUETA, "-o", "raw", arquivoTemp], (erroExec) => {
+        fs.unlink(arquivoTemp, () => {});
+        if (erroExec) return reject(erroExec);
+        resolve();
+      });
+    });
+  });
+}
+
 // Chamada genérica pra API REST (PostgREST) do Supabase, autenticada com a
 // service_role key — essa key ignora RLS de propósito (é o mesmo padrão já
 // usado no resto do projeto pra ações administrativas server-side, nunca
@@ -467,6 +498,63 @@ function buscarPendentes() {
     "/solicitacoes_impressao?status=eq.pendente&order=criado_em.asc&limit=5&select=id,via,linhas,pedido_id,criado_em",
     "GET",
   );
+}
+
+function buscarPendentesEtiqueta() {
+  return requisicaoSupabase(
+    "/solicitacoes_etiqueta?status=eq.pendente&order=criado_em.asc&limit=5&select=id,linha1,preco,linha3,codigo,quantidade",
+    "GET",
+  );
+}
+
+function marcarEtiquetaComoImpressa(id) {
+  return requisicaoSupabase(`/solicitacoes_etiqueta?id=eq.${id}`, "PATCH", {
+    status: "impresso",
+    impresso_em: new Date().toISOString(),
+  });
+}
+
+function marcarEtiquetaComoErro(id, mensagemErro) {
+  return requisicaoSupabase(`/solicitacoes_etiqueta?id=eq.${id}`, "PATCH", {
+    status: "erro",
+    erro: mensagemErro,
+  });
+}
+
+// Mesmo espírito de processarPendentes() (cupom), mas mais simples: não tem segunda via (PDF), só
+// monta o ZPL e manda pra fila CUPS. Chamado separado no loop principal — um erro aqui (ex: fila CUPS
+// não existe, Elgin desligada) nunca impede o cupom de continuar imprimindo, e vice-versa.
+async function processarPendentesEtiqueta() {
+  let pendentes;
+  try {
+    pendentes = await buscarPendentesEtiqueta();
+  } catch (erro) {
+    console.error("Erro ao buscar solicitações de etiqueta pendentes:", erro.message);
+    return;
+  }
+
+  for (const solicitacao of pendentes) {
+    try {
+      const zpl = etiquetaZpl.gerarZpl({
+        linha1: solicitacao.linha1,
+        preco: solicitacao.preco,
+        linha3: solicitacao.linha3,
+        codigo: solicitacao.codigo,
+        quantidade: solicitacao.quantidade,
+      });
+      await enviarZplParaImpressora(zpl);
+      await marcarEtiquetaComoImpressa(solicitacao.id);
+      console.log(`Etiqueta impressa: solicitação ${solicitacao.id} (código ${solicitacao.codigo}, ${solicitacao.quantidade}x)`);
+    } catch (erro) {
+      const mensagem = String((erro && erro.message) || erro);
+      console.error(`Erro ao imprimir etiqueta (solicitação ${solicitacao.id}):`, mensagem);
+      try {
+        await marcarEtiquetaComoErro(solicitacao.id, mensagem);
+      } catch (erroAoMarcar) {
+        console.error(`Erro ao marcar etiqueta ${solicitacao.id} como erro:`, erroAoMarcar.message);
+      }
+    }
+  }
 }
 
 function sanitizarNomeArquivo(nome) {
@@ -622,7 +710,11 @@ process.on("unhandledRejection", (erro) => {
 });
 
 async function loopPrincipal() {
+  // Cupom e etiqueta são filas/impressoras/protocolos independentes — chamadas em sequência (não em
+  // paralelo, sem necessidade real de concorrência num polling a cada poucos segundos), cada uma já
+  // com seu próprio try/catch interno, pra um erro numa nunca impedir a outra de rodar.
   await processarPendentes();
+  await processarPendentesEtiqueta();
   setTimeout(loopPrincipal, INTERVALO_POLLING_MS);
 }
 
@@ -631,6 +723,7 @@ const descricaoImpressora =
     ? `USB direto, vendor=0x${CUPOM_VENDOR_ID.toString(16)} product=0x${CUPOM_PRODUCT_ID.toString(16)}`
     : `\\\\${MAQUINA}\\${COMPARTILHAMENTO_IMPRESSORA}`;
 console.log(
-  `Print-agent Trolesi ERP rodando — checando solicitações a cada ${INTERVALO_POLLING_MS}ms (impressora: ${descricaoImpressora})`,
+  `Print-agent Trolesi ERP rodando — checando solicitações a cada ${INTERVALO_POLLING_MS}ms ` +
+    `(cupom: ${descricaoImpressora}; etiqueta: fila CUPS "${IMPRESSORA_ETIQUETA}")`,
 );
 loopPrincipal();

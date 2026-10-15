@@ -6,8 +6,9 @@ import { cadastrarProdutoCatalogo, registrarEntradaEstoque } from "@/lib/actions
 import { Modal } from "@/components/modal";
 import { FotoComZoom } from "@/components/foto-com-zoom";
 import { LeitorCodigoModal } from "@/components/leitor-codigo-modal";
-import { formatarAtributos } from "@/lib/varejo/atributos";
+import { formatarAtributos, parseAtributos } from "@/lib/varejo/atributos";
 import { PecaCatalogoForm } from "./peca-catalogo-form";
+import { ImprimirEtiquetaModal, type PecaParaEtiqueta } from "./imprimir-etiqueta-modal";
 import type { LinhaCatalogo, VariacaoNova } from "@/lib/varejo/tipos";
 import type { CalculadoraPreco } from "./page";
 
@@ -25,6 +26,7 @@ export function CatalogoVarejoView({
   const [lendoCodigo, setLendoCodigo] = useState(false);
   const [pecaEditando, setPecaEditando] = useState<LinhaCatalogo | null | undefined>(undefined);
   const [codigoParaNovaPeca, setCodigoParaNovaPeca] = useState<string | undefined>(undefined);
+  const [etiquetaPara, setEtiquetaPara] = useState<PecaParaEtiqueta | null>(null);
 
   const skusExistentes = useMemo(() => linhas.map((l) => l.sku), [linhas]);
 
@@ -106,9 +108,29 @@ export function CatalogoVarejoView({
                 <td className="px-4 py-2.5">{formatarMoeda(l.preco_venda)}</td>
                 <td className="px-4 py-2.5">{l.preco_minimo != null ? formatarMoeda(l.preco_minimo) : "—"}</td>
                 <td className="px-4 py-2.5 text-right">
-                  <button type="button" onClick={() => setEntradaVariacao(l)} className="text-xs font-semibold text-rose-deep underline decoration-dotted">
-                    Entrada de estoque
-                  </button>
+                  <div className="flex flex-col items-end gap-1">
+                    <button type="button" onClick={() => setEntradaVariacao(l)} className="text-xs font-semibold text-rose-deep underline decoration-dotted">
+                      Entrada de estoque
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setEtiquetaPara({
+                          produtoId: l.produto_id,
+                          variacaoId: l.variacao_id,
+                          nomeProduto: l.produto_nome,
+                          categoria: l.categoria,
+                          atributos: l.atributos,
+                          precoVenda: l.preco_venda,
+                          sku: l.sku,
+                          quantidadeEstoque: null,
+                        })
+                      }
+                      className="text-xs font-semibold text-rose-deep underline decoration-dotted"
+                    >
+                      Etiqueta
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}
@@ -145,6 +167,18 @@ export function CatalogoVarejoView({
           codigoInicial={codigoParaNovaPeca}
           calculadora={calculadora}
           depositoId={depositos[0]?.id}
+          onPecaCriada={(dados) =>
+            setEtiquetaPara({
+              produtoId: dados.produtoId,
+              variacaoId: dados.variacaoId,
+              nomeProduto: dados.nomeProduto,
+              categoria: dados.categoria,
+              atributos: parseAtributos(dados.atributosTexto),
+              precoVenda: dados.precoVenda,
+              sku: dados.sku,
+              quantidadeEstoque: dados.quantidadeEstoque,
+            })
+          }
         />
       )}
 
@@ -152,6 +186,7 @@ export function CatalogoVarejoView({
       {entradaVariacao && (
         <EntradaEstoqueModal variacao={entradaVariacao} depositos={depositos} onFechar={() => setEntradaVariacao(null)} />
       )}
+      {etiquetaPara && <ImprimirEtiquetaModal peca={etiquetaPara} onFechar={() => setEtiquetaPara(null)} />}
     </div>
   );
 }

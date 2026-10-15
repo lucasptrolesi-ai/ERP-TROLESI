@@ -25,6 +25,7 @@ export function PecaCatalogoForm({
   codigoInicial,
   calculadora,
   depositoId,
+  onPecaCriada,
 }: {
   aberto: boolean;
   onFechar: () => void;
@@ -39,6 +40,18 @@ export function PecaCatalogoForm({
   // Depósito da loja (Varejo só tem um, "LOJA") — usado pra lançar a entrada de estoque quando
   // "Veio do Atacado?" está ligado. Sem isso, o toggle não tem como registrar a compra.
   depositoId?: string;
+  // Chamado só numa peça NOVA (nunca editando), depois de salvar com sucesso — abre a tela
+  // "Imprimir etiqueta" (catalogo-varejo-view.tsx) com os dados que acabaram de ser gravados.
+  onPecaCriada?: (dados: {
+    produtoId: string;
+    variacaoId: string;
+    sku: string;
+    nomeProduto: string;
+    categoria: string | null;
+    atributosTexto: string;
+    precoVenda: number;
+    quantidadeEstoque: number | null;
+  }) => void;
 }) {
   const [erro, setErro] = useState<string | null>(null);
   const [pendente, iniciar] = useTransition();
@@ -146,6 +159,20 @@ export function PecaCatalogoForm({
       if (resultado.erro) {
         setErro(resultado.erro);
         return;
+      }
+      if (!peca && resultado.produtoId && resultado.variacaoId) {
+        onPecaCriada?.({
+          produtoId: resultado.produtoId,
+          variacaoId: resultado.variacaoId,
+          // sku em branco vira numeração automática no banco — o valor de verdade (o que o PDV bipa)
+          // é o que cadastrarPecaCatalogo devolve, não necessariamente o que foi digitado aqui.
+          sku: resultado.sku ?? sku,
+          nomeProduto: nome,
+          categoria: categoria || null,
+          atributosTexto: atributos,
+          precoVenda,
+          quantidadeEstoque: permiteAtacado && veioDoAtacado ? quantidadeAtacado : null,
+        });
       }
       onFechar();
     });

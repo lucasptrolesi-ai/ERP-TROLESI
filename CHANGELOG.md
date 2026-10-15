@@ -1,5 +1,14 @@
 # CHANGELOG — ERP Trolesi
 
+## 2026-10-15 — Etiqueta de joia 95×12mm (Elgin L42 Pro Full), imprimível direto do cadastro no Varejo
+
+- Nova tela "Imprimir etiqueta" em `/varejo/catalogo`: abre sozinha depois de cadastrar uma peça nova, ou pelo botão "Etiqueta" numa peça já existente. Campos (linha de cima, preço, linha de baixo, código do QR, quantidade) pré-preenchidos a partir da peça, mas editáveis, com pré-visualização ao vivo da etiqueta 95×12mm.
+- Migration `20261015000001_solicitacoes_etiqueta_varejo.sql`: fila `solicitacoes_etiqueta`, mesmo padrão do cupom térmico (`solicitacoes_impressao`) — o app grava o pedido, o print-agent (rodando na Mac da loja) consome e imprime via ZPL/CUPS raw.
+- `print-agent/agent.js` ganha uma segunda fila/impressora, independente da do cupom (`etiqueta-zpl.js` monta o ZPL, incluindo o QR code como bitmap `^GFA` — não o comando nativo `^BQ`, que sai cortado nesta impressora). Ver `DECISIONS.md` pro porquê de cada escolha e pra diferença em relação às duas tentativas anteriores de etiqueta (agosto/2026, abandonadas).
+- Gerador de ZPL testado (`src/lib/etiquetas/zpl.ts` + `zpl.test.ts`, Vitest) e duplicado em JS puro no print-agent, com teste de consistência entre as duas cópias.
+- `/code-review medium` rodado antes de dar como pronto — achado real corrigido: arquivo ZPL temporário gravado em encoding errado (`ascii` em vez de `utf8`), que corromperia acentos apesar do template pedir UTF-8 (`^CI28`).
+- Pendente: Lucas aplicar a migration no SQL Editor da Supabase, atualizar `print-agent/.env`/rodar `npm install` (nova dependência `qrcode`) e criar a fila CUPS `Elgin_L42` na Mac da loja (ver `print-agent/README.md`), depois reiniciar o agente.
+
 ## 2026-08-10 — Corrige `criar_pedido`: dois overloads divergentes desde 20260806000001
 
 - Migration `20260810000001_restaura_pagamento_misto_com_codigo_peca.sql` dropa os dois overloads de `criar_pedido` que coexistiam desde 2026-08-06 e recria um único, com pagamento misto e gravação de `codigo_peca` juntos. Reaplica o backfill de `codigo_peca` pras vendas feitas nesse intervalo. Ver `DECISIONS.md` (2026-08-10) pra detalhe de como o bug aconteceu.
