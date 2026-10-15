@@ -18,10 +18,10 @@
 -- ROLLBACK:
 -- -- Troque a linha abaixo, no corpo deste MESMO arquivo, para 'desfazer' e rode o arquivo inteiro de
 -- -- novo (o bloco DO $down$ mais abaixo devolve tudo ao estado anterior, testado pelo próprio modo
--- -- 'ensaio' antes de chegar aqui). ATENÇÃO: o desfazer de solicitacoes_etiqueta (restaurar NOT NULL
--- -- em linha1/preco/codigo) FALHA se já existirem linhas reais gravadas só com `zpl` preenchido
--- -- (colunas antigas nulas) -- nesse caso, apague/backfill essas linhas manualmente antes de rodar
--- -- 'desfazer', ou não desfaça esta migration depois que o módulo estiver em uso real.
+-- -- 'ensaio' antes de chegar aqui). ATENÇÃO: o desfazer APAGA qualquer solicitacoes_etiqueta gravada
+-- -- só com `zpl` (formato novo, colunas antigas nulas) -- é o preço de restaurar o NOT NULL que o
+-- -- formato antigo exige. Não desfaça esta migration depois que o módulo estiver em uso real sem
+-- -- aceitar essa perda (ou faça backfill manual de linha1/preco/codigo antes, se quiser preservar).
 -- --   select set_config('app.modo_migration', 'desfazer', true);
 
 
@@ -345,8 +345,12 @@ begin
     drop column if exists zpl,
     drop column if exists modelo_id;
   drop table if exists public.etiqueta_modelos cascade;
-  -- linha1/preco/codigo voltam a NOT NULL -- falha de proposito se existir linha real gravada so
-  -- com zpl (colunas antigas nulas): ver aviso de ROLLBACK no cabecalho do arquivo.
+  -- linha1/preco/codigo voltam a NOT NULL -- qualquer linha gravada so com zpl (colunas antigas
+  -- nulas, seja do $teste$ deste ensaio ou de uso real em producao) e apagada antes, senao o alter
+  -- abaixo falha (23502). Rollback desta migration sempre foi destrutivo pras tabelas novas -- isso
+  -- so estende a mesma destrutividade pras solicitacoes "novo formato" que sobrariam sem o campo que
+  -- o formato antigo exige. Ver aviso no cabecalho do arquivo.
+  delete from public.solicitacoes_etiqueta where linha1 is null;
   alter table public.solicitacoes_etiqueta
     alter column linha1 set not null,
     alter column preco set not null,
