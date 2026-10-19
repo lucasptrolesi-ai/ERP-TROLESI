@@ -10,6 +10,8 @@ import { cancelarVenda, registrarVenda } from "@/lib/actions/varejo";
 import { calcularLinha, calcularTotais, calcularTroco, type ItemCarrinho } from "@/lib/varejo/carrinho";
 import { Modal } from "@/components/modal";
 import { PinSupervisorModal } from "@/components/pin-supervisor-modal";
+import { ClientePickerPdv } from "@/components/cliente-picker-pdv";
+import type { ClienteResumoVarejo } from "@/lib/actions/clientes-varejo";
 import type { FormaPagamento, ItemCatalogo, PagamentoDaVenda, SessaoCaixa, Supervisor, VendaDaSessao } from "@/lib/varejo/tipos";
 
 const FORMAS: { valor: FormaPagamento; rotulo: string }[] = [
@@ -35,7 +37,8 @@ export function PdvVarejoView({
   const [carrinho, setCarrinho] = useState<ItemCarrinho[]>([]);
   const [forma, setForma] = useState<FormaPagamento>("dinheiro");
   const [valorRecebidoTexto, setValorRecebidoTexto] = useState("");
-  const [clienteNome, setClienteNome] = useState("");
+  const [clienteNomeLivre, setClienteNomeLivre] = useState("");
+  const [clienteSelecionado, setClienteSelecionado] = useState<ClienteResumoVarejo | null>(null);
   const [idempotencyKey, setIdempotencyKey] = useState(() => crypto.randomUUID());
   const [pinAberto, setPinAberto] = useState(false);
   const [pinEstoqueAberto, setPinEstoqueAberto] = useState(false);
@@ -98,7 +101,8 @@ export function PdvVarejoView({
   function limparVenda() {
     setCarrinho([]);
     setValorRecebidoTexto("");
-    setClienteNome("");
+    setClienteNomeLivre("");
+    setClienteSelecionado(null);
     setAutorizacaoDesconto(null);
     setAutorizacaoEstoque(null);
     setPercentualDesconto("");
@@ -135,7 +139,8 @@ export function PdvVarejoView({
         itens: linhas.map((l) => ({ variacao_id: l.variacao.variacao_id, quantidade: l.quantidade, preco_unitario: l.preco })),
         pagamentos,
         idempotencyKey,
-        clienteNome: clienteNome || undefined,
+        clienteId: clienteSelecionado?.id,
+        clienteNome: clienteSelecionado?.nome ?? (clienteNomeLivre || undefined),
         autorizacaoDescontoId: autorizacaoDesconto ?? undefined,
         autorizacaoEstoqueId: autorizacaoEstoque ?? undefined,
         valorDesconto: numDesconto || undefined,
@@ -297,12 +302,11 @@ export function PdvVarejoView({
           </div>
         </div>
 
-        <input
-          type="text"
-          value={clienteNome}
-          onChange={(e) => setClienteNome(e.target.value)}
-          placeholder="Nome do cliente (opcional)"
-          className="rounded-lg border border-line bg-surface px-3 py-2 text-sm"
+        <ClientePickerPdv
+          clienteSelecionado={clienteSelecionado}
+          onSelecionar={setClienteSelecionado}
+          nomeLivre={clienteNomeLivre}
+          onMudarNomeLivre={setClienteNomeLivre}
         />
 
         <div className="grid grid-cols-4 gap-1.5">

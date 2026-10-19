@@ -46,6 +46,7 @@ export type DadosDaVenda = {
   itens: ItemDaVenda[];
   pagamentos: PagamentoDaVenda[];
   idempotencyKey: string;
+  clienteId?: string;
   clienteNome?: string;
   autorizacaoDescontoId?: string;
   autorizacaoEstoqueId?: string;

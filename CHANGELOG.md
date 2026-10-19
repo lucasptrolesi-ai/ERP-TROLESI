@@ -1,5 +1,14 @@
 # CHANGELOG — ERP Trolesi
 
+## 2026-10-19 — Cliente de verdade no PDV Varejo (Fase 1 de 3: cliente, cupom, cashback)
+
+- Migration `20261019000001_cliente_varejo_pdv.sql`: `vendas.cliente_id` (FK pra `clientes`, nullable) + `registrar_venda` ganha o parâmetro `p_cliente_id` (opcional — venda sem cliente vinculado continua funcionando igual). Reaproveita a tabela `clientes` já existente (global, usada pelo Atacado) em vez de criar uma tabela paralela pro Varejo.
+- Novo componente `ClientePickerPdv` (`/varejo/pdv`) substitui o campo de texto livre "Nome do cliente": busca por nome/telefone/CPF-CNPJ com autocomplete, ou "+ Novo cliente" pra cadastro rápido (nome/telefone/CPF-CNPJ) sem sair do balcão — ficha completa continua em `/cadastros`. Ainda aceita digitar só o nome sem vincular a um cadastro (venda sem cliente_id não entra no cashback futuro).
+- Novas actions em `src/lib/actions/clientes-varejo.ts` (`buscarClientesVarejo`, `criarClienteRapidoVarejo`).
+- `/code-review medium`: achado real corrigido — a busca montava o filtro `.or()` do PostgREST interpolando o termo digitado sem escapar vírgula/parênteses, quebrando (ou alterando) o filtro com nomes como "SILVA & CIA, LTDA".
+- Base pra Fase 2 (cupom de desconto, espelhando o PDV Eventos) e Fase 3 (cashback valor/% + vencimento, apontado automático na próxima compra do cliente) — ainda não construídas.
+- Pendente: Lucas aplicar a migration no SQL Editor da Supabase.
+
 ## 2026-10-15 (cont. 2) — Módulo Etiquetas, Fase A: editor de modelos tipo BarTender (schema + motor genérico + lote básico)
 
 - Motor genérico de ZPL (`src/lib/etiquetas/zpl.ts`, `modeloParaZpl`): modelo (tamanho/DPI/elementos) + dados da peça → ZPL completo. Suporta texto (fixo ou ligado a campo da peça, com fallback/prefixo/formato/encolher-se-não-couber), QR (bitmap `^GFA`), código de barras (Code128/ITF), linha/retângulo (`^GB`) e imagem (bitmap em cache). Substitui o gerador fixo da etiqueta "Joia rabicho" — reproduz o mesmo ZPL byte a byte (testado em snapshot).

@@ -107,6 +107,7 @@ export async function registrarVenda(dados: DadosDaVenda): Promise<{ erro?: stri
     p_autorizacao_estoque_id: dados.autorizacaoEstoqueId ?? null,
     p_valor_desconto: dados.valorDesconto ?? 0,
     p_valor_acrescimo: dados.valorAcrescimo ?? 0,
+    p_cliente_id: dados.clienteId ?? null,
   });
   if (error) return { erro: mensagem(error) };
   atualizarTelas();

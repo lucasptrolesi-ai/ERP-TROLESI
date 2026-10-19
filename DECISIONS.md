@@ -2,6 +2,16 @@
 
 Histórico de decisões de escopo e arquitetura, na ordem em que foram tomadas. Decisões revistas ficam marcadas como tal, não apagadas.
 
+## 2026-10-19 — Cliente/cupom/cashback no PDV Varejo, planejado em 3 fases — Fase 1 (cliente) construída
+
+Pedido do usuário: cadastro de clientes de verdade no PDV Varejo (hoje só tinha um campo de texto livre opcional), cupom de desconto "como no PDV Eventos", e cashback (valor ou %, com vencimento, apontado automático na próxima compra do mesmo cliente). Apresentado como plano de 3 fases antes de codar; usuário respondeu "execute" — interpretado como autorização pra seguir direto pra Fase 1 sem round-trip de mockup formal (a tela já existe, a mudança é reaproveitar um padrão visual já estabelecido no app — busca com autocomplete + "+ Novo X" — não um desenho novo do zero), mantendo ainda assim a fase 2/3 como pontos de checagem separados.
+
+**Decisão de arquitetura: reaproveitar a tabela `clientes` já existente (global, do Atacado) em vez de criar uma tabela paralela pro Varejo.** Um cliente pode comprar nas duas operações — duas identidades separadas pro mesmo CPF criaria divergência (histórico, cashback, crediário) sem motivo. A tela do Varejo só expõe/grava os campos relevantes pra venda de balcão (nome/telefone/CPF-CNPJ); os campos de crediário legado e Receita Federal usados pelo Atacado ficam de fora, intocados, e a RLS que já existia (`20260713000002`/`20260812000004`, vendedor+admin podem gerenciar clientes) não precisou de nenhuma mudança.
+
+`vendas.cliente_id` é a base necessária pra Fase 3 (cashback): sem um vínculo real (FK), só um nome em texto solto, não dá pra perguntar de forma confiável "esse cliente tem cashback disponível?" na próxima compra — nomes digitados divergem (maiúscula, abreviação, etc.).
+
+Fases 2 (cupom, espelhando `cupons_evento` do PDV Eventos — tabela nova e simples, desconto calculado no cliente como lá) e 3 (cashback, modelado no padrão do crediário só que na direção inversa — crédito devido AO cliente, não pelo cliente) ficam pra depois, como checkpoints separados.
+
 ## 2026-10-15 (cont. 2) — Módulo Etiquetas, Fase A (editor tipo BarTender — schema + motor genérico + lote básico)
 
 Plano aprovado do usuário: substituir a etiqueta fixa "Joia rabicho" (que tinha acabado de ir pro ar, ver entrada anterior) por um módulo completo — modelos com elementos arrastáveis ligados a campos da peça, impressão em lote, histórico, e uso do sensor da impressora pra detectar o rolo (Fases B/C, ainda não construídas). Esta entrada é só a Fase A, como o próprio plano pede pra "parar e mostrar" antes de seguir.

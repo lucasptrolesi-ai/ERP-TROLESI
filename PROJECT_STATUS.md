@@ -1,6 +1,15 @@
 # PROJECT_STATUS — ERP Trolesi
 
-_Atualizado em 2026-10-15._
+_Atualizado em 2026-10-19._
+
+## 2026-10-19 — Cliente de verdade no PDV Varejo pronto (Fase 1 de 3) — pendente aplicar migration; Fase 2 (cupom) é a próxima
+
+Busca de cliente com autocomplete (nome/telefone/CPF-CNPJ) + "+ Novo cliente" direto no `/varejo/pdv`, substituindo o campo de texto livre antigo. `vendas.cliente_id` (FK) + `registrar_venda` com o novo `p_cliente_id` opcional. Testado (tsc/lint/vitest/build limpos, `/code-review medium` com achado real corrigido — escape do filtro `.or()` do PostgREST). Ver `DECISIONS.md`/`CHANGELOG.md` (2026-10-19).
+
+**Pendente antes de funcionar de ponta a ponta:**
+1. Lucas aplicar `supabase/migrations/20261019000001_cliente_varejo_pdv.sql` (ensaio → aplicar, SQL Editor do Supabase).
+
+**Próxima tarefa**: Fase 2 do plano aprovado — cupom de desconto no PDV Varejo, espelhando o `cupons_evento` do PDV Eventos (tabela nova e simples, cálculo no cliente). Depois, Fase 3 (cashback).
 
 ## 2026-10-15 (cont. 2) — Módulo Etiquetas, Fase A pronta — pendente aplicar migration; Fase B (editor visual) é a próxima
 
