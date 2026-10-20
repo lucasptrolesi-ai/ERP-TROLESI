@@ -1,15 +1,19 @@
 # PROJECT_STATUS — ERP Trolesi
 
-_Atualizado em 2026-10-19._
+_Atualizado em 2026-10-20._
 
-## 2026-10-19 — Cliente de verdade no PDV Varejo pronto (Fase 1 de 3) — pendente aplicar migration; Fase 2 (cupom) é a próxima
+## 2026-10-20 — Cupom de desconto no PDV Varejo pronto (Fase 2 de 3) — pendente aplicar 2 migrations; Fase 3 (cashback) é a próxima
 
-Busca de cliente com autocomplete (nome/telefone/CPF-CNPJ) + "+ Novo cliente" direto no `/varejo/pdv`, substituindo o campo de texto livre antigo. `vendas.cliente_id` (FK) + `registrar_venda` com o novo `p_cliente_id` opcional. Testado (tsc/lint/vitest/build limpos, `/code-review medium` com achado real corrigido — escape do filtro `.or()` do PostgREST). Ver `DECISIONS.md`/`CHANGELOG.md` (2026-10-19).
+Tela `/varejo/cupons` (criar/editar/ativar) + campo "Cupom de desconto" no `/varejo/pdv` (aplica/remove, lista já carregada na tela, sem ida ao servidor no meio da venda). Testado (tsc/lint/vitest/build limpos, `/code-review medium` sem achados). Ver `DECISIONS.md`/`CHANGELOG.md` (2026-10-20).
 
 **Pendente antes de funcionar de ponta a ponta:**
-1. Lucas aplicar `supabase/migrations/20261019000001_cliente_varejo_pdv.sql` (ensaio → aplicar, SQL Editor do Supabase).
+1. Lucas aplicar, na ordem, `supabase/migrations/20261019000001_cliente_varejo_pdv.sql` (Fase 1, ainda pendente) e `supabase/migrations/20261020000001_cupons_varejo.sql` (ensaio → aplicar, SQL Editor do Supabase).
 
-**Próxima tarefa**: Fase 2 do plano aprovado — cupom de desconto no PDV Varejo, espelhando o `cupons_evento` do PDV Eventos (tabela nova e simples, cálculo no cliente). Depois, Fase 3 (cashback).
+**Próxima tarefa**: Fase 3 do plano aprovado — cashback (valor ou %, com vencimento, apontado automático na próxima compra do cliente — usa o `vendas.cliente_id` da Fase 1).
+
+## 2026-10-19 — Cliente de verdade no PDV Varejo pronto (Fase 1 de 3) — pendente aplicar migration
+
+Busca de cliente com autocomplete (nome/telefone/CPF-CNPJ) + "+ Novo cliente" direto no `/varejo/pdv`, substituindo o campo de texto livre antigo. `vendas.cliente_id` (FK) + `registrar_venda` com o novo `p_cliente_id` opcional. Testado (tsc/lint/vitest/build limpos, `/code-review medium` com achado real corrigido — escape do filtro `.or()` do PostgREST). Ver `DECISIONS.md`/`CHANGELOG.md` (2026-10-19).
 
 ## 2026-10-15 (cont. 2) — Módulo Etiquetas, Fase A pronta — pendente aplicar migration; Fase B (editor visual) é a próxima
 

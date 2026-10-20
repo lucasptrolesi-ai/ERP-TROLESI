@@ -1,5 +1,14 @@
 // Tipos do módulo de varejo. As views do PDV nunca trazem custo nem margem.
 
+export type CupomVarejo = {
+  id: string;
+  codigo: string;
+  tipo: "percentual" | "valor";
+  valor: number;
+  ativo: boolean;
+  criado_em: string;
+};
+
 export type SessaoCaixa = {
   sessao_id: string;
   caixa_id: string;

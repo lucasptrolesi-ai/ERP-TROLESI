@@ -8,11 +8,12 @@ import { arredondarMoeda, lerMoeda } from "@/lib/dinheiro";
 import { filtra } from "@/lib/filtra";
 import { cancelarVenda, registrarVenda } from "@/lib/actions/varejo";
 import { calcularLinha, calcularTotais, calcularTroco, type ItemCarrinho } from "@/lib/varejo/carrinho";
+import { calcularDescontoCupomVarejo } from "@/lib/varejo/cupom";
 import { Modal } from "@/components/modal";
 import { PinSupervisorModal } from "@/components/pin-supervisor-modal";
 import { ClientePickerPdv } from "@/components/cliente-picker-pdv";
 import type { ClienteResumoVarejo } from "@/lib/actions/clientes-varejo";
-import type { FormaPagamento, ItemCatalogo, PagamentoDaVenda, SessaoCaixa, Supervisor, VendaDaSessao } from "@/lib/varejo/tipos";
+import type { CupomVarejo, FormaPagamento, ItemCatalogo, PagamentoDaVenda, SessaoCaixa, Supervisor, VendaDaSessao } from "@/lib/varejo/tipos";
 
 const FORMAS: { valor: FormaPagamento; rotulo: string }[] = [
   { valor: "dinheiro", rotulo: "Dinheiro" },
@@ -26,11 +27,13 @@ export function PdvVarejoView({
   catalogo,
   supervisores,
   vendas,
+  cupons,
 }: {
   sessao: SessaoCaixa | null;
   catalogo: ItemCatalogo[];
   supervisores: Supervisor[];
   vendas: VendaDaSessao[];
+  cupons: CupomVarejo[];
 }) {
   const router = useRouter();
   const [busca, setBusca] = useState("");
@@ -46,6 +49,9 @@ export function PdvVarejoView({
   const [autorizacaoEstoque, setAutorizacaoEstoque] = useState<string | null>(null);
   const [percentualDesconto, setPercentualDesconto] = useState("");
   const [valorDescontoTexto, setValorDescontoTexto] = useState("0");
+  const [cupomCodigo, setCupomCodigo] = useState("");
+  const [cupomAplicado, setCupomAplicado] = useState<CupomVarejo | null>(null);
+  const [erroCupom, setErroCupom] = useState<string | null>(null);
   const [percentualAcrescimo, setPercentualAcrescimo] = useState("");
   const [valorAcrescimoTexto, setValorAcrescimoTexto] = useState("0");
   const [erro, setErro] = useState<string | null>(null);
@@ -92,11 +98,38 @@ export function PdvVarejoView({
   // Desconto/acréscimo do carrinho inteiro (pedido do usuário, 2026-09-30) — livre, sem PIN,
   // separado da autorização de preço abaixo do mínimo por peça acima (essa continua olhando só o
   // preço de cada item). Mesmo padrão do PDV Atacado: o % só calcula o R$, que é o valor real.
-  const numDesconto = lerMoeda(valorDescontoTexto) ?? 0;
+  // Cupom (Fase 2, 2026-10-20) sempre recalcula em cima do total de itens atual (se o carrinho mudar
+  // depois de aplicar, o desconto acompanha) — só cai pro campo manual quando não há cupom ativo,
+  // mesmo espírito do PDV Eventos (ver vender-evento.tsx).
+  const numDesconto = cupomAplicado
+    ? calcularDescontoCupomVarejo(cupomAplicado.tipo, cupomAplicado.valor, totalItens)
+    : (lerMoeda(valorDescontoTexto) ?? 0);
   const numAcrescimo = lerMoeda(valorAcrescimoTexto) ?? 0;
   const total = Math.max(0, arredondarMoeda(totalItens - numDesconto + numAcrescimo));
   const valorRecebido = lerMoeda(valorRecebidoTexto) ?? 0;
   const troco = calcularTroco(forma, valorRecebido, total);
+
+  function aplicarCupom() {
+    const codigo = cupomCodigo.trim();
+    if (!codigo) return;
+    const encontrado = cupons.find((c) => c.codigo.trim().toLowerCase() === codigo.toLowerCase());
+    if (!encontrado) {
+      setErroCupom("Cupom não encontrado.");
+      return;
+    }
+    if (!encontrado.ativo) {
+      setErroCupom("Esse cupom está desativado.");
+      return;
+    }
+    setErroCupom(null);
+    setCupomAplicado(encontrado);
+  }
+
+  function removerCupom() {
+    setCupomAplicado(null);
+    setCupomCodigo("");
+    setErroCupom(null);
+  }
 
   function limparVenda() {
     setCarrinho([]);
@@ -107,6 +140,7 @@ export function PdvVarejoView({
     setAutorizacaoEstoque(null);
     setPercentualDesconto("");
     setValorDescontoTexto("0");
+    removerCupom();
     setPercentualAcrescimo("");
     setValorAcrescimoTexto("0");
     setIdempotencyKey(crypto.randomUUID());
@@ -255,29 +289,68 @@ export function PdvVarejoView({
         </div>
 
         <div className="rounded-lg border border-line bg-cream p-3">
+          <p className="mb-2 text-xs font-bold uppercase tracking-wide text-text-soft">Cupom de desconto</p>
+          {cupomAplicado ? (
+            <div className="flex items-center justify-between gap-2 text-sm">
+              <span>
+                <span className="font-mono font-semibold">{cupomAplicado.codigo}</span>{" "}
+                <span className="text-text-soft">
+                  ({cupomAplicado.tipo === "percentual" ? `${cupomAplicado.valor}%` : formatarMoeda(cupomAplicado.valor)})
+                </span>
+              </span>
+              <button type="button" onClick={removerCupom} className="text-xs font-semibold text-rose-deep underline decoration-dotted">
+                Remover
+              </button>
+            </div>
+          ) : (
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={cupomCodigo}
+                onChange={(e) => setCupomCodigo(e.target.value)}
+                placeholder="Código do cupom"
+                className="flex-1 rounded-lg border border-line bg-surface px-3 py-2 text-sm"
+              />
+              <button
+                type="button"
+                onClick={aplicarCupom}
+                className="rounded-lg border border-line px-3 py-2 text-sm font-semibold text-rose-deep"
+              >
+                Aplicar
+              </button>
+            </div>
+          )}
+          {erroCupom && <p className="mt-1 text-xs font-medium text-red-700">{erroCupom}</p>}
+        </div>
+
+        <div className="rounded-lg border border-line bg-cream p-3">
           <p className="mb-2 text-xs font-bold uppercase tracking-wide text-text-soft">Desconto / acréscimo do carrinho</p>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-            <label className="flex flex-col gap-1">
-              <span className="text-[0.7rem] text-text-soft">Desconto (%)</span>
-              <input
-                value={percentualDesconto}
-                onChange={(e) => {
-                  setPercentualDesconto(e.target.value);
-                  const p = Number(e.target.value.replace(",", "."));
-                  if (Number.isFinite(p)) setValorDescontoTexto(((totalItens * p) / 100).toFixed(2));
-                }}
-                placeholder="0"
-                className="rounded-lg border border-line bg-surface px-2 py-1.5 text-sm"
-              />
-            </label>
-            <label className="flex flex-col gap-1">
-              <span className="text-[0.7rem] text-text-soft">Desconto (R$)</span>
-              <input
-                value={valorDescontoTexto}
-                onChange={(e) => setValorDescontoTexto(e.target.value)}
-                className="rounded-lg border border-line bg-surface px-2 py-1.5 text-sm"
-              />
-            </label>
+            {!cupomAplicado && (
+              <>
+                <label className="flex flex-col gap-1">
+                  <span className="text-[0.7rem] text-text-soft">Desconto (%)</span>
+                  <input
+                    value={percentualDesconto}
+                    onChange={(e) => {
+                      setPercentualDesconto(e.target.value);
+                      const p = Number(e.target.value.replace(",", "."));
+                      if (Number.isFinite(p)) setValorDescontoTexto(((totalItens * p) / 100).toFixed(2));
+                    }}
+                    placeholder="0"
+                    className="rounded-lg border border-line bg-surface px-2 py-1.5 text-sm"
+                  />
+                </label>
+                <label className="flex flex-col gap-1">
+                  <span className="text-[0.7rem] text-text-soft">Desconto (R$)</span>
+                  <input
+                    value={valorDescontoTexto}
+                    onChange={(e) => setValorDescontoTexto(e.target.value)}
+                    className="rounded-lg border border-line bg-surface px-2 py-1.5 text-sm"
+                  />
+                </label>
+              </>
+            )}
             <label className="flex flex-col gap-1">
               <span className="text-[0.7rem] text-text-soft">Acréscimo (%)</span>
               <input

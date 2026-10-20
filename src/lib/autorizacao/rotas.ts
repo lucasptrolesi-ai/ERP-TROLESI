@@ -66,6 +66,7 @@ export const REGRAS_ROTAS: readonly RegraRota[] = [
   { prefixo: "/pdv-eventos", operacao: "VAREJO" },
   { prefixo: "/varejo", operacao: "VAREJO" },
   { prefixo: "/varejo/catalogo", operacao: "VAREJO", papeis: ["admin", "estoque"] },
+  { prefixo: "/varejo/cupons", operacao: "VAREJO", papeis: ["admin", "vendedor"] },
   { prefixo: "/varejo/supervisores", operacao: "VAREJO", papeis: ["admin"] },
   { prefixo: "/varejo/dashboard", operacao: "VAREJO", papeis: ["admin"] },
   { prefixo: "/varejo/financeiro", operacao: "VAREJO", papeis: ["admin"] },

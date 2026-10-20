@@ -1,5 +1,14 @@
 # CHANGELOG — ERP Trolesi
 
+## 2026-10-20 — Cupom de desconto no PDV Varejo (Fase 2 de 3: cliente, cupom, cashback)
+
+- Migration `20261020000001_cupons_varejo.sql`: tabela `cupons_varejo` (`codigo`, `tipo` percentual|valor, `valor`, `ativo`), código case-insensitive, percentual ≤ 100, RLS admin/vendedor — espelha `cupons_evento` do PDV Eventos quase igual, só numa tabela própria do Varejo.
+- Nova tela `/varejo/cupons` (listar/criar/editar, mesmo padrão de `/varejo/supervisores`), liberada pra admin+vendedor.
+- No `/varejo/pdv`: campo "Cupom de desconto" aplica/remove o cupom pela lista já carregada na tela (sem ida ao servidor no meio da venda — mesmo espírito do PDV Eventos). Desconto do cupom substitui o desconto manual (%/R$) enquanto aplicado; acréscimo continua independente. Não mudou `registrar_venda` nem adicionou validação nova — o cupom só preenche o mesmo campo de desconto do carrinho que já existia (`20260930000001`).
+- `calcularDescontoCupomVarejo` (`src/lib/varejo/cupom.ts`, testado) mirra `calcularDescontoCupom` do Eventos.
+- `/code-review medium` rodado — nenhum achado.
+- Pendente: Lucas aplicar a migration no SQL Editor da Supabase (a `20261019000001` de baixo ainda está pendente também).
+
 ## 2026-10-19 — Cliente de verdade no PDV Varejo (Fase 1 de 3: cliente, cupom, cashback)
 
 - Migration `20261019000001_cliente_varejo_pdv.sql`: `vendas.cliente_id` (FK pra `clientes`, nullable) + `registrar_venda` ganha o parâmetro `p_cliente_id` (opcional — venda sem cliente vinculado continua funcionando igual). Reaproveita a tabela `clientes` já existente (global, usada pelo Atacado) em vez de criar uma tabela paralela pro Varejo.

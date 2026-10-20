@@ -2,6 +2,14 @@
 
 Histórico de decisões de escopo e arquitetura, na ordem em que foram tomadas. Decisões revistas ficam marcadas como tal, não apagadas.
 
+## 2026-10-20 — Fase 2 (cupom de desconto no PDV Varejo) construída
+
+**Tabela própria (`cupons_varejo`) em vez de reaproveitar `cupons_evento` do PDV Eventos.** Diferente da decisão da Fase 1 (reaproveitar `clientes`), aqui o caso é o oposto: um cupom do Agroshow (evento, fora do catálogo do Varejo) não tem nenhuma relação com um cupom de loja — são promoções de contextos diferentes, sem motivo pra compartilhar linha. O *padrão* é espelhado (mesma forma: código/tipo/valor/ativo, mesmo cálculo client-side), não a tabela.
+
+Mesma decisão de escopo enxuto do Eventos, herdada sem revisão: sem limite de uso, sem validade/vencimento — "parar de aceitar" é só desativar o cupom. Se isso virar insuficiente no uso real da loja (diferente do evento, que é só alguns dias), é ponto pra reabrir depois, não decidido agora.
+
+Não mudou `registrar_venda`: o cupom só calcula um valor que entra no mesmo parâmetro `p_valor_desconto` que já existia e já aceitava qualquer valor manual (`20260930000001`) — nenhuma fronteira de segurança nova, igual ao Eventos.
+
 ## 2026-10-19 — Cliente/cupom/cashback no PDV Varejo, planejado em 3 fases — Fase 1 (cliente) construída
 
 Pedido do usuário: cadastro de clientes de verdade no PDV Varejo (hoje só tinha um campo de texto livre opcional), cupom de desconto "como no PDV Eventos", e cashback (valor ou %, com vencimento, apontado automático na próxima compra do mesmo cliente). Apresentado como plano de 3 fases antes de codar; usuário respondeu "execute" — interpretado como autorização pra seguir direto pra Fase 1 sem round-trip de mockup formal (a tela já existe, a mudança é reaproveitar um padrão visual já estabelecido no app — busca com autocomplete + "+ Novo X" — não um desenho novo do zero), mantendo ainda assim a fase 2/3 como pontos de checagem separados.
