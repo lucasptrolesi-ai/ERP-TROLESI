@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { lerMoeda } from "@/lib/dinheiro";
 import { subirFotoProduto } from "./foto-produto";
+import { mensagemErroExcluir } from "./erros";
 import { parseAtributos } from "@/lib/varejo/atributos";
 import type {
   AcaoPrivilegiada,
@@ -315,6 +316,30 @@ export async function editarPecaCatalogo(
     p_ativo: ativo,
     p_localizacao: parseAtributos(localizacaoTexto),
   });
+  if (error) return { erro: mensagem(error) };
+  revalidatePath("/varejo/catalogo");
+  return {};
+}
+
+/** Exclui de verdade -- só funciona pra peça que nunca teve movimentação (sem ON DELETE CASCADE em
+ * nenhuma FK que aponta pra catalogo_variacoes, o próprio banco bloqueia com 23503 se houver
+ * estoque/venda/dívida/transferência/etiqueta vinculada); `bloqueadoPorMovimentacao` sinaliza esse
+ * caso pra tela oferecer "Desativar" como alternativa, sem precisar abrir o form de edição. */
+export async function excluirPecaCatalogo(variacaoId: string): Promise<{ erro?: string; bloqueadoPorMovimentacao?: boolean }> {
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("excluir_peca_catalogo", { p_variacao_id: variacaoId });
+  if (error) {
+    return { erro: mensagemErroExcluir(error, "vendas, estoque ou etiquetas"), bloqueadoPorMovimentacao: error.code === "23503" };
+  }
+  revalidatePath("/varejo/catalogo");
+  return {};
+}
+
+/** Só esconde a peça (ativo=false) -- reversível, mantém todo o histórico. Alternativa quando
+ * excluirPecaCatalogo é bloqueado, ou pra tirar de circulação sem apagar nada. */
+export async function desativarPecaCatalogo(variacaoId: string): Promise<{ erro?: string }> {
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("desativar_peca_catalogo", { p_variacao_id: variacaoId });
   if (error) return { erro: mensagem(error) };
   revalidatePath("/varejo/catalogo");
   return {};

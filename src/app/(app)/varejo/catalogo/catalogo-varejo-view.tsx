@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { formatarMoeda } from "@/lib/formatar-moeda";
-import { cadastrarProdutoCatalogo, registrarEntradaEstoque } from "@/lib/actions/varejo";
+import { cadastrarProdutoCatalogo, registrarEntradaEstoque, excluirPecaCatalogo, desativarPecaCatalogo } from "@/lib/actions/varejo";
 import { Modal } from "@/components/modal";
 import { FotoComZoom } from "@/components/foto-com-zoom";
 import { LeitorCodigoModal } from "@/components/leitor-codigo-modal";
@@ -132,6 +132,7 @@ export function CatalogoVarejoView({
                     >
                       Etiqueta
                     </button>
+                    <BotaoExcluirPeca variacaoId={l.variacao_id} nomeProduto={l.produto_nome} />
                   </div>
                 </td>
               </tr>
@@ -200,6 +201,63 @@ export function CatalogoVarejoView({
         </Modal>
       )}
     </div>
+  );
+}
+
+// Excluir só funciona pra peça que nunca teve movimentação (o banco bloqueia com uma mensagem
+// amigável se já tiver estoque/venda/etiqueta vinculada) -- nesse caso oferece "Desativar" (esconde,
+// reversível, mantém o histórico) na hora, sem precisar abrir "Editar peça" pra isso.
+function BotaoExcluirPeca({ variacaoId, nomeProduto }: { variacaoId: string; nomeProduto: string }) {
+  const [erro, setErro] = useState<string | null>(null);
+  const [ofereceDesativar, setOfereceDesativar] = useState(false);
+  const [pendente, iniciar] = useTransition();
+
+  function excluir() {
+    if (!confirm(`Excluir "${nomeProduto}"? Essa ação não pode ser desfeita.`)) return;
+    setErro(null);
+    setOfereceDesativar(false);
+    iniciar(async () => {
+      const resultado = await excluirPecaCatalogo(variacaoId);
+      if (resultado.erro) {
+        setErro(resultado.erro);
+        setOfereceDesativar(Boolean(resultado.bloqueadoPorMovimentacao));
+      }
+    });
+  }
+
+  function desativar() {
+    setErro(null);
+    iniciar(async () => {
+      const resultado = await desativarPecaCatalogo(variacaoId);
+      if (resultado.erro) setErro(resultado.erro);
+      else setOfereceDesativar(false);
+    });
+  }
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={excluir}
+        disabled={pendente}
+        className="text-xs font-semibold text-red-700 underline decoration-dotted disabled:opacity-60"
+      >
+        Excluir
+      </button>
+      {erro && (
+        <p className="max-w-36 text-right text-[0.65rem] text-red-700">
+          {erro}
+          {ofereceDesativar && (
+            <>
+              {" "}
+              <button type="button" onClick={desativar} disabled={pendente} className="font-semibold underline decoration-dotted disabled:opacity-60">
+                Desativar em vez disso
+              </button>
+            </>
+          )}
+        </p>
+      )}
+    </>
   );
 }
 
