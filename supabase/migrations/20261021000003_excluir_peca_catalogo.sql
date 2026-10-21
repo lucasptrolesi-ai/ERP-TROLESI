@@ -252,8 +252,9 @@ begin
     raise notice 'T5 pulado: nenhum profile com papel vendedor encontrado.';
   end if;
 
-  -- T6. Contexto de outra operacao (Atacado) nao acha a peca do Varejo -- nem pra excluir, nem pra
-  -- desativar (mesmo isolamento por operacao que o resto do Varejo ja segue).
+  -- T6. Contexto de outra operacao (Atacado) nao consegue excluir peca do Varejo -- bloqueado pelo
+  -- mesmo guard generico que ja existe (exigir_operacao_codigo('VAREJO')), antes mesmo de chegar a
+  -- procurar a peca -- por isso a mensagem e a de operacao errada, nao "peca nao encontrada".
   perform set_config('request.jwt.claims', jsonb_build_object('sub', v_lucas, 'role', 'authenticated',
                      'app_metadata', jsonb_build_object('operacao_id', v_atacado))::text, true);
   begin
@@ -261,7 +262,7 @@ begin
     raise exception 'TESTE FALHOU [T6]: excluir peca do Varejo funcionou no contexto Atacado';
   exception
     when others then
-      if sqlerrm <> 'Peça não encontrada' then raise; end if;
+      if sqlerrm <> 'Esta acao so e permitida na operacao VAREJO' then raise; end if;
   end;
   perform set_config('request.jwt.claims', jsonb_build_object('sub', v_lucas, 'role', 'authenticated',
                      'app_metadata', jsonb_build_object('operacao_id', v_varejo))::text, true);
