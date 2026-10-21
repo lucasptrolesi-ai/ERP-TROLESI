@@ -1,5 +1,26 @@
 # CHANGELOG — ERP Trolesi
 
+## 2026-10-21 (cont. 3) — 3 achados de code-review corrigidos no cliente-picker do PDV Varejo
+
+- `cliente-picker-pdv.tsx`: campo "Nome" do form de novo cliente só pegava o texto digitado na busca na 1ª abertura do modal — `defaultValue` só vale na montagem, e o `<Modal>` nunca desmonta os filhos (só abre/fecha o `<dialog>`), então editar a busca depois de abrir/fechar o modal uma vez não refletia mais no form. Corrigido remontando o form a cada abertura (`key={nomeLivre}`).
+- Mesmo arquivo: a busca de cliente não tinha a guarda de resposta atrasada/fora de ordem que o efeito de cashback do PDV já usa (`cancelada`) — uma busca lenta de um termo anterior podia sobrescrever o resultado de um termo mais recente.
+- `clientes-varejo.ts`: `escaparTermoOr` escapava os caracteres reservados do `.or()` do PostgREST (`\,()`) mas não os wildcards do (I)LIKE (`%`/`_`) — um termo de busca com esses caracteres (ex: telefone com conteúdo coincidente) combinava bem mais do que o digitado. Nova `escaparWildcardsIlike`, composta antes do escape do PostgREST (a ordem importa: o backslash que ela insere pros wildcards também precisa sobreviver ao escape do PostgREST).
+- `tsc`/`vitest` confirmados limpos depois das 3 correções.
+
+## 2026-10-21 (cont. 2) — Corrige vazamento de isolamento por operação em `cupons_varejo` (Fase 2, já em produção)
+
+- Migration `20261021000002_cupons_varejo_operacao_id.sql`: `cupons_varejo` ganha `operacao_id` (auto-preenchido por trigger `carimbar_operacao`, zero mudança no app) + a RLS passa a exigir `operacao_id = operacao_atual()`, além do papel. Achado ao revisar o mesmo padrão pro cashback (entrada abaixo) e reaberto aqui — sem backfill necessário (tabela ainda sem nenhuma linha em produção).
+- Pendente: Lucas aplicar a migration no SQL Editor da Supabase.
+
+## 2026-10-21 — Cashback no PDV Varejo pronto (Fase 3 de 3: cliente, cupom, cashback) — pendente aplicar migration
+
+- Migration `20261021000001_cashback_varejo.sql`: tabela `cashback_lancamentos` (cliente, venda de origem, valor, vencimento, situação disponível/usado/cancelado) + functions `conceder_cashback`/`resgatar_cashback` + wrappers atômicos `registrar_venda_varejo_com_cashback`/`cancelar_venda_varejo_com_cashback` (chamam `registrar_venda`/`cancelar_venda` sem alterar o corpo deles — tudo numa transação só, falha no cashback desfaz a venda também). Triggers fecham bypass via INSERT/UPDATE direto na tabela: vencimento tem que ser futuro, cliente/operação têm que bater com a venda de origem, e uma máquina de estados explícita rejeita qualquer transição de `situacao` que não seja uma das legítimas.
+- No `/varejo/pdv`: ao selecionar um cliente, mostra automaticamente o cashback disponível dele (nunca aplica sozinho) e permite conceder cashback novo na venda atual (valor/% + vencimento, livre). Cancelar uma venda reconcilia o cashback envolvido — devolve o que foi resgatado se a venda de origem continuar válida, cancela o crédito se a venda de origem também foi cancelada.
+- `espacoParaCashback` (`src/lib/varejo/cashback.ts`, testado) calcula quanto da venda ainda pode ser coberto por cashback, considerando desconto e acréscimo já aplicados.
+- ~10 rodadas de `/code-review medium` — achados reais corrigidos incluíram: corrida de concorrência em resgate duplo (travamento `for update` da venda antes do lançamento), o mesmo vazamento de isolamento por operação que o `cupons_varejo` da Fase 2 tinha (entrada acima), cálculo de "espaço pra cashback" ignorando acréscimo, vencimento calculado em UTC em vez de horário de Brasília (mesma classe de bug de fuso já corrigida antes em outro lugar do projeto).
+- Limitação conhecida, não corrigida: venda totalmente coberta por cashback (total R$0) não pode ser finalizada — `registrar_venda` rejeita pagamento ≤0 desde sempre; bloqueado com mensagem clara na tela em vez de reabrir essa function central por um caso de borda. Ver `DECISIONS.md`.
+- Pendente: Lucas aplicar a migration no SQL Editor da Supabase.
+
 ## 2026-10-20 — Cupom de desconto no PDV Varejo (Fase 2 de 3: cliente, cupom, cashback)
 
 - Migration `20261020000001_cupons_varejo.sql`: tabela `cupons_varejo` (`codigo`, `tipo` percentual|valor, `valor`, `ativo`), código case-insensitive, percentual ≤ 100, RLS admin/vendedor — espelha `cupons_evento` do PDV Eventos quase igual, só numa tabela própria do Varejo.

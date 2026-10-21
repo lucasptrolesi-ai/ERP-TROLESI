@@ -30,7 +30,7 @@
 begin;
 
 -- >>> MODO (troque so esta linha): 'ensaio' | 'aplicar' | 'desfazer'
-select set_config('app.modo_migration', 'ensaio', true);
+select set_config('app.modo_migration', 'aplicar', true);
 set local lock_timeout = '15s';
 
 do $modo$
@@ -353,8 +353,15 @@ begin
   select id into v_dep from public.depositos where operacao_id = v_varejo and ativo limit 1;
   perform public.registrar_entrada_estoque(v_dep, v_var, 5, 10.00, 'ensaio cliente varejo');
 
-  select id into v_caixa from public.caixas where operacao_id = v_varejo and ativo limit 1;
-  v_sessao := public.abrir_sessao_caixa(v_caixa, 0);
+  -- Reaproveita uma sessao de caixa ja aberta do proprio operador se houver (abrir_sessao_caixa
+  -- rejeita uma segunda sessao pro mesmo operador/caixa com unique_violation -- aconteceu no ensaio
+  -- real, 2026-10-20: Lucas tinha uma sessao aberta desde 2026-09-23). Nao fecha nem mexe nela, so
+  -- usa o id pra anexar as vendas de teste, que somem no rollback do ensaio de qualquer forma.
+  select id into v_sessao from public.caixa_sessoes where operador_id = v_lucas and status = 'aberta' limit 1;
+  if v_sessao is null then
+    select id into v_caixa from public.caixas where operacao_id = v_varejo and ativo limit 1;
+    v_sessao := public.abrir_sessao_caixa(v_caixa, 0);
+  end if;
 
   -- T1. Venda COM cliente_id -> grava o vinculo
   v_venda1 := public.registrar_venda(
@@ -465,6 +472,11 @@ begin
     values (v_numero, p_sessao_id, v_dep, auth.uid(), nullif(trim(p_cliente_nome), ''), nullif(trim(p_cliente_documento), ''), p_idempotency_key)
     returning id into v_id;
 
+    -- Piso de prejuizo (Controle Financeiro do Varejo, Fase 5, 2026-10-08): busca a configuracao
+    -- financeira vigente UMA SO VEZ (nao muda no meio da transacao -- nao precisa repetir por item,
+    -- diferente de custo_medio_variacao, que esse sim e por peca). Despesas variaveis em 100% ou
+    -- mais e erro de configuracao (nenhum preco cobriria o custo por formula nenhuma) -- avisa
+    -- explicito em vez de silenciosamente deixar de aplicar a trava.
     select vc.despesas_variaveis_pct into v_desp_var from public.varejo_config vc
      where vc.operacao_id = v_op and vc.vigente_desde <= current_date
      order by vc.vigente_desde desc limit 1;
@@ -484,6 +496,7 @@ begin
       if not found then
         raise exception 'Variacao nao encontrada ou inativa';
       end if;
+      -- O preco vem do catalogo; o cliente so pode pedir um preco MENOR (desconto).
       v_prat := coalesce(public.arredondar_moeda(nullif(v_item ->> 'preco_unitario', '')::numeric), v_tab);
       if v_prat < 0 or v_prat > v_tab then
         raise exception 'Preco praticado invalido (maximo: preco de tabela)';
@@ -496,6 +509,9 @@ begin
       select coalesce(sum(m.quantidade), 0) into v_saldo from public.estoque_movimentos m
        where m.variacao_id = v_var and m.deposito_id = v_dep and m.operacao_id = v_op;
       if v_saldo < v_qtd then
+        -- Estoque negativo autorizado (pendencia estoque_varejo_sem_saldo_negativo, decidido
+        -- 2026-09-25): nao bloqueia mais aqui na hora -- acumula, e so exige autorizacao de
+        -- supervisor depois do loop (mesmo padrao de desconto_abaixo_piso, logo abaixo).
         v_estoque_insuf := v_estoque_insuf || jsonb_build_object('variacao_id', v_var, 'saldo', v_saldo, 'quantidade_pedida', v_qtd);
       end if;
       v_custo := public.custo_medio_variacao(v_var);
@@ -503,6 +519,11 @@ begin
         raise exception 'Variacao sem custo conhecido: registre uma entrada de estoque';
       end if;
 
+      -- Piso de prejuizo (Controle Financeiro do Varejo, Fase 5, 2026-10-08): vender abaixo do que a
+      -- despesa variavel cobre e prejuizo na certa, nao desconto -- bloqueia sempre, sem autorizacao
+      -- possivel (diferente do preco abaixo do preco_minimo acima, que pode ser decisao comercial
+      -- valida e por isso aceita PIN). v_desp_var ja veio lido (e validado < 1) antes do loop; sem
+      -- config cadastrada ainda (v_desp_var null), mantem o comportamento de sempre.
       if v_desp_var is not null then
         v_piso_prejuizo := public.arredondar_moeda(v_custo / (1 - v_desp_var));
         if v_prat < v_piso_prejuizo then
@@ -512,6 +533,7 @@ begin
 
       insert into public.estoque_movimentos (deposito_id, variacao_id, tipo, quantidade, custo_unitario, documento_tipo, documento_id, criado_por)
       values (v_dep, v_var, 'venda', -v_qtd, v_custo, 'venda', v_id, auth.uid());
+      -- Custo congelado no fato: a linha da venda recebe a COPIA do custo gravado no movimento.
       insert into public.venda_itens (venda_id, variacao_id, quantidade, preco_tabela, preco_unitario, custo_unitario)
       values (v_id, v_var, v_qtd, v_tab, v_prat, v_custo);
 
@@ -541,6 +563,9 @@ begin
         jsonb_build_object('itens', v_abaixo, 'autorizado_por', v_sup, 'total', v_total), null);
     end if;
 
+    -- Desconto/acrescimo do carrinho inteiro (pedido do usuario, 2026-09-30) -- livre, sem PIN de
+    -- supervisor (decisao do usuario): mecanismo separado da autorizacao de preco abaixo do minimo
+    -- por peca acima, que continua olhando so o preco de cada item, sem relacao com isto.
     if coalesce(p_valor_desconto, 0) < 0 then
       raise exception 'Desconto nao pode ser negativo';
     end if;

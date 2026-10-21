@@ -28,7 +28,7 @@
 begin;
 
 -- >>> MODO (troque só esta linha): 'ensaio' | 'aplicar' | 'desfazer'
-select set_config('app.modo_migration', 'ensaio', true);
+select set_config('app.modo_migration', 'aplicar', true);
 set local lock_timeout = '15s';
 
 do $modo$

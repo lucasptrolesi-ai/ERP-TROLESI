@@ -9,6 +9,15 @@ export type CupomVarejo = {
   criado_em: string;
 };
 
+// Cashback (Fase 3 de 3 — cliente, cupom, cashback): credito concedido ao cliente numa venda, pra
+// usar numa compra futura — valor ja resolvido em R$ (percentual, quando usado, e calculado no
+// cliente contra o total da venda, igual ao cupom/desconto do carrinho).
+export type CashbackDisponivel = {
+  id: string;
+  valor: number;
+  vencimento: string;
+};
+
 export type SessaoCaixa = {
   sessao_id: string;
   caixa_id: string;
@@ -61,6 +70,12 @@ export type DadosDaVenda = {
   autorizacaoEstoqueId?: string;
   valorDesconto?: number;
   valorAcrescimo?: number;
+  // Cashback (Fase 3) -- resgate e concessão viajam JUNTO com a venda, numa função atômica só
+  // (registrar_venda_varejo_com_cashback): se qualquer um dos dois falhar, a venda também não é
+  // criada (ver DECISIONS.md, 2026-10-21 — achado de code review sobre a versão anterior, encadeada).
+  cashbackResgatarId?: string;
+  cashbackConcederValor?: number;
+  cashbackConcederVencimento?: string;
 };
 
 export type AcaoPrivilegiada = "desconto_abaixo_piso" | "cancelamento_venda" | "estorno_pagamento" | "estoque_negativo";

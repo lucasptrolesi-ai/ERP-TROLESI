@@ -93,10 +93,14 @@ export async function autorizarAcao(
   return { ok: resposta.ok, motivo: resposta.motivo, autorizacaoId: resposta.autorizacao_id };
 }
 
+// Sempre chama o wrapper atômico (registrar_venda_varejo_com_cashback) em vez de registrar_venda
+// direto -- os 3 parâmetros de cashback vêm null quando a venda não usa cashback nenhum, e nesse caso
+// o comportamento é idêntico a chamar registrar_venda direto (o wrapper só repassa pra ela). Rodar os
+// dois caminhos (com e sem cashback) pela MESMA function evita ter duas rotas de venda divergentes.
 export async function registrarVenda(dados: DadosDaVenda): Promise<{ erro?: string; vendaId?: string }> {
   if (dados.itens.length === 0) return { erro: "Adicione ao menos um item." };
   const supabase = await createClient();
-  const { data, error } = await supabase.rpc("registrar_venda", {
+  const { data, error } = await supabase.rpc("registrar_venda_varejo_com_cashback", {
     p_sessao_id: dados.sessaoId,
     p_itens: dados.itens,
     p_pagamentos: dados.pagamentos,
@@ -108,12 +112,19 @@ export async function registrarVenda(dados: DadosDaVenda): Promise<{ erro?: stri
     p_valor_desconto: dados.valorDesconto ?? 0,
     p_valor_acrescimo: dados.valorAcrescimo ?? 0,
     p_cliente_id: dados.clienteId ?? null,
+    p_cashback_resgatar_id: dados.cashbackResgatarId ?? null,
+    p_cashback_conceder_valor: dados.cashbackConcederValor ?? null,
+    p_cashback_conceder_vencimento: dados.cashbackConcederVencimento ?? null,
   });
   if (error) return { erro: mensagem(error) };
   atualizarTelas();
   return { vendaId: data as string };
 }
 
+// Sempre chama o wrapper (cancelar_venda_varejo_com_cashback) em vez de cancelar_venda direto: sem
+// isso, cancelar uma venda que tinha resgatado cashback perdia o crédito do cliente pra sempre, e
+// cancelar uma venda que tinha concedido cashback deixava a loja devendo um crédito de uma venda que
+// nunca aconteceu de verdade (achado de code review, 2026-10-21 — ver DECISIONS.md).
 export async function cancelarVenda(
   vendaId: string,
   motivo: string,
@@ -121,7 +132,7 @@ export async function cancelarVenda(
 ): Promise<{ erro?: string }> {
   if (motivo.trim() === "") return { erro: "Informe o motivo do cancelamento." };
   const supabase = await createClient();
-  const { error } = await supabase.rpc("cancelar_venda", {
+  const { error } = await supabase.rpc("cancelar_venda_varejo_com_cashback", {
     p_venda_id: vendaId,
     p_motivo: motivo.trim(),
     p_autorizacao_id: autorizacaoId,

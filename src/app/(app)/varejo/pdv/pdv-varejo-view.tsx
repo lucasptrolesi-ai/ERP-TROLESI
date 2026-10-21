@@ -1,19 +1,31 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { formatarMoeda } from "@/lib/formatar-moeda";
 import { arredondarMoeda, lerMoeda } from "@/lib/dinheiro";
 import { filtra } from "@/lib/filtra";
+import { isoEmDias, formatarDataIso } from "@/lib/datas";
 import { cancelarVenda, registrarVenda } from "@/lib/actions/varejo";
 import { calcularLinha, calcularTotais, calcularTroco, type ItemCarrinho } from "@/lib/varejo/carrinho";
 import { calcularDescontoCupomVarejo } from "@/lib/varejo/cupom";
+import { espacoParaCashback } from "@/lib/varejo/cashback";
+import { buscarCashbackDisponivel } from "@/lib/actions/cashback-varejo";
 import { Modal } from "@/components/modal";
 import { PinSupervisorModal } from "@/components/pin-supervisor-modal";
 import { ClientePickerPdv } from "@/components/cliente-picker-pdv";
 import type { ClienteResumoVarejo } from "@/lib/actions/clientes-varejo";
-import type { CupomVarejo, FormaPagamento, ItemCatalogo, PagamentoDaVenda, SessaoCaixa, Supervisor, VendaDaSessao } from "@/lib/varejo/tipos";
+import type {
+  CashbackDisponivel,
+  CupomVarejo,
+  FormaPagamento,
+  ItemCatalogo,
+  PagamentoDaVenda,
+  SessaoCaixa,
+  Supervisor,
+  VendaDaSessao,
+} from "@/lib/varejo/tipos";
 
 const FORMAS: { valor: FormaPagamento; rotulo: string }[] = [
   { valor: "dinheiro", rotulo: "Dinheiro" },
@@ -54,9 +66,42 @@ export function PdvVarejoView({
   const [erroCupom, setErroCupom] = useState<string | null>(null);
   const [percentualAcrescimo, setPercentualAcrescimo] = useState("");
   const [valorAcrescimoTexto, setValorAcrescimoTexto] = useState("0");
+  const [cashbackDisponivel, setCashbackDisponivel] = useState<CashbackDisponivel[]>([]);
+  const [cashbackAplicado, setCashbackAplicado] = useState<CashbackDisponivel | null>(null);
+  const [cashbackPercentualConceder, setCashbackPercentualConceder] = useState("");
+  const [cashbackValorConcederTexto, setCashbackValorConcederTexto] = useState("0");
+  const [cashbackVencimentoConceder, setCashbackVencimentoConceder] = useState("");
   const [erro, setErro] = useState<string | null>(null);
   const [sucesso, setSucesso] = useState<string | null>(null);
   const [enviando, iniciarEnvio] = useTransition();
+  const [, iniciarBuscaCashback] = useTransition();
+
+  // Cashback (Fase 3, 2026-10-21): ao trocar de cliente, busca o cashback disponível dele e esquece
+  // qualquer seleção anterior (de outro cliente) — "aponta automático", nunca aplica sozinho. Também
+  // zera o "conceder cashback nesta venda" (achado de code review, 2026-10-21: sem isso, um valor
+  // digitado pensando no cliente A sobrevivia à troca pro cliente B e acabava concedido pra B, sem
+  // nenhum aviso visível do erro).
+  // `cancelada` evita que uma busca mais lenta de um cliente ANTERIOR sobrescreva, depois de
+  // resolvida fora de ordem, o cashback do cliente selecionado por último (achado de code review,
+  // 2026-10-21: sem essa guarda, o vendedor podia ver/aplicar o cashback do cliente errado).
+  useEffect(() => {
+    let cancelada = false;
+    iniciarBuscaCashback(async () => {
+      setCashbackAplicado(null);
+      setCashbackPercentualConceder("");
+      setCashbackValorConcederTexto("0");
+      setCashbackVencimentoConceder("");
+      if (!clienteSelecionado) {
+        setCashbackDisponivel([]);
+        return;
+      }
+      const lista = await buscarCashbackDisponivel(clienteSelecionado.id);
+      if (!cancelada) setCashbackDisponivel(lista);
+    });
+    return () => {
+      cancelada = true;
+    };
+  }, [clienteSelecionado]);
 
   const resultados = useMemo(() => {
     if (busca.trim().length < 1) return catalogo.slice(0, 24);
@@ -100,11 +145,28 @@ export function PdvVarejoView({
   // preço de cada item). Mesmo padrão do PDV Atacado: o % só calcula o R$, que é o valor real.
   // Cupom (Fase 2, 2026-10-20) sempre recalcula em cima do total de itens atual (se o carrinho mudar
   // depois de aplicar, o desconto acompanha) — só cai pro campo manual quando não há cupom ativo,
-  // mesmo espírito do PDV Eventos (ver vender-evento.tsx).
-  const numDesconto = cupomAplicado
+  // mesmo espírito do PDV Eventos (ver vender-evento.tsx). Cashback resgatado (Fase 3, 2026-10-21) é
+  // dinheiro do próprio cliente, não uma promoção — soma ao desconto do cupom/manual em vez de
+  // substituir (as duas coisas podem coexistir na mesma venda).
+  const numDescontoCarrinho = cupomAplicado
     ? calcularDescontoCupomVarejo(cupomAplicado.tipo, cupomAplicado.valor, totalItens)
     : (lerMoeda(valorDescontoTexto) ?? 0);
   const numAcrescimo = lerMoeda(valorAcrescimoTexto) ?? 0;
+  // O cashback é resgatado inteiro (a tabela não guarda "uso parcial" -- um lançamento vira
+  // 'disponivel' ou 'usado', nunca fica com saldo residual): deixar aplicar mesmo sem caber no
+  // carrinho faria a venda rejeitar no registrar_venda ('total não pode ficar negativo') OU, se
+  // capasse só o desconto aqui, queimaria o cashback inteiro descontando só uma parte -- o cliente
+  // perderia a diferença. Por isso o botão "Usar" só aparece pro PRIMEIRO cashback (ordenado por
+  // vencimento) que couber (cashbackUsavel) — não necessariamente o [0] da lista, senão um cliente
+  // com dois créditos (um grande que não cabe, um menor que cabe) nunca conseguia usar o menor
+  // (achado de code review, 2026-10-21) — e, se o carrinho encolher DEPOIS de aplicado (item
+  // removido, cupom trocado), cashbackAplicadoValido reavalia a cada render e some do total sem
+  // deixar a venda chegar no servidor com um desconto maior que o carrinho.
+  const espacoCashback = espacoParaCashback(totalItens, numDescontoCarrinho, numAcrescimo);
+  const cashbackAplicadoValido = cashbackAplicado ? cashbackAplicado.valor <= espacoCashback : true;
+  const numCashbackUsado = cashbackAplicado && cashbackAplicadoValido ? cashbackAplicado.valor : 0;
+  const numDesconto = numDescontoCarrinho + numCashbackUsado;
+  const cashbackUsavel = cashbackDisponivel.find((c) => c.valor <= espacoCashback) ?? null;
   const total = Math.max(0, arredondarMoeda(totalItens - numDesconto + numAcrescimo));
   const valorRecebido = lerMoeda(valorRecebidoTexto) ?? 0;
   const troco = calcularTroco(forma, valorRecebido, total);
@@ -143,6 +205,10 @@ export function PdvVarejoView({
     removerCupom();
     setPercentualAcrescimo("");
     setValorAcrescimoTexto("0");
+    setCashbackAplicado(null);
+    setCashbackPercentualConceder("");
+    setCashbackValorConcederTexto("0");
+    setCashbackVencimentoConceder("");
     setIdempotencyKey(crypto.randomUUID());
   }
 
@@ -164,10 +230,32 @@ export function PdvVarejoView({
       setErro("O valor recebido é menor que o total.");
       return;
     }
+    if (cashbackAplicado && !cashbackAplicadoValido) {
+      setErro("O carrinho diminuiu e o cashback aplicado não cabe mais — remova-o ou aumente o carrinho.");
+      return;
+    }
+    // registrar_venda sempre exige ao menos um pagamento com valor MAIOR que zero (não aceita uma
+    // forma de pagamento com R$0) — uma venda que fecha em R$0 (ex: cashback cobrindo o total
+    // inteiro) não tem como ser registrada hoje. Bloqueia aqui com uma mensagem clara em vez de deixar
+    // estourar um erro genérico do servidor (achado de code review, 2026-10-21).
+    if (total <= 0) {
+      setErro("O total ficaria zerado (cashback cobre tudo) — reduza o cashback usado ou adicione mais itens.");
+      return;
+    }
+    const cashbackParaConceder = lerMoeda(cashbackValorConcederTexto) ?? 0;
+    if (cashbackParaConceder > 0 && !cashbackVencimentoConceder) {
+      setErro("Informe a data de vencimento do cashback a conceder (ou zere o valor).");
+      return;
+    }
     const pagamentos: PagamentoDaVenda[] =
       forma === "dinheiro" ? [{ forma, valor: valorRecebido }] : [{ forma, valor: total }];
 
     iniciarEnvio(async () => {
+      // Resgate/concessão de cashback viajam JUNTO com a venda (mesmo registrarVenda, que por baixo
+      // chama a função atômica registrar_venda_varejo_com_cashback) — se qualquer um dos dois falhar,
+      // a venda inteira também não é criada. Nenhuma chamada separada depois: evita a janela onde a
+      // venda saía com o desconto aplicado mas o cashback continuava disponível pra usar de novo
+      // (achado de code review, 2026-10-21 — ver DECISIONS.md).
       const resultado = await registrarVenda({
         sessaoId: sessao!.sessao_id,
         itens: linhas.map((l) => ({ variacao_id: l.variacao.variacao_id, quantidade: l.quantidade, preco_unitario: l.preco })),
@@ -179,12 +267,17 @@ export function PdvVarejoView({
         autorizacaoEstoqueId: autorizacaoEstoque ?? undefined,
         valorDesconto: numDesconto || undefined,
         valorAcrescimo: numAcrescimo || undefined,
+        cashbackResgatarId: cashbackAplicado?.id,
+        cashbackConcederValor: cashbackParaConceder > 0 ? cashbackParaConceder : undefined,
+        cashbackConcederVencimento: cashbackParaConceder > 0 ? cashbackVencimentoConceder : undefined,
       });
       if (resultado.erro) {
         setErro(resultado.erro);
         return;
       }
-      setSucesso(`Venda registrada${forma === "dinheiro" && troco > 0 ? ` — troco: ${formatarMoeda(troco)}` : ""}.`);
+
+      const trocoTexto = forma === "dinheiro" && troco > 0 ? ` — troco: ${formatarMoeda(troco)}` : "";
+      setSucesso(`Venda registrada${trocoTexto}.`);
       limparVenda();
       router.refresh();
     });
@@ -270,10 +363,16 @@ export function PdvVarejoView({
             <span>Desconto</span>
             <span>{formatarMoeda(arredondarMoeda(subtotal - totalItens))}</span>
           </div>
-          {numDesconto > 0 && (
+          {numDescontoCarrinho > 0 && (
             <div className="flex justify-between text-text-soft">
               <span>Desconto do carrinho</span>
-              <span className="tabular-nums">− {formatarMoeda(numDesconto)}</span>
+              <span className="tabular-nums">− {formatarMoeda(numDescontoCarrinho)}</span>
+            </div>
+          )}
+          {numCashbackUsado > 0 && (
+            <div className="flex justify-between text-text-soft">
+              <span>Cashback usado</span>
+              <span className="tabular-nums">− {formatarMoeda(numCashbackUsado)}</span>
             </div>
           )}
           {numAcrescimo > 0 && (
@@ -322,6 +421,97 @@ export function PdvVarejoView({
           )}
           {erroCupom && <p className="mt-1 text-xs font-medium text-red-700">{erroCupom}</p>}
         </div>
+
+        {clienteSelecionado && (cashbackDisponivel.length > 0 || cashbackAplicado) && (
+          <div
+            className={`rounded-lg border p-3 text-sm ${
+              cashbackAplicado && !cashbackAplicadoValido
+                ? "border-red-300 bg-red-50 text-red-900"
+                : "border-emerald-300 bg-emerald-50 text-emerald-900"
+            }`}
+          >
+            {cashbackAplicado ? (
+              <div className="flex items-center justify-between gap-2">
+                <span>
+                  {cashbackAplicadoValido ? (
+                    <>
+                      Cashback aplicado: <span className="font-semibold">{formatarMoeda(cashbackAplicado.valor)}</span>
+                    </>
+                  ) : (
+                    <>
+                      Cashback de <span className="font-semibold">{formatarMoeda(cashbackAplicado.valor)}</span> não cabe mais no
+                      carrinho — remova ou aumente o carrinho.
+                    </>
+                  )}
+                </span>
+                <button type="button" onClick={() => setCashbackAplicado(null)} className="text-xs font-semibold underline decoration-dotted">
+                  Remover
+                </button>
+              </div>
+            ) : cashbackUsavel ? (
+              <div className="flex items-center justify-between gap-2">
+                <span>
+                  💰 Cliente tem <span className="font-semibold">{formatarMoeda(cashbackUsavel.valor)}</span> de cashback
+                  disponível (vence {formatarDataIso(cashbackUsavel.vencimento)})
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setCashbackAplicado(cashbackUsavel)}
+                  className="text-xs font-semibold underline decoration-dotted"
+                >
+                  Usar
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center justify-between gap-2">
+                <span>
+                  💰 Cliente tem <span className="font-semibold">{formatarMoeda(cashbackDisponivel[0].valor)}</span> de cashback
+                  disponível (vence {formatarDataIso(cashbackDisponivel[0].vencimento)}) — carrinho menor que o saldo, aumente
+                  pra poder usar
+                </span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {clienteSelecionado && (
+          <div className="rounded-lg border border-line bg-cream p-3">
+            <p className="mb-2 text-xs font-bold uppercase tracking-wide text-text-soft">Conceder cashback nesta venda (opcional)</p>
+            <div className="grid grid-cols-3 gap-2">
+              <label className="flex flex-col gap-1">
+                <span className="text-[0.7rem] text-text-soft">Cashback (%)</span>
+                <input
+                  value={cashbackPercentualConceder}
+                  onChange={(e) => {
+                    setCashbackPercentualConceder(e.target.value);
+                    const p = Number(e.target.value.replace(",", "."));
+                    if (Number.isFinite(p)) setCashbackValorConcederTexto(((totalItens * p) / 100).toFixed(2));
+                  }}
+                  placeholder="0"
+                  className="rounded-lg border border-line bg-surface px-2 py-1.5 text-sm"
+                />
+              </label>
+              <label className="flex flex-col gap-1">
+                <span className="text-[0.7rem] text-text-soft">Cashback (R$)</span>
+                <input
+                  value={cashbackValorConcederTexto}
+                  onChange={(e) => setCashbackValorConcederTexto(e.target.value)}
+                  className="rounded-lg border border-line bg-surface px-2 py-1.5 text-sm"
+                />
+              </label>
+              <label className="flex flex-col gap-1">
+                <span className="text-[0.7rem] text-text-soft">Vence em</span>
+                <input
+                  type="date"
+                  min={isoEmDias(1)}
+                  value={cashbackVencimentoConceder}
+                  onChange={(e) => setCashbackVencimentoConceder(e.target.value)}
+                  className="rounded-lg border border-line bg-surface px-2 py-1.5 text-sm"
+                />
+              </label>
+            </div>
+          </div>
+        )}
 
         <div className="rounded-lg border border-line bg-cream p-3">
           <p className="mb-2 text-xs font-bold uppercase tracking-wide text-text-soft">Desconto / acréscimo do carrinho</p>

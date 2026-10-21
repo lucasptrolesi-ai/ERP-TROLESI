@@ -13,10 +13,20 @@ import { mensagemErroSalvar, normalizarCampo } from "./erros";
 
 export type ClienteResumoVarejo = { id: string; nome: string; telefone: string | null; cpf_cnpj: string | null };
 
+// ILIKE trata `%` e `_` como wildcards -- sem escapar, buscar por um telefone/CPF com esses
+// caracteres (ou mesmo um nome com "%") combina muito mais do que o termo digitado. `\` é o
+// caractere de escape padrão do (I)LIKE no Postgres, então um `\` literal no termo também precisa
+// ser escapado primeiro, antes de inserir os escapes de `%`/`_` (senão esses backslashes novos
+// seriam escapados de novo, virando literais errados).
+function escaparWildcardsIlike(valor: string): string {
+  return valor.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_");
+}
+
 // PostgREST usa vírgula pra separar condições do `.or()` e parênteses pra agrupar -- um termo digitado
 // com vírgula (ex: "SILVA & CIA, LTDA") quebraria o parsing do filtro ou, pior, seria lido como
 // condições extras. Escapa os caracteres reservados (`\`, `,`, `(`, `)`) com backslash antes de montar
-// a string do filtro, como a sintaxe do PostgREST exige.
+// a string do filtro, como a sintaxe do PostgREST exige -- isso também "reempacota" pro PostgREST os
+// backslashes que `escaparWildcardsIlike` acabou de inserir, pra chegarem intactos no Postgres.
 function escaparTermoOr(valor: string): string {
   return valor.replace(/[\\,()]/g, (c) => `\\${c}`);
 }
@@ -25,7 +35,7 @@ function escaparTermoOr(valor: string): string {
 export async function buscarClientesVarejo(termo: string): Promise<ClienteResumoVarejo[]> {
   const termoLimpo = termo.trim();
   if (termoLimpo.length < 2) return [];
-  const termoEscapado = escaparTermoOr(termoLimpo);
+  const termoEscapado = escaparTermoOr(escaparWildcardsIlike(termoLimpo));
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("clientes")

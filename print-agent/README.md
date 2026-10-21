@@ -167,6 +167,17 @@ modelos podem ter geometria totalmente diferente — o motor é genérico.
 
 ## Limitações conhecidas
 
+- **O LaunchAgent não recarrega código sozinho**: é um processo Node de vida longa
+  (`KeepAlive: true`) que lê `agent.js` uma vez, na subida. Editar o arquivo ou dar
+  `git pull` não afeta o processo já rodando — `ps aux | grep agent.js` mostrando
+  "rodando" não quer dizer "com o código atual". Achado em 2026-10-21: o agente da
+  Mac da loja estava de pé desde 16/09, mais de um mês antes do Módulo Etiquetas
+  (e toda a lógica de fila/polling dele) sequer existir. Se uma funcionalidade nova
+  do agente (cupom OU etiqueta) não aparecer funcionando, confira a hora de início
+  do processo antes de suspeitar do código; se for anterior ao commit da
+  funcionalidade, reinicie: `launchctl kickstart -k gui/$(id -u)/com.trolesi.print-agent`
+  (o log `agente.log` é append-only entre reinícios — a mensagem de início de sessão
+  mais recente é o que vale, linhas de erro antigas acima dela não são do processo atual).
 - **Sem acento**: os caracteres acentuados (ç, ã, é...) saem sem acento de
   propósito — o code page correto da impressora pra acentos ainda não foi
   confirmado na prática, e testar errado sai pior (caractere garbled) do que

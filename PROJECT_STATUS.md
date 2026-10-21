@@ -1,6 +1,18 @@
 # PROJECT_STATUS — ERP Trolesi
 
-_Atualizado em 2026-10-20._
+_Atualizado em 2026-10-21._
+
+## 2026-10-21 — Cashback no PDV Varejo pronto (Fase 3 de 3) — pendente aplicar 2 migrations; ciclo cliente/cupom/cashback fica completo depois disso
+
+Cliente (Fase 1) e cupom (Fase 2) já estão aplicados e confirmados em produção — a observação de "pendente aplicar" na entrada de 2026-10-20 logo abaixo está superada. Cashback (Fase 3) construído e testado (`tsc`/`vitest`/build limpos, ~10 rodadas de `/code-review medium` com achados reais corrigidos a cada rodada). De brinde, reaberto e corrigido um vazamento de isolamento por operação no `cupons_varejo` da Fase 2 (já em produção, sem o fix ainda aplicado). 3 achados menores de code-review também corrigidos no `cliente-picker-pdv.tsx`/`clientes-varejo.ts` (Fase 1). Ver `DECISIONS.md`/`CHANGELOG.md` (2026-10-21).
+
+**Pendente antes de funcionar de ponta a ponta:**
+1. Lucas aplicar `supabase/migrations/20261021000001_cashback_varejo.sql` (ensaio → aplicar, SQL Editor do Supabase).
+2. Lucas aplicar `supabase/migrations/20261021000002_cupons_varejo_operacao_id.sql` (ensaio → aplicar, SQL Editor do Supabase).
+
+**Também nesta data, sem relação com o PDV Varejo**: calibração física da impressora Elgin L42 Pro Full (Módulo Etiquetas) confirmada de ponta a ponta pelo usuário — problema de USB não detectado e de LaunchAgent com código desatualizado, ambos resolvidos. Não mudou código (só configuração/restart do print-agent) — detalhe em `print-agent/README.md` ("Limitações conhecidas") e no vault Obsidian, não repetido aqui.
+
+**Próxima tarefa**: nenhuma fase nova do PDV Varejo pedida ainda — aguardando Lucas aplicar as 2 migrations pendentes acima e testar o cashback ao vivo no balcão.
 
 ## 2026-10-20 — Cupom de desconto no PDV Varejo pronto (Fase 2 de 3) — pendente aplicar 2 migrations; Fase 3 (cashback) é a próxima
 

@@ -25,17 +25,25 @@ export function ClientePickerPdv({
   const [novoAberto, setNovoAberto] = useState(false);
   const [, iniciarBusca] = useTransition();
 
+  // `cancelada` evita que uma busca mais lenta de um termo ANTERIOR sobrescreva, depois de resolvida
+  // fora de ordem, os resultados do termo digitado por último (mesmo achado de code review que gerou
+  // a guarda equivalente no efeito de cashback do PDV).
   useEffect(() => {
+    let cancelada = false;
     const id = setTimeout(() => {
       if (nomeLivre.trim().length < 2) {
         setResultados([]);
         return;
       }
       iniciarBusca(async () => {
-        setResultados(await buscarClientesVarejo(nomeLivre));
+        const lista = await buscarClientesVarejo(nomeLivre);
+        if (!cancelada) setResultados(lista);
       });
     }, 250);
-    return () => clearTimeout(id);
+    return () => {
+      cancelada = true;
+      clearTimeout(id);
+    };
   }, [nomeLivre]);
 
   if (clienteSelecionado) {
@@ -87,6 +95,11 @@ export function ClientePickerPdv({
 
       <Modal aberto={novoAberto} onFechar={() => setNovoAberto(false)} titulo="Novo cliente">
         <FormNovoCliente
+          // `key` força remontar o form a cada abertura com o texto atual do campo de busca --
+          // `defaultValue` só vale na montagem, e o form nunca desmonta de verdade (o <Modal> só
+          // abre/fecha o <dialog>, os filhos continuam no DOM), então sem isso o campo "Nome" ficava
+          // preso no texto de busca de quando o picker foi montado, ignorando edições depois disso.
+          key={nomeLivre}
           nomeInicial={nomeLivre}
           onCriado={(cliente) => {
             onSelecionar(cliente);

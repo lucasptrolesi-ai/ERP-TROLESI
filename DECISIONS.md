@@ -2,6 +2,18 @@
 
 Histórico de decisões de escopo e arquitetura, na ordem em que foram tomadas. Decisões revistas ficam marcadas como tal, não apagadas.
 
+## 2026-10-21 — Fase 3 (cashback no PDV Varejo) construída; vazamento de isolamento por operação achado e corrigido também na Fase 2
+
+**Wrapper atômico em vez de editar `registrar_venda`/`cancelar_venda` direto.** As duas já são as functions mais centrais e mais testadas do Varejo — reabrir o corpo delas a cada feature nova acumula risco de regressão e complica a reconstrução byte-a-byte do `$down$` de rollback a cada migration nova. `registrar_venda_varejo_com_cashback`/`cancelar_venda_varejo_com_cashback` chamam as originais e só acrescentam o que é específico de cashback, na mesma transação — uma falha no cashback desfaz a venda inteira também, não deixa estado parcial.
+
+**Máquina de estados explícita pra `situacao` do lançamento de cashback, numa trigger `BEFORE UPDATE`, não só validação dentro das functions.** `cashback_lancamentos` precisa de grant de `update` pra `authenticated` (as functions gravam nela), o que abre a porta pra um UPDATE direto na tabela contornar qualquer validação que só existisse dentro de `conceder_cashback`/`resgatar_cashback`. A trigger lista explicitamente as transições legítimas (disponível→usado, usado→disponível, disponível→cancelado, usado→cancelado) e rejeita qualquer outra — fecha essa classe de bypass de uma vez, não só pros dois caminhos que o app usa hoje.
+
+**Achado retroativo: o mesmo vazamento de isolamento por operação também estava em `cupons_varejo` (Fase 2, já em produção).** `meu_papel()` é global por perfil, não por operação — um vendedor ligado a mais de uma operação (caso real: Barbara, Atacado + Varejo) conseguia ver/gerenciar cupom da operação errada, porque a RLS só checava o papel (`admin`/`vendedor`), nunca `operacao_id = operacao_atual()`. Corrigido nos dois lugares: no cashback desde o desenho original, e retroativamente no `cupons_varejo` via migration `20261021000002` (sem backfill — tabela ainda sem linha em produção). Ver `CHANGELOG.md` (2026-10-21).
+
+**Limitação conhecida, decidida como "não corrigir agora":** uma venda totalmente coberta por cashback (total R$0) não pode ser finalizada, porque `registrar_venda` rejeita qualquer pagamento ≤0 desde que essa validação existe — pré-existente, só fica mais alcançável agora que cashback pode cobrir 100% do carrinho. Reabrir `registrar_venda` pra esse caso de borda foi avaliado e descartado (risco desproporcional ao ganho); o `/varejo/pdv` bloqueia com mensagem clara em vez disso.
+
+**Sem teto no valor concedido de cashback relativo ao total da venda — avaliado e decidido que não é bug.** O pedido original era valor/percentual manual, sem limite declarado; um teto arbitrário seria inventar regra que ninguém pediu.
+
 ## 2026-10-20 — Fase 2 (cupom de desconto no PDV Varejo) construída
 
 **Tabela própria (`cupons_varejo`) em vez de reaproveitar `cupons_evento` do PDV Eventos.** Diferente da decisão da Fase 1 (reaproveitar `clientes`), aqui o caso é o oposto: um cupom do Agroshow (evento, fora do catálogo do Varejo) não tem nenhuma relação com um cupom de loja — são promoções de contextos diferentes, sem motivo pra compartilhar linha. O *padrão* é espelhado (mesma forma: código/tipo/valor/ativo, mesmo cálculo client-side), não a tabela.
