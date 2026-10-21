@@ -110,9 +110,17 @@ begin
   -- function aplica (vencimento no futuro, cliente_id e operacao_id tem que ser os mesmos da venda
   -- de origem). Trigger replica essas regras DENTRO da tabela, pra valer em qualquer caminho de
   -- insercao, nao so via RPC (achado no code-review, 2026-10-21).
+  -- `security definer` (achado ao Lucas rodar o ensaio de verdade, T13): sem isso, o `select` desta
+  -- trigger em `vendas` fica sujeito a RLS de `vendas` igual qualquer select comum -- um insert
+  -- CRUZANDO operacao (venda de uma operacao, sessao no contexto de outra) nao via a venda de origem
+  -- (RLS de vendas filtra), `v_venda` vinha nulo, e a trigger acabava bloqueando com "cliente_id nao
+  -- bate" (tecnicamente ainda bloqueia, mas mascara a RLS de cashback_lancamentos, que e quem deveria
+  -- ser a barreira sendo testada aqui). `security definer` garante que esta trigger sempre enxerga a
+  -- venda de origem de verdade, e quem decide se o INSERT em si e permitido continua sendo a RLS da
+  -- propria cashback_lancamentos (nao muda nada pro caminho legitimo, mesma operacao).
   create function public.validar_cashback_lancamento()
   returns trigger
-  language plpgsql set search_path = public as $fn$
+  language plpgsql security definer set search_path = public as $fn$
   declare
     v_venda public.vendas%rowtype;
   begin
