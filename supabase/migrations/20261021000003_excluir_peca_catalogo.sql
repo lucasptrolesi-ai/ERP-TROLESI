@@ -268,6 +268,13 @@ begin
                      'app_metadata', jsonb_build_object('operacao_id', v_varejo))::text, true);
 
   perform set_config('request.jwt.claims', '', true);
+  -- `set local role authenticated` (logo no inicio deste bloco) so e desfeito por um `reset role`
+  -- explicito -- sem isso, a sessao continua como 'authenticated' (que so tem EXECUTE, nao e dona
+  -- das functions) ate o fim da transacao, e o $down$ logo abaixo falha no DROP FUNCTION com "must
+  -- be owner" (achado ao Lucas rodar o ensaio de verdade -- nos outros migrations desta sessao isso
+  -- passou batido por coincidencia: o ultimo teste de cada um ja chamava reset role por outro motivo,
+  -- antes do fim do bloco).
+  execute 'reset role';
 
   raise notice 'TESTES DE COMPORTAMENTO OK: T1 a T6 (excluir remove produto junto quando e a ultima variacao, mantem produto/variacoes irmas quando nao e, bloqueia por FK quando ja tem estoque/venda, desativar funciona como alternativa seguranca, papel e operacao isolados).';
 end $teste$;
