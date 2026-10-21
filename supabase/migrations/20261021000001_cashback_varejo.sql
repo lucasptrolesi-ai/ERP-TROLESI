@@ -621,7 +621,12 @@ begin
     jsonb_build_array(jsonb_build_object('sku', 'ZZ011', 'atributos', '{}'::jsonb, 'preco_venda', 100.00)));
   select id into v_var from public.catalogo_variacoes where produto_id = v_prod;
   select id into v_dep from public.depositos where operacao_id = v_varejo and ativo limit 1;
-  perform public.registrar_entrada_estoque(v_dep, v_var, 10, 20.00, 'ensaio cashback');
+  -- 30 unidades (nao 10): T1 a T17 fazem, ao todo, 17 vendas de 1 unidade cada contra esta mesma
+  -- variacao sem autorizacao de estoque (p_autorizacao_estoque_id fica null em todas) -- com so 10
+  -- unidades, a 11a venda esbarra na trava real de "estoque insuficiente, exige autorizacao de
+  -- supervisor" (achado ao Lucas rodar o ensaio de verdade: bug de dimensionamento do fixture de
+  -- teste, nao da logica de producao). 30 da folga confortavel acima das 17 que o teste usa hoje.
+  perform public.registrar_entrada_estoque(v_dep, v_var, 30, 20.00, 'ensaio cashback');
 
   select id into v_sessao from public.caixa_sessoes where operador_id = v_lucas and status = 'aberta' limit 1;
   if v_sessao is null then
