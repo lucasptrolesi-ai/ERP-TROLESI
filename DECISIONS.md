@@ -2,6 +2,14 @@
 
 Histórico de decisões de escopo e arquitetura, na ordem em que foram tomadas. Decisões revistas ficam marcadas como tal, não apagadas.
 
+## 2026-10-21 — Excluir peça no catálogo do Varejo: de verdade só sem movimentação, via FK natural
+
+**Excluir de verdade só funciona pra peça que nunca teve estoque/venda/dívida/transferência/etiqueta.** Pedido original era só "conseguir excluir as peças"; perguntado ao usuário se queria exclusão de verdade, desativar (reversível) ou as duas — respondeu "as duas coisas". Com movimentação real, a peça faz parte do histórico do negócio (vendida, com estoque entrado, etc.) — apagar de verdade destruiria rastro que outras partes do sistema dependem (relatórios, custo médio, etiquetas impressas). Sem nenhuma movimentação (cadastro errado/duplicado, apagado na hora), não há nada a preservar.
+
+**Não precisou checar cada tabela referenciada uma por uma.** Nenhuma FK que aponta pra `catalogo_variacoes` (estoque_movimentos, venda_itens, varejo_dividas_atacado, transferencia_itens, solicitacoes_etiqueta, etiqueta_impressoes) tem `ON DELETE CASCADE` — o próprio `DELETE` já bloqueia sozinho com erro `23503` se existir qualquer vínculo. A camada de app reaproveita `mensagemErroExcluir` (já usada em produtos/clientes/fornecedores do Atacado) pra traduzir isso em "Desative em vez de excluir", em vez de escrever uma lista de `exists (select ...)` que precisaria ser mantida a cada tabela nova que vier a referenciar o catálogo.
+
+**Excluir a última variação de um produto remove o produto junto, na mesma transação.** O modelo não permite produto sem nenhuma variação (`trg_produto_mantem_variacao`, 20260921000003) — em vez de bloquear a exclusão nesse caso (que seria o mais comum, já que a maioria das peças deste catálogo é 1 produto : 1 variação), as duas exclusões acontecem atomicamente: quando a trigger (deferred) roda no fim da transação, o produto já não existe mais, então ela nem dispara.
+
 ## 2026-10-21 — Fase 3 (cashback no PDV Varejo) construída; vazamento de isolamento por operação achado e corrigido também na Fase 2
 
 **Wrapper atômico em vez de editar `registrar_venda`/`cancelar_venda` direto.** As duas já são as functions mais centrais e mais testadas do Varejo — reabrir o corpo delas a cada feature nova acumula risco de regressão e complica a reconstrução byte-a-byte do `$down$` de rollback a cada migration nova. `registrar_venda_varejo_com_cashback`/`cancelar_venda_varejo_com_cashback` chamam as originais e só acrescentam o que é específico de cashback, na mesma transação — uma falha no cashback desfaz a venda inteira também, não deixa estado parcial.

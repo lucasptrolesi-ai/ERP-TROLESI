@@ -1,5 +1,15 @@
 # CHANGELOG — ERP Trolesi
 
+## 2026-10-21 (cont. 6) — Excluir peça no catálogo do Varejo, aplicado em produção
+
+Pedido do usuário: poder apagar peças de teste/duplicadas do catálogo antes de testar o cashback ao vivo — hoje só dava pra "desativar" (esconder) abrindo o form completo de edição.
+
+- Migration `20261021000003_excluir_peca_catalogo.sql`: `excluir_peca_catalogo` (admin/estoque, VAREJO) remove a variação e, se for a última do produto, o produto também (a trigger `trg_produto_mantem_variacao` que impediria um produto "fantasma" sem variação nenhuma nem dispara, porque as duas exclusões acontecem na mesma transação). Bloqueado pela própria FK (23503) se a peça já tiver estoque/venda/dívida com o Atacado/transferência/etiqueta vinculada — não precisou checar tabela por tabela. `desativar_peca_catalogo` isola o toggle de `ativo` que já existia só dentro do form de edição completo.
+- Botão **"Excluir"** na lista de `/varejo/catalogo` (com `confirm()`, mesmo padrão de produto-form/cliente-form/fornecedor-form) — se bloqueado por movimentação, oferece **"Desativar em vez disso"** na hora, sem abrir o form.
+- `tsc`/lint/`vitest`/build confirmados limpos.
+- Ensaio real (rodado por Lucas) encontrou 2 bugs de teste, não de produção: T6 esperava a mensagem "Peça não encontrada" pro contexto de operação errada, mas o guard genérico `exigir_operacao_codigo('VAREJO')` bloqueia antes disso, com mensagem diferente; e o bloco de teste nunca devolvia a *role* do Postgres ao original depois de simular RLS como `authenticated`, fazendo o `$down$` falhar no `DROP FUNCTION` com "must be owner" — corrigido com `reset role` explícito no fim do teste.
+- Migration aplicada e confirmada: as 2 functions com grants corretos, verificado via introspecção do schema.
+
 ## 2026-10-21 (cont. 5) — Fix de isolamento por operação em `cupons_varejo` aplicado em produção
 
 Migration `20261021000002_cupons_varejo_operacao_id.sql` aplicada e verificada (coluna `operacao_id` NOT NULL, trigger `trg_carimbar_operacao`, policy nova no lugar e a antiga removida — tudo confirmado via introspecção do schema). Ensaio real encontrou mais 1 bug de teste (não de produção): T2 esperava que um `UPDATE` bloqueado por RLS lançasse exceção — só o `INSERT` (e um `UPDATE` que enxergasse a linha mas violasse o `with check` depois) fazem isso. Um `UPDATE` cuja linha não passa no `using` da policy só afeta 0 linhas, em silêncio. Corrigido checando `row_count = 0` em vez de esperar exceção.

@@ -2,6 +2,10 @@
 
 _Atualizado em 2026-10-21._
 
+## 2026-10-21 (cont. 4) — Excluir peça no catálogo do Varejo, aplicado em produção
+
+Migration `20261021000003_excluir_peca_catalogo.sql` aplicada e confirmada (as 2 functions, com grants corretos, verificadas via introspecção do schema). Pedido do usuário pra poder tirar peças de teste/duplicadas do catálogo antes de testar o cashback ao vivo. Botão **"Excluir"** na lista de `/varejo/catalogo`: remove de vez se a peça nunca teve movimentação (a própria FK bloqueia com uma mensagem amigável se já tiver estoque/venda/etiqueta — nesse caso oferece **"Desativar em vez disso"** na hora, sem abrir o form de edição). Ensaio real encontrou 2 bugs de teste (não de produção): asserção errada sobre qual mensagem o guard de operação devolve, e falta de `reset role` no fim do bloco de teste (deixava a sessão sem ser dona das functions na hora do `$down$`). Ver `CHANGELOG.md`/`DECISIONS.md` (2026-10-21).
+
 ## 2026-10-21 (cont. 3) — PDV Varejo: cliente + cupom + cashback completo em produção, nada pendente
 
 As duas migrations da Fase 3 estão aplicadas e confirmadas (tabela/functions/triggers/RLS verificados por introspecção direta do schema):
