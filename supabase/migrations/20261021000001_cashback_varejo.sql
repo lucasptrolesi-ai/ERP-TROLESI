@@ -148,9 +148,16 @@ begin
   -- valida a TRANSICAO inteira (nao so os campos que nao podem mudar), pra qualquer update, nao so
   -- via RPC: reescreve/revalida as mesmas regras que resgatar_cashback/cancelar_venda_varejo_com_cashback
   -- ja aplicam, entao as chamadas legitimas dessas functions continuam passando sem mudanca nenhuma.
+  -- `security definer` (achado ao Lucas rodar o ensaio de verdade, T16): a transicao disponivel->usado
+  -- faz `select ... for update` em `vendas` pra travar a linha contra corrida concorrente (mesmo motivo
+  -- de resgatar_cashback) -- `for update` exige privilegio de UPDATE na tabela, nao so SELECT, e
+  -- `authenticated` nunca recebeu esse grant direto em `vendas` (toda escrita nela passa por function
+  -- security definer, tipo registrar_venda/cancelar_venda). Sem isso, um UPDATE direto em
+  -- cashback_lancamentos que cai nesse ramo falha com "permission denied for table vendas" em vez de
+  -- validar/bloquear como devia.
   create function public.validar_transicao_cashback_lancamento()
   returns trigger
-  language plpgsql set search_path = public as $fn$
+  language plpgsql security definer set search_path = public as $fn$
   declare
     v_venda public.vendas%rowtype;
   begin
