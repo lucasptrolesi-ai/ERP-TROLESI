@@ -1,5 +1,11 @@
 # CHANGELOG — ERP Trolesi
 
+## 2026-10-21 (cont. 5) — Fix de isolamento por operação em `cupons_varejo` aplicado em produção
+
+Migration `20261021000002_cupons_varejo_operacao_id.sql` aplicada e verificada (coluna `operacao_id` NOT NULL, trigger `trg_carimbar_operacao`, policy nova no lugar e a antiga removida — tudo confirmado via introspecção do schema). Ensaio real encontrou mais 1 bug de teste (não de produção): T2 esperava que um `UPDATE` bloqueado por RLS lançasse exceção — só o `INSERT` (e um `UPDATE` que enxergasse a linha mas violasse o `with check` depois) fazem isso. Um `UPDATE` cuja linha não passa no `using` da policy só afeta 0 linhas, em silêncio. Corrigido checando `row_count = 0` em vez de esperar exceção.
+
+Com isso, o ciclo cliente (Fase 1) + cupom (Fase 2) + cashback (Fase 3) do PDV Varejo está **completo em produção**, sem nenhuma migration pendente.
+
 ## 2026-10-21 (cont. 4) — Cashback no PDV Varejo aplicado em produção
 
 Migration `20261021000001_cashback_varejo.sql` aplicada e verificada (tabela `cashback_lancamentos`, 5 functions, 2 triggers, RLS, tudo confirmado via introspecção do schema). Lucas rodou o ensaio de verdade no SQL Editor antes de aplicar, e isso encontrou 3 bugs que a revisão estática (code-review) não pegou:

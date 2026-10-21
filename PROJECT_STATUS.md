@@ -2,14 +2,17 @@
 
 _Atualizado em 2026-10-21._
 
-## 2026-10-21 (cont. 2) — Cashback no PDV Varejo aplicado em produção (Fase 3 de 3) — falta só a migration do fix em cupons_varejo
+## 2026-10-21 (cont. 3) — PDV Varejo: cliente + cupom + cashback completo em produção, nada pendente
 
-`supabase/migrations/20261021000001_cashback_varejo.sql` aplicada e confirmada: tabela `cashback_lancamentos`, as 5 functions e as 2 triggers no lugar, RLS ativa (verificado por introspecção direta do schema). Ensaio rodado por Lucas de verdade encontrou e corrigiu 3 bugs reais que a revisão estática não tinha pego: teste T3 testando o caso errado (retry idempotente em vez de reuso genuíno), estoque de teste subdimensionado (10 unidades pra 17 vendas do roteiro), e duas triggers (`validar_cashback_lancamento`/`validar_transicao_cashback_lancamento`) sem `security definer` — sem isso, um `select ... for update` ou um `select` cujo acesso depende de ver através da RLS de `vendas` falhava ou mascarava qual camada estava bloqueando. Ciclo cliente (Fase 1) + cupom (Fase 2) + cashback (Fase 3) do PDV Varejo está completo em produção.
+As duas migrations da Fase 3 estão aplicadas e confirmadas (tabela/functions/triggers/RLS verificados por introspecção direta do schema):
+- `20261021000001_cashback_varejo.sql` — `cashback_lancamentos`, 5 functions, 2 triggers.
+- `20261021000002_cupons_varejo_operacao_id.sql` — fix retroativo de isolamento por operação em `cupons_varejo` (Fase 2).
 
-**Pendente antes de funcionar de ponta a ponta:**
-1. Lucas aplicar `supabase/migrations/20261021000002_cupons_varejo_operacao_id.sql` (ensaio → aplicar, SQL Editor do Supabase) — fix retroativo do mesmo vazamento de isolamento por operação, achado na Fase 2.
+Os ensaios rodados de verdade por Lucas encontraram 4 bugs reais que a revisão estática não tinha pego (todos em código de teste/fixture, não na lógica de produção): T3 do cashback testando o caso errado (retry idempotente em vez de reuso genuíno), estoque de teste subdimensionado (10 unidades pra 17 vendas do roteiro), duas triggers do cashback sem `security definer` (um `select ... for update`/`select` que dependia de enxergar `vendas` através da própria RLS falhava ou mascarava qual camada estava bloqueando), e T2 do cupom esperando uma exceção de um UPDATE bloqueado por RLS (que na verdade só filtra a linha, silenciosamente, sem lançar erro). Ver `CHANGELOG.md`/`DECISIONS.md` (2026-10-21) pro detalhe de cada um.
 
-**Próxima tarefa**: aplicar a migration pendente acima e testar o cashback ao vivo no balcão (conceder/resgatar numa venda real).
+Ciclo cliente (Fase 1) + cupom (Fase 2) + cashback (Fase 3) do PDV Varejo está **completo e em produção**, sem nenhuma migration pendente.
+
+**Próxima tarefa**: nenhuma nova fase do PDV Varejo pedida ainda — testar o cashback ao vivo no balcão (conceder/resgatar numa venda real) é o próximo passo natural, mas fica a critério do Lucas quando fizer.
 
 ## 2026-10-21 — Cashback no PDV Varejo pronto (Fase 3 de 3) — pendente aplicar 2 migrations; ciclo cliente/cupom/cashback fica completo depois disso
 
