@@ -123,13 +123,16 @@ begin
   if v_qtd <> 0 then
     raise exception 'TESTE FALHOU [T2]: RLS deixou ver cupom do Varejo no contexto Atacado (% linha(s))', v_qtd;
   end if;
-  begin
-    update public.cupons_varejo set ativo = false where id = v_cupom;
-    raise exception 'TESTE FALHOU [T2]: RLS deixou desativar cupom do Varejo no contexto Atacado';
-  exception
-    when others then
-      if sqlerrm !~ 'row-level security policy' then raise; end if;
-  end;
+  -- UPDATE bloqueado por RLS nao lanca excecao (diferente do INSERT) -- o `using` da policy filtra a
+  -- linha como um WHERE implicito, entao a linha simplesmente nao e encontrada e o UPDATE afeta 0
+  -- linhas, em silencio. So o INSERT (e um UPDATE que enxergasse a linha mas violasse o `with check`
+  -- depois) geram "row-level security policy". Achado ao Lucas rodar o ensaio de verdade -- o teste
+  -- original esperava uma excecao aqui, que nunca viria.
+  update public.cupons_varejo set ativo = false where id = v_cupom;
+  get diagnostics v_qtd = row_count;
+  if v_qtd <> 0 then
+    raise exception 'TESTE FALHOU [T2]: RLS deixou desativar cupom do Varejo no contexto Atacado (% linha(s) afetada(s))', v_qtd;
+  end if;
   execute 'reset role';
 
   perform set_config('request.jwt.claims', '', true);
