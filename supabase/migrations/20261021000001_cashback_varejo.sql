@@ -662,13 +662,26 @@ begin
   select count(*) into v_n from public.cashback_lancamentos where id = v_lanc and situacao = 'usado' and usado_na_venda_id = v_venda2;
   if v_n <> 1 then raise exception 'TESTE FALHOU [T2-b]: cashback nao marcou como usado'; end if;
 
-  -- T3. Resgatar de novo (clique duplo) falha -- ja nao esta mais disponivel
+  -- T3. Resgatar um cashback ja usado, numa venda DIFERENTE da que o consumiu, falha -- reenviar a
+  -- MESMA chamada pra MESMA venda (clique duplo de verdade, com idempotency_key) eh um caso diferente,
+  -- e DEVE ter sucesso sem duplicar (ver T9/T10 mais abaixo, que testam exatamente isso) -- usar
+  -- v_venda2 aqui de novo bateria com esse retry idempotente em vez de testar o reuso genuino.
+  declare
+    v_venda3_t3 uuid;
   begin
-    perform public.resgatar_cashback(v_lanc, v_venda2);
-    raise exception 'TESTE FALHOU [T3]: resgatar um cashback ja usado deveria falhar';
-  exception
-    when others then
-      if sqlerrm <> 'Esse cashback ja foi usado ou cancelado' then raise; end if;
+    v_venda3_t3 := public.registrar_venda(
+      v_sessao,
+      jsonb_build_array(jsonb_build_object('variacao_id', v_var, 'quantidade', 1)),
+      jsonb_build_array(jsonb_build_object('forma', 'dinheiro', 'valor', 100.00)),
+      gen_random_uuid(), null, null, null, null, 0, 0, v_cliente
+    );
+    begin
+      perform public.resgatar_cashback(v_lanc, v_venda3_t3);
+      raise exception 'TESTE FALHOU [T3]: resgatar um cashback ja usado por outra venda deveria falhar';
+    exception
+      when others then
+        if sqlerrm <> 'Esse cashback ja foi usado ou cancelado' then raise; end if;
+    end;
   end;
 
   -- T6. Wrapper atomico (registrar_venda_varejo_com_cashback): cria a venda E concede cashback numa
