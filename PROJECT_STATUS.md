@@ -2,17 +2,20 @@
 
 _Atualizado em 2026-10-21._
 
+## 2026-10-21 (cont. 2) — Cashback no PDV Varejo aplicado em produção (Fase 3 de 3) — falta só a migration do fix em cupons_varejo
+
+`supabase/migrations/20261021000001_cashback_varejo.sql` aplicada e confirmada: tabela `cashback_lancamentos`, as 5 functions e as 2 triggers no lugar, RLS ativa (verificado por introspecção direta do schema). Ensaio rodado por Lucas de verdade encontrou e corrigiu 3 bugs reais que a revisão estática não tinha pego: teste T3 testando o caso errado (retry idempotente em vez de reuso genuíno), estoque de teste subdimensionado (10 unidades pra 17 vendas do roteiro), e duas triggers (`validar_cashback_lancamento`/`validar_transicao_cashback_lancamento`) sem `security definer` — sem isso, um `select ... for update` ou um `select` cujo acesso depende de ver através da RLS de `vendas` falhava ou mascarava qual camada estava bloqueando. Ciclo cliente (Fase 1) + cupom (Fase 2) + cashback (Fase 3) do PDV Varejo está completo em produção.
+
+**Pendente antes de funcionar de ponta a ponta:**
+1. Lucas aplicar `supabase/migrations/20261021000002_cupons_varejo_operacao_id.sql` (ensaio → aplicar, SQL Editor do Supabase) — fix retroativo do mesmo vazamento de isolamento por operação, achado na Fase 2.
+
+**Próxima tarefa**: aplicar a migration pendente acima e testar o cashback ao vivo no balcão (conceder/resgatar numa venda real).
+
 ## 2026-10-21 — Cashback no PDV Varejo pronto (Fase 3 de 3) — pendente aplicar 2 migrations; ciclo cliente/cupom/cashback fica completo depois disso
 
 Cliente (Fase 1) e cupom (Fase 2) já estão aplicados e confirmados em produção — a observação de "pendente aplicar" na entrada de 2026-10-20 logo abaixo está superada. Cashback (Fase 3) construído e testado (`tsc`/`vitest`/build limpos, ~10 rodadas de `/code-review medium` com achados reais corrigidos a cada rodada). De brinde, reaberto e corrigido um vazamento de isolamento por operação no `cupons_varejo` da Fase 2 (já em produção, sem o fix ainda aplicado). 3 achados menores de code-review também corrigidos no `cliente-picker-pdv.tsx`/`clientes-varejo.ts` (Fase 1). Ver `DECISIONS.md`/`CHANGELOG.md` (2026-10-21).
 
-**Pendente antes de funcionar de ponta a ponta:**
-1. Lucas aplicar `supabase/migrations/20261021000001_cashback_varejo.sql` (ensaio → aplicar, SQL Editor do Supabase).
-2. Lucas aplicar `supabase/migrations/20261021000002_cupons_varejo_operacao_id.sql` (ensaio → aplicar, SQL Editor do Supabase).
-
 **Também nesta data, sem relação com o PDV Varejo**: calibração física da impressora Elgin L42 Pro Full (Módulo Etiquetas) confirmada de ponta a ponta pelo usuário — problema de USB não detectado e de LaunchAgent com código desatualizado, ambos resolvidos. Não mudou código (só configuração/restart do print-agent) — detalhe em `print-agent/README.md` ("Limitações conhecidas") e no vault Obsidian, não repetido aqui.
-
-**Próxima tarefa**: nenhuma fase nova do PDV Varejo pedida ainda — aguardando Lucas aplicar as 2 migrations pendentes acima e testar o cashback ao vivo no balcão.
 
 ## 2026-10-20 — Cupom de desconto no PDV Varejo pronto (Fase 2 de 3) — pendente aplicar 2 migrations; Fase 3 (cashback) é a próxima
 

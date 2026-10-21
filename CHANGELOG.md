@@ -1,5 +1,15 @@
 # CHANGELOG — ERP Trolesi
 
+## 2026-10-21 (cont. 4) — Cashback no PDV Varejo aplicado em produção
+
+Migration `20261021000001_cashback_varejo.sql` aplicada e verificada (tabela `cashback_lancamentos`, 5 functions, 2 triggers, RLS, tudo confirmado via introspecção do schema). Lucas rodou o ensaio de verdade no SQL Editor antes de aplicar, e isso encontrou 3 bugs que a revisão estática (code-review) não pegou:
+
+- **T3 testava o cenário errado**: tentava "resgatar de novo" reusando a MESMA venda que já tinha resgatado o cashback no T2 — isso bate com o retry idempotente (de propósito, ver T9/T10), que devolve sucesso, não erro. Corrigido testando uma venda DIFERENTE (reuso genuíno, que de fato deve falhar).
+- **Estoque do fixture de teste subdimensionado**: só 10 unidades seedadas, mas o roteiro inteiro (T1 a T17) faz 17 vendas de 1 unidade cada sem autorização de estoque — a 11ª esbarrava na trava real de "estoque insuficiente, exige autorização de supervisor". Corrigido seedando 30.
+- **Duas triggers sem `security definer`** (`validar_cashback_lancamento`, `validar_transicao_cashback_lancamento`): uma fazia `select ... for update` em `vendas` (exige privilégio de UPDATE na tabela, que `authenticated` nunca teve direto) e a outra fazia um `select` comum que ficava sujeito à RLS de `vendas` — um UPDATE/INSERT direto em `cashback_lancamentos` que dependesse de enxergar a venda de origem através dessas triggers falhava com "permission denied" ou mascarava qual camada (trigger vs. RLS) estava de fato bloqueando. Corrigido marcando as duas como `security definer`, igual às demais functions da migration.
+
+Ciclo cliente (Fase 1) + cupom (Fase 2) + cashback (Fase 3) do PDV Varejo está completo em produção. Falta só aplicar `20261021000002_cupons_varejo_operacao_id.sql` (fix retroativo da Fase 2, entrada abaixo).
+
 ## 2026-10-21 (cont. 3) — 3 achados de code-review corrigidos no cliente-picker do PDV Varejo
 
 - `cliente-picker-pdv.tsx`: campo "Nome" do form de novo cliente só pegava o texto digitado na busca na 1ª abertura do modal — `defaultValue` só vale na montagem, e o `<Modal>` nunca desmonta os filhos (só abre/fecha o `<dialog>`), então editar a busca depois de abrir/fechar o modal uma vez não refletia mais no form. Corrigido remontando o form a cada abertura (`key={nomeLivre}`).
