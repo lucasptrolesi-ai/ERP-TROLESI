@@ -8,7 +8,8 @@ Pedido do usuário: cashback deixa de ser livre (% ou R$ e data escolhidos pelo 
 - `src/lib/varejo/cashback.ts`: nova `valorCashbackAConceder(total)` (testada) — só pra preview na tela, o valor real é recalculado no banco.
 - `/varejo/pdv`: o bloco "Conceder cashback nesta venda" trocou os 3 campos livres (%, R$, data) por um único checkbox ("Conceder cashback (10% = R$X, vence em 30 dias)").
 - `tsc`/lint/`vitest`/build confirmados limpos.
-- Pendente: Lucas aplicar a migration no SQL Editor da Supabase.
+- Ensaio real (rodado por Lucas) encontrou 2 bugs de teste, não de produção: um item de teste sem `preco_unitario` vendia pelo preço de tabela em vez do valor pretendido, estourando "Pagamento insuficiente"; e vender abaixo da tabela sem `preco_minimo` configurado na peça cai no piso de preço mínimo (`v_piso := coalesce(v_min, v_tab)` — sem mínimo explícito, o piso é a própria tabela), exigindo autorização de supervisor. Corrigido cadastrando um produto de teste já com a tabela no valor certo, em vez de vender com desconto no item.
+- Migration aplicada e confirmada: assinaturas novas no lugar, antigas removidas, grants corretos, verificado via introspecção do schema.
 
 ## 2026-10-21 (cont. 6) — Excluir peça no catálogo do Varejo, aplicado em produção
 

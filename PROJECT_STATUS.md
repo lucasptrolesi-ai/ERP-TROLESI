@@ -2,12 +2,13 @@
 
 _Atualizado em 2026-10-22._
 
-## 2026-10-22 — Cashback trava em 10% do total + 30 dias de validade — pendente aplicar migration
+## 2026-10-22 — Cashback trava em 10% do total + 30 dias de validade, aplicado em produção
 
-Pedido do usuário: cashback deixa de ser livre, vira sempre 10% do total pago, vencendo em 30 dias (vendedor só decide se concede). `conceder_cashback`/`registrar_venda_varejo_com_cashback` mudaram de assinatura (perderam os parâmetros de valor/vencimento); tela do PDV trocou os 3 campos livres por um checkbox. `tsc`/lint/`vitest`/build limpos. Ver `DECISIONS.md`/`CHANGELOG.md` (2026-10-22).
+Migration `20261022000001_cashback_automatico_10_por_cento.sql` aplicada e confirmada (assinaturas novas de `conceder_cashback(uuid)`/`registrar_venda_varejo_com_cashback` no lugar, antigas removidas, grants corretos — verificado via introspecção do schema). Pedido do usuário: cashback deixa de ser livre, vira sempre 10% do total pago, vencendo em 30 dias (vendedor só decide se concede). Tela do PDV trocou os 3 campos livres por um checkbox. `tsc`/lint/`vitest`/build limpos.
 
-**Pendente antes de funcionar de ponta a ponta:**
-1. Lucas aplicar `supabase/migrations/20261022000001_cashback_automatico_10_por_cento.sql` (ensaio → aplicar, SQL Editor do Supabase).
+Ensaio real encontrou 2 bugs de teste (não de produção): item sem `preco_unitario` usando o preço de tabela em vez do valor pretendido pra venda ("Pagamento insuficiente"), e vender abaixo da tabela sem `preco_minimo` configurado caindo no piso de preço mínimo (exige autorização de supervisor) — corrigido cadastrando um produto próprio já na tabela certa. Ver `DECISIONS.md`/`CHANGELOG.md` (2026-10-22).
+
+Nenhuma migration pendente no PDV Varejo.
 
 ## 2026-10-21 (cont. 4) — Excluir peça no catálogo do Varejo, aplicado em produção
 
