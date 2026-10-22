@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { hojeIso } from "@/lib/datas";
 import { mensagemErroSalvar, normalizarCampo } from "./erros";
 
 // Cupom de desconto no PDV Varejo (Fase 2 de 3 — cliente, cupom, cashback — pedido do usuário
@@ -24,9 +25,15 @@ export async function salvarCupomVarejo(_prev: ResultadoForm, formData: FormData
   if (valor <= 0) return { erro: "Valor precisa ser maior que zero." };
   if (tipo === "percentual" && valor > 100) return { erro: "Percentual não pode passar de 100." };
 
+  const validade = normalizarCampo(formData.get("validade"));
+  if (!validade) return { erro: "Validade é obrigatória." };
+
   const supabase = await createClient();
   const id = normalizarCampo(formData.get("id"));
-  const dados = { codigo, tipo, valor, ativo: formData.get("ativo") === "on" };
+  // "Não pode estar no passado" só vale pra cupom NOVO -- editar um cupom existente (ex. desativar
+  // um que já venceu) não pode ficar bloqueado pela própria data que já passou.
+  if (!id && validade < hojeIso()) return { erro: "Validade não pode estar no passado." };
+  const dados = { codigo, tipo, valor, validade, ativo: formData.get("ativo") === "on" };
 
   const { error } = id
     ? await supabase.from("cupons_varejo").update(dados).eq("id", id)

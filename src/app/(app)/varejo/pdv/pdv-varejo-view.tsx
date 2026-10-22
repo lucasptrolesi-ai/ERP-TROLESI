@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { formatarMoeda } from "@/lib/formatar-moeda";
 import { arredondarMoeda, lerMoeda } from "@/lib/dinheiro";
 import { filtra } from "@/lib/filtra";
-import { formatarDataIso } from "@/lib/datas";
+import { formatarDataIso, hojeIso } from "@/lib/datas";
 import { cancelarVenda, registrarVenda } from "@/lib/actions/varejo";
 import { calcularLinha, calcularTotais, calcularTroco, type ItemCarrinho } from "@/lib/varejo/carrinho";
 import { calcularDescontoCupomVarejo } from "@/lib/varejo/cupom";
@@ -82,11 +82,18 @@ export function PdvVarejoView({
   // `cancelada` evita que uma busca mais lenta de um cliente ANTERIOR sobrescreva, depois de
   // resolvida fora de ordem, o cashback do cliente selecionado por último (achado de code review,
   // 2026-10-21: sem essa guarda, o vendedor podia ver/aplicar o cashback do cliente errado).
+  // Cupom (2026-10-22) some na troca de cliente pelo mesmo motivo: desde que ganhou limite de uso
+  // por cliente, a ELEGIBILIDADE (CPF presente, ainda não usado por esse cliente) depende de QUEM
+  // está selecionado -- manter o cupom do cliente anterior aplicado pro novo cliente seria igual ao
+  // bug do cashback que o code review achou, só que pro cupom.
   useEffect(() => {
     let cancelada = false;
     iniciarBuscaCashback(async () => {
       setCashbackAplicado(null);
       setConcederCashback(false);
+      setCupomAplicado(null);
+      setCupomCodigo("");
+      setErroCupom(null);
       if (!clienteSelecionado) {
         setCashbackDisponivel([]);
         return;
@@ -167,9 +174,18 @@ export function PdvVarejoView({
   const valorRecebido = lerMoeda(valorRecebidoTexto) ?? 0;
   const troco = calcularTroco(forma, valorRecebido, total);
 
+  // Cliente selecionado passou a ser obrigatório pra usar cupom (pedido do usuário, 2026-10-22,
+  // decisão explícita): é o cadastro do cliente que o limite de uso (1x por CPF) e o vencimento são
+  // checados contra, tanto aqui (feedback imediato) quanto de novo no banco (defesa em profundidade,
+  // migration 20261022000002) -- a checagem de "já usou esse cupom antes" fica só no banco, não
+  // repetida aqui, pra não precisar de outra ida ao servidor só pra isso.
   function aplicarCupom() {
     const codigo = cupomCodigo.trim();
     if (!codigo) return;
+    if (!clienteSelecionado) {
+      setErroCupom("Selecione um cliente pra usar cupom.");
+      return;
+    }
     const encontrado = cupons.find((c) => c.codigo.trim().toLowerCase() === codigo.toLowerCase());
     if (!encontrado) {
       setErroCupom("Cupom não encontrado.");
@@ -177,6 +193,14 @@ export function PdvVarejoView({
     }
     if (!encontrado.ativo) {
       setErroCupom("Esse cupom está desativado.");
+      return;
+    }
+    if (encontrado.validade < hojeIso()) {
+      setErroCupom("Esse cupom já venceu.");
+      return;
+    }
+    if (!clienteSelecionado.cpf_cnpj) {
+      setErroCupom("Cliente sem CPF/CNPJ cadastrado — não é possível aplicar cupom.");
       return;
     }
     setErroCupom(null);
@@ -258,6 +282,7 @@ export function PdvVarejoView({
         valorAcrescimo: numAcrescimo || undefined,
         cashbackResgatarId: cashbackAplicado?.id,
         concederCashback,
+        cupomId: cupomAplicado?.id,
       });
       if (resultado.erro) {
         setErro(resultado.erro);
@@ -377,7 +402,9 @@ export function PdvVarejoView({
 
         <div className="rounded-lg border border-line bg-cream p-3">
           <p className="mb-2 text-xs font-bold uppercase tracking-wide text-text-soft">Cupom de desconto</p>
-          {cupomAplicado ? (
+          {!clienteSelecionado ? (
+            <p className="text-xs text-text-soft">Selecione um cliente pra usar cupom.</p>
+          ) : cupomAplicado ? (
             <div className="flex items-center justify-between gap-2 text-sm">
               <span>
                 <span className="font-mono font-semibold">{cupomAplicado.codigo}</span>{" "}

@@ -4,6 +4,7 @@ import { useActionState, useState } from "react";
 import { Modal } from "@/components/modal";
 import { FormField } from "@/components/form-field";
 import { salvarCupomVarejo } from "@/lib/actions/cupons-varejo";
+import { hojeIso } from "@/lib/datas";
 import { useFecharAoSalvar } from "@/lib/use-fechar-ao-salvar";
 import type { CupomVarejo } from "@/lib/varejo/tipos";
 
@@ -54,6 +55,15 @@ export function CupomVarejoForm({
           min={0}
           max={tipo === "percentual" ? 100 : undefined}
           defaultValue={cupom?.valor}
+          required
+        />
+
+        <FormField
+          label="Validade"
+          name="validade"
+          type="date"
+          min={cupom ? undefined : hojeIso()}
+          defaultValue={cupom?.validade}
           required
         />
 

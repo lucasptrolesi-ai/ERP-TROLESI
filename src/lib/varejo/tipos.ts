@@ -6,6 +6,9 @@ export type CupomVarejo = {
   tipo: "percentual" | "valor";
   valor: number;
   ativo: boolean;
+  // Obrigatória desde 2026-10-22 -- cupom passou a ter limite de uso por cliente, então também
+  // precisa vencer (ver cupons_varejo_usos na migration 20261022000002).
+  validade: string;
   criado_em: string;
 };
 
@@ -78,6 +81,10 @@ export type DadosDaVenda = {
   // 30 dias — o vendedor só decide SE concede, o banco calcula o valor/vencimento (lê vendas.total já
   // persistido, não confia em nada vindo do cliente).
   concederCashback?: boolean;
+  // Cupom (2026-10-22) -- passou a exigir cliente selecionado e tem limite de 1 uso por cliente,
+  // então viaja JUNTO com a venda igual o cashback: validado e registrado atomicamente, pelo mesmo
+  // motivo (se a venda não for criada, o uso do cupom também não pode ser registrado).
+  cupomId?: string;
 };
 
 export type AcaoPrivilegiada = "desconto_abaixo_piso" | "cancelamento_venda" | "estorno_pagamento" | "estoque_negativo";

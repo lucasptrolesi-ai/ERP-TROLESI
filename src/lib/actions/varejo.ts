@@ -95,11 +95,13 @@ export async function autorizarAcao(
 }
 
 // Sempre chama o wrapper atômico (registrar_venda_varejo_com_cashback) em vez de registrar_venda
-// direto -- os parâmetros de cashback vêm null/false quando a venda não usa cashback nenhum, e nesse
-// caso o comportamento é idêntico a chamar registrar_venda direto (o wrapper só repassa pra ela).
-// Rodar os dois caminhos (com e sem cashback) pela MESMA function evita ter duas rotas de venda
-// divergentes. Concessão (2026-10-22) não manda mais valor/vencimento -- é só um sim/não, o banco
-// calcula os 10%/30 dias sozinho a partir de vendas.total já persistido.
+// direto -- os parâmetros de cashback/cupom vêm null/false quando a venda não usa nenhum dos dois, e
+// nesse caso o comportamento é idêntico a chamar registrar_venda direto (o wrapper só repassa pra
+// ela). Rodar todos os caminhos pela MESMA function evita ter rotas de venda divergentes. Concessão
+// de cashback (2026-10-22) não manda mais valor/vencimento -- é só um sim/não, o banco calcula os
+// 10%/30 dias sozinho a partir de vendas.total já persistido. Cupom (2026-10-22) só manda o id -- o
+// banco revalida elegibilidade (vencido? já usado por esse cliente? cliente tem CPF?) e registra o
+// uso atomicamente com a venda (migration 20261022000002).
 export async function registrarVenda(dados: DadosDaVenda): Promise<{ erro?: string; vendaId?: string }> {
   if (dados.itens.length === 0) return { erro: "Adicione ao menos um item." };
   const supabase = await createClient();
@@ -117,6 +119,7 @@ export async function registrarVenda(dados: DadosDaVenda): Promise<{ erro?: stri
     p_cliente_id: dados.clienteId ?? null,
     p_cashback_resgatar_id: dados.cashbackResgatarId ?? null,
     p_conceder_cashback: dados.concederCashback ?? false,
+    p_cupom_id: dados.cupomId ?? null,
   });
   if (error) return { erro: mensagem(error) };
   atualizarTelas();

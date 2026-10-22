@@ -2,6 +2,16 @@
 
 Histórico de decisões de escopo e arquitetura, na ordem em que foram tomadas. Decisões revistas ficam marcadas como tal, não apagadas.
 
+## 2026-10-22 — Cupom ganha validade obrigatória e limite de 1 uso por cliente (revisão da decisão de 2026-10-20)
+
+**Reverte a decisão anterior ("sem limite de uso, sem validade/vencimento... se isso virar insuficiente, é ponto pra reabrir depois").** Pedido novo e explícito do usuário: "cupom adiciona limite de uso pra uma vez, por CPF, com porcentagem editável e com data de validade". Virou insuficiente — reabrindo exatamente como a decisão original previa.
+
+**"Por CPF" virou "obrigatório selecionar cliente".** Sem cliente selecionado não há CPF nenhum pra checar o limite contra. Perguntado diretamente se usar cupom passaria a exigir cliente selecionado no PDV — respondeu "Sim, obrigatório selecionar cliente pra usar cupom". Cliente sem CPF/CNPJ cadastrado também bloqueia (o limite não teria como valer de verdade sem o documento).
+
+**Limite de uso é só uma `UNIQUE (cupom_id, cliente_id)`, sem trigger de validação dedicada — diferente do cashback (que ganhou trigger em `validar_cashback_lancamento` na revisão de 2026-10-21/22).** A constraint sozinha já garante "nunca duas vezes pro mesmo cliente" em qualquer caminho de inserção. Decisão de escopo: reuso indevido de cupom (griefing) tem consequência bem menor que fraude de crédito financeiro (cashback) — não justificou o mesmo reforço de defesa em profundidade.
+
+**Cupom entra no mesmo wrapper atômico do cashback (`registrar_venda_varejo_com_cashback`), não um novo.** Já é o ponto de composição pra tudo que precisa acontecer junto com a venda sem reabrir `registrar_venda` — cupom se encaixa no mesmo lugar, mesmo que o nome da function hoje fique um pouco estreito pro que faz.
+
 ## 2026-10-22 — Cashback deixa de ser livre: trava em 10% do total + vencimento fixo de 30 dias (revisão da decisão de 2026-10-21)
 
 **Reverte a decisão anterior ("sem teto no valor concedido... é o desenho livre que o usuário pediu").** Pedido novo e explícito do usuário: "cashback somente com 10% máximo do valor da compra... compro 100 tenho 10 de cashback na próxima compra, com validade de 30 dias". Perguntado se deveria ficar automático em toda venda ou se o vendedor continuaria decidindo — respondeu que o vendedor continua decidindo **se** concede, só não decide mais **quanto** nem **até quando**.

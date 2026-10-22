@@ -2,6 +2,12 @@
 
 _Atualizado em 2026-10-22._
 
+## 2026-10-22 (cont.) — Cupom ganha validade obrigatória e limite de 1 uso por cliente — migration escrita, pendente ensaio
+
+Migration `20261022000002_cupom_limite_uso_validade.sql` escrita (nova tabela `cupons_varejo_usos`, coluna `validade` obrigatória em `cupons_varejo`, `registrar_venda_varejo_com_cashback` com novo `p_cupom_id`) e TS/UI já aplicados no código (`tsc`/lint/`vitest`/build confirmados limpos). Pedido do usuário: limite de 1 uso por cliente (por CPF), validade obrigatória, cliente selecionado passa a ser obrigatório pra usar cupom (decisão explícita). Ver `DECISIONS.md`/`CHANGELOG.md` (2026-10-22).
+
+**Próxima tarefa**: Lucas rodar a migration em modo `ensaio` no SQL Editor do Supabase, confirmar "ENSAIO OK", depois trocar pra `aplicar`.
+
 ## 2026-10-22 — Cashback trava em 10% do total + 30 dias de validade, aplicado em produção
 
 Migration `20261022000001_cashback_automatico_10_por_cento.sql` aplicada e confirmada (assinaturas novas de `conceder_cashback(uuid)`/`registrar_venda_varejo_com_cashback` no lugar, antigas removidas, grants corretos — verificado via introspecção do schema). Pedido do usuário: cashback deixa de ser livre, vira sempre 10% do total pago, vencendo em 30 dias (vendedor só decide se concede). Tela do PDV trocou os 3 campos livres por um checkbox. `tsc`/lint/`vitest`/build limpos.

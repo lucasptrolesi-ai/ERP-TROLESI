@@ -1,5 +1,17 @@
 # CHANGELOG — ERP Trolesi
 
+## 2026-10-22 (cont.) — Cupom ganha validade obrigatória e limite de 1 uso por cliente (migration escrita, aguardando ensaio)
+
+Pedido do usuário: cupom de desconto do PDV Varejo ganha limite de uso de 1x por cliente (checado pelo CPF/CNPJ do cadastro) e data de validade obrigatória. Usando cupom passa a exigir cliente selecionado (decisão explícita do usuário).
+
+- Migration `20261022000002_cupom_limite_uso_validade.sql`: `cupons_varejo` ganha `validade date not null` (zero linhas em produção, sem backfill necessário). Nova tabela `cupons_varejo_usos` (append-only, sem update/delete) com `UNIQUE (cupom_id, cliente_id)` — essa constraint sozinha garante o limite, sem precisar de trigger de validação dedicada (ver `DECISIONS.md`). `registrar_venda_varejo_com_cashback` ganha `p_cupom_id uuid default null` (DROP + CREATE, 14º parâmetro): valida cliente selecionado, cupom ativo e não vencido, cliente com CPF/CNPJ, desconto da venda cobre o valor do cupom (defesa em profundidade), e registra o uso — qualquer falha desfaz a venda inteira, mesmo padrão do cashback.
+- `src/lib/varejo/tipos.ts`: `CupomVarejo.validade`; `DadosDaVenda.cupomId`.
+- `src/lib/actions/cupons-varejo.ts`: `salvarCupomVarejo` exige validade (bloqueia data passada só pra cupom novo, não pra edição); `src/lib/actions/varejo.ts`: `registrarVenda` manda `p_cupom_id`.
+- `/varejo/cupons`: form ganha campo "Validade"; lista ganha coluna "Validade" (vermelha quando vencida).
+- `/varejo/pdv`: bloco "Cupom de desconto" exige cliente selecionado (mostra aviso em vez do campo quando não há); `aplicarCupom` checa vencimento e CPF/CNPJ do cliente antes de mandar pro servidor; cupom aplicado some ao trocar de cliente (mesmo padrão do cashback).
+- `tsc`/lint/`vitest`/build confirmados limpos.
+- Ensaio ainda não rodado — testes T1 a T7 escritos (uso registrado, reuso bloqueado, outro cliente libera, vencido/sem CPF/sem cliente/desconto insuficiente bloqueiam).
+
 ## 2026-10-22 — Cashback trava em 10% do total + vencimento fixo de 30 dias
 
 Pedido do usuário: cashback deixa de ser livre (% ou R$ e data escolhidos pelo vendedor) e passa a ser sempre 10% do total pago na venda, vencendo em 30 dias — vendedor só decide se concede, não quanto.
