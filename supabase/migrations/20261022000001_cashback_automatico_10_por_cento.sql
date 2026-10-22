@@ -301,9 +301,12 @@ begin
     v_venda_t3 uuid;
     v_valor_t3 numeric;
   begin
+    -- 'preco_unitario' tem que vir explicito -- sem ele, o item usaria o preco de tabela da
+    -- variacao (100.00), nao os 50.00 que este teste quer vender, e o pagamento de 50.00 falharia
+    -- como "Pagamento insuficiente" (achado ao Lucas rodar o ensaio de verdade).
     v_venda_t3 := public.registrar_venda_varejo_com_cashback(
       v_sessao,
-      jsonb_build_array(jsonb_build_object('variacao_id', v_var, 'quantidade', 1)),
+      jsonb_build_array(jsonb_build_object('variacao_id', v_var, 'quantidade', 1, 'preco_unitario', 50.00)),
       jsonb_build_array(jsonb_build_object('forma', 'dinheiro', 'valor', 50.00)),
       gen_random_uuid(), null, null, null, null, 0, 0, v_cliente,
       null, true
