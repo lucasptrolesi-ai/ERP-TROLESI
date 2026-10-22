@@ -1,6 +1,6 @@
 # CHANGELOG — ERP Trolesi
 
-## 2026-10-22 (cont.) — Cupom ganha validade obrigatória e limite de 1 uso por cliente (migration escrita, aguardando ensaio)
+## 2026-10-22 (cont.) — Cupom ganha validade obrigatória e limite de 1 uso por cliente, aplicado em produção
 
 Pedido do usuário: cupom de desconto do PDV Varejo ganha limite de uso de 1x por cliente (checado pelo CPF/CNPJ do cadastro) e data de validade obrigatória. Usando cupom passa a exigir cliente selecionado (decisão explícita do usuário).
 
@@ -10,7 +10,8 @@ Pedido do usuário: cupom de desconto do PDV Varejo ganha limite de uso de 1x po
 - `/varejo/cupons`: form ganha campo "Validade"; lista ganha coluna "Validade" (vermelha quando vencida).
 - `/varejo/pdv`: bloco "Cupom de desconto" exige cliente selecionado (mostra aviso em vez do campo quando não há); `aplicarCupom` checa vencimento e CPF/CNPJ do cliente antes de mandar pro servidor; cupom aplicado some ao trocar de cliente (mesmo padrão do cashback).
 - `tsc`/lint/`vitest`/build confirmados limpos.
-- Ensaio ainda não rodado — testes T1 a T7 escritos (uso registrado, reuso bloqueado, outro cliente libera, vencido/sem CPF/sem cliente/desconto insuficiente bloqueiam).
+- Ensaio real (rodado por Lucas) passou limpo de primeira — T1 a T7 (uso registrado, reuso bloqueado, outro cliente libera, vencido/sem CPF/sem cliente/desconto insuficiente bloqueiam) sem nenhum bug de teste, diferente das 3 migrations anteriores desta série.
+- Migration aplicada e confirmada: coluna/tabela/constraint/assinatura nova no lugar, assinatura antiga removida, grants corretos, verificado via introspecção do schema.
 
 ## 2026-10-22 — Cashback trava em 10% do total + vencimento fixo de 30 dias
 

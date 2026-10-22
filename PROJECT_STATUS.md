@@ -2,11 +2,13 @@
 
 _Atualizado em 2026-10-22._
 
-## 2026-10-22 (cont.) — Cupom ganha validade obrigatória e limite de 1 uso por cliente — migration escrita, pendente ensaio
+## 2026-10-22 (cont.) — Cupom ganha validade obrigatória e limite de 1 uso por cliente, aplicado em produção
 
-Migration `20261022000002_cupom_limite_uso_validade.sql` escrita (nova tabela `cupons_varejo_usos`, coluna `validade` obrigatória em `cupons_varejo`, `registrar_venda_varejo_com_cashback` com novo `p_cupom_id`) e TS/UI já aplicados no código (`tsc`/lint/`vitest`/build confirmados limpos). Pedido do usuário: limite de 1 uso por cliente (por CPF), validade obrigatória, cliente selecionado passa a ser obrigatório pra usar cupom (decisão explícita). Ver `DECISIONS.md`/`CHANGELOG.md` (2026-10-22).
+Migration `20261022000002_cupom_limite_uso_validade.sql` aplicada e confirmada (coluna `cupons_varejo.validade` NOT NULL, tabela `cupons_varejo_usos` com constraint `UNIQUE (cupom_id, cliente_id)`, assinatura antiga de `registrar_venda_varejo_com_cashback` removida e a nova — com `p_cupom_id` — no lugar, grants corretos — tudo verificado via introspecção direta do schema). Ensaio real rodou limpo de primeira (T1 a T7 passaram sem nenhum bug de teste, diferente das migrations anteriores desta série). Pedido do usuário: limite de 1 uso por cliente (checado pelo CPF/CNPJ do cadastro), validade obrigatória, cliente selecionado passa a ser obrigatório pra usar cupom (decisão explícita). `tsc`/lint/`vitest`/build confirmados limpos. Ver `DECISIONS.md`/`CHANGELOG.md` (2026-10-22).
 
-**Próxima tarefa**: Lucas rodar a migration em modo `ensaio` no SQL Editor do Supabase, confirmar "ENSAIO OK", depois trocar pra `aplicar`.
+Nenhuma migration pendente no PDV Varejo.
+
+**Próxima tarefa**: nenhuma nova fase do PDV Varejo pedida ainda — fica a critério do Lucas.
 
 ## 2026-10-22 — Cashback trava em 10% do total + 30 dias de validade, aplicado em produção
 
