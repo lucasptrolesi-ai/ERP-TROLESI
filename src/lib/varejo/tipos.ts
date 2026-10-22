@@ -74,8 +74,10 @@ export type DadosDaVenda = {
   // (registrar_venda_varejo_com_cashback): se qualquer um dos dois falhar, a venda também não é
   // criada (ver DECISIONS.md, 2026-10-21 — achado de code review sobre a versão anterior, encadeada).
   cashbackResgatarId?: string;
-  cashbackConcederValor?: number;
-  cashbackConcederVencimento?: string;
+  // Concessão deixou de ser livre (2026-10-22): sempre 10% do total da venda, vencimento sempre em
+  // 30 dias — o vendedor só decide SE concede, o banco calcula o valor/vencimento (lê vendas.total já
+  // persistido, não confia em nada vindo do cliente).
+  concederCashback?: boolean;
 };
 
 export type AcaoPrivilegiada = "desconto_abaixo_piso" | "cancelamento_venda" | "estorno_pagamento" | "estoque_negativo";

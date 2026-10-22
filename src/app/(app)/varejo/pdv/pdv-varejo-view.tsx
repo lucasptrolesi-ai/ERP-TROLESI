@@ -6,11 +6,11 @@ import { useRouter } from "next/navigation";
 import { formatarMoeda } from "@/lib/formatar-moeda";
 import { arredondarMoeda, lerMoeda } from "@/lib/dinheiro";
 import { filtra } from "@/lib/filtra";
-import { isoEmDias, formatarDataIso } from "@/lib/datas";
+import { formatarDataIso } from "@/lib/datas";
 import { cancelarVenda, registrarVenda } from "@/lib/actions/varejo";
 import { calcularLinha, calcularTotais, calcularTroco, type ItemCarrinho } from "@/lib/varejo/carrinho";
 import { calcularDescontoCupomVarejo } from "@/lib/varejo/cupom";
-import { espacoParaCashback } from "@/lib/varejo/cashback";
+import { espacoParaCashback, valorCashbackAConceder } from "@/lib/varejo/cashback";
 import { buscarCashbackDisponivel } from "@/lib/actions/cashback-varejo";
 import { Modal } from "@/components/modal";
 import { PinSupervisorModal } from "@/components/pin-supervisor-modal";
@@ -68,9 +68,7 @@ export function PdvVarejoView({
   const [valorAcrescimoTexto, setValorAcrescimoTexto] = useState("0");
   const [cashbackDisponivel, setCashbackDisponivel] = useState<CashbackDisponivel[]>([]);
   const [cashbackAplicado, setCashbackAplicado] = useState<CashbackDisponivel | null>(null);
-  const [cashbackPercentualConceder, setCashbackPercentualConceder] = useState("");
-  const [cashbackValorConcederTexto, setCashbackValorConcederTexto] = useState("0");
-  const [cashbackVencimentoConceder, setCashbackVencimentoConceder] = useState("");
+  const [concederCashback, setConcederCashback] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [sucesso, setSucesso] = useState<string | null>(null);
   const [enviando, iniciarEnvio] = useTransition();
@@ -78,8 +76,8 @@ export function PdvVarejoView({
 
   // Cashback (Fase 3, 2026-10-21): ao trocar de cliente, busca o cashback disponível dele e esquece
   // qualquer seleção anterior (de outro cliente) — "aponta automático", nunca aplica sozinho. Também
-  // zera o "conceder cashback nesta venda" (achado de code review, 2026-10-21: sem isso, um valor
-  // digitado pensando no cliente A sobrevivia à troca pro cliente B e acabava concedido pra B, sem
+  // zera o "conceder cashback nesta venda" (achado de code review, 2026-10-21: sem isso, um toggle
+  // marcado pensando no cliente A sobrevivia à troca pro cliente B e acabava concedendo pra B, sem
   // nenhum aviso visível do erro).
   // `cancelada` evita que uma busca mais lenta de um cliente ANTERIOR sobrescreva, depois de
   // resolvida fora de ordem, o cashback do cliente selecionado por último (achado de code review,
@@ -88,9 +86,7 @@ export function PdvVarejoView({
     let cancelada = false;
     iniciarBuscaCashback(async () => {
       setCashbackAplicado(null);
-      setCashbackPercentualConceder("");
-      setCashbackValorConcederTexto("0");
-      setCashbackVencimentoConceder("");
+      setConcederCashback(false);
       if (!clienteSelecionado) {
         setCashbackDisponivel([]);
         return;
@@ -206,9 +202,7 @@ export function PdvVarejoView({
     setPercentualAcrescimo("");
     setValorAcrescimoTexto("0");
     setCashbackAplicado(null);
-    setCashbackPercentualConceder("");
-    setCashbackValorConcederTexto("0");
-    setCashbackVencimentoConceder("");
+    setConcederCashback(false);
     setIdempotencyKey(crypto.randomUUID());
   }
 
@@ -242,11 +236,6 @@ export function PdvVarejoView({
       setErro("O total ficaria zerado (cashback cobre tudo) — reduza o cashback usado ou adicione mais itens.");
       return;
     }
-    const cashbackParaConceder = lerMoeda(cashbackValorConcederTexto) ?? 0;
-    if (cashbackParaConceder > 0 && !cashbackVencimentoConceder) {
-      setErro("Informe a data de vencimento do cashback a conceder (ou zere o valor).");
-      return;
-    }
     const pagamentos: PagamentoDaVenda[] =
       forma === "dinheiro" ? [{ forma, valor: valorRecebido }] : [{ forma, valor: total }];
 
@@ -268,8 +257,7 @@ export function PdvVarejoView({
         valorDesconto: numDesconto || undefined,
         valorAcrescimo: numAcrescimo || undefined,
         cashbackResgatarId: cashbackAplicado?.id,
-        cashbackConcederValor: cashbackParaConceder > 0 ? cashbackParaConceder : undefined,
-        cashbackConcederVencimento: cashbackParaConceder > 0 ? cashbackVencimentoConceder : undefined,
+        concederCashback,
       });
       if (resultado.erro) {
         setErro(resultado.erro);
@@ -476,40 +464,14 @@ export function PdvVarejoView({
 
         {clienteSelecionado && (
           <div className="rounded-lg border border-line bg-cream p-3">
-            <p className="mb-2 text-xs font-bold uppercase tracking-wide text-text-soft">Conceder cashback nesta venda (opcional)</p>
-            <div className="grid grid-cols-3 gap-2">
-              <label className="flex flex-col gap-1">
-                <span className="text-[0.7rem] text-text-soft">Cashback (%)</span>
-                <input
-                  value={cashbackPercentualConceder}
-                  onChange={(e) => {
-                    setCashbackPercentualConceder(e.target.value);
-                    const p = Number(e.target.value.replace(",", "."));
-                    if (Number.isFinite(p)) setCashbackValorConcederTexto(((totalItens * p) / 100).toFixed(2));
-                  }}
-                  placeholder="0"
-                  className="rounded-lg border border-line bg-surface px-2 py-1.5 text-sm"
-                />
-              </label>
-              <label className="flex flex-col gap-1">
-                <span className="text-[0.7rem] text-text-soft">Cashback (R$)</span>
-                <input
-                  value={cashbackValorConcederTexto}
-                  onChange={(e) => setCashbackValorConcederTexto(e.target.value)}
-                  className="rounded-lg border border-line bg-surface px-2 py-1.5 text-sm"
-                />
-              </label>
-              <label className="flex flex-col gap-1">
-                <span className="text-[0.7rem] text-text-soft">Vence em</span>
-                <input
-                  type="date"
-                  min={isoEmDias(1)}
-                  value={cashbackVencimentoConceder}
-                  onChange={(e) => setCashbackVencimentoConceder(e.target.value)}
-                  className="rounded-lg border border-line bg-surface px-2 py-1.5 text-sm"
-                />
-              </label>
-            </div>
+            {/* Concessão deixou de ser livre (pedido do usuário, 2026-10-22): sempre 10% do total
+                pago, vencimento sempre em 30 dias — o vendedor só decide SE concede, não quanto. O
+                preview aqui é só pra tela; o valor de verdade é recalculado no banco a partir de
+                vendas.total já persistido (fonte real, não confia em nada vindo do cliente). */}
+            <label className="flex items-center gap-2 text-sm">
+              <input type="checkbox" checked={concederCashback} onChange={(e) => setConcederCashback(e.target.checked)} />
+              Conceder cashback desta venda ({formatarMoeda(valorCashbackAConceder(total))}, vence em 30 dias)
+            </label>
           </div>
         )}
 

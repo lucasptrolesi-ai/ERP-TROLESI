@@ -1,5 +1,15 @@
 # CHANGELOG — ERP Trolesi
 
+## 2026-10-22 — Cashback trava em 10% do total + vencimento fixo de 30 dias
+
+Pedido do usuário: cashback deixa de ser livre (% ou R$ e data escolhidos pelo vendedor) e passa a ser sempre 10% do total pago na venda, vencendo em 30 dias — vendedor só decide se concede, não quanto.
+
+- Migration `20261022000001_cashback_automatico_10_por_cento.sql`: `conceder_cashback(p_venda_id uuid)` (assinatura perdeu `p_valor`/`p_vencimento` — DROP + CREATE) calcula os 10% a partir de `vendas.total` já persistido e o vencimento (+30 dias, fuso de Brasília) por dentro. `registrar_venda_varejo_com_cashback` troca os 2 parâmetros de valor/vencimento a conceder por um único `p_conceder_cashback boolean`. `validar_cashback_lancamento` (trigger de INSERT) ganha a mesma trava de 10% — fecha o mesmo bypass de insert direto (RLS `FOR ALL`) que já era fechado pros outros campos.
+- `src/lib/varejo/cashback.ts`: nova `valorCashbackAConceder(total)` (testada) — só pra preview na tela, o valor real é recalculado no banco.
+- `/varejo/pdv`: o bloco "Conceder cashback nesta venda" trocou os 3 campos livres (%, R$, data) por um único checkbox ("Conceder cashback (10% = R$X, vence em 30 dias)").
+- `tsc`/lint/`vitest`/build confirmados limpos.
+- Pendente: Lucas aplicar a migration no SQL Editor da Supabase.
+
 ## 2026-10-21 (cont. 6) — Excluir peça no catálogo do Varejo, aplicado em produção
 
 Pedido do usuário: poder apagar peças de teste/duplicadas do catálogo antes de testar o cashback ao vivo — hoje só dava pra "desativar" (esconder) abrindo o form completo de edição.

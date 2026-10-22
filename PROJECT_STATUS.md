@@ -1,6 +1,13 @@
 # PROJECT_STATUS — ERP Trolesi
 
-_Atualizado em 2026-10-21._
+_Atualizado em 2026-10-22._
+
+## 2026-10-22 — Cashback trava em 10% do total + 30 dias de validade — pendente aplicar migration
+
+Pedido do usuário: cashback deixa de ser livre, vira sempre 10% do total pago, vencendo em 30 dias (vendedor só decide se concede). `conceder_cashback`/`registrar_venda_varejo_com_cashback` mudaram de assinatura (perderam os parâmetros de valor/vencimento); tela do PDV trocou os 3 campos livres por um checkbox. `tsc`/lint/`vitest`/build limpos. Ver `DECISIONS.md`/`CHANGELOG.md` (2026-10-22).
+
+**Pendente antes de funcionar de ponta a ponta:**
+1. Lucas aplicar `supabase/migrations/20261022000001_cashback_automatico_10_por_cento.sql` (ensaio → aplicar, SQL Editor do Supabase).
 
 ## 2026-10-21 (cont. 4) — Excluir peça no catálogo do Varejo, aplicado em produção
 

@@ -2,6 +2,16 @@
 
 Histórico de decisões de escopo e arquitetura, na ordem em que foram tomadas. Decisões revistas ficam marcadas como tal, não apagadas.
 
+## 2026-10-22 — Cashback deixa de ser livre: trava em 10% do total + vencimento fixo de 30 dias (revisão da decisão de 2026-10-21)
+
+**Reverte a decisão anterior ("sem teto no valor concedido... é o desenho livre que o usuário pediu").** Pedido novo e explícito do usuário: "cashback somente com 10% máximo do valor da compra... compro 100 tenho 10 de cashback na próxima compra, com validade de 30 dias". Perguntado se deveria ficar automático em toda venda ou se o vendedor continuaria decidindo — respondeu que o vendedor continua decidindo **se** concede, só não decide mais **quanto** nem **até quando**.
+
+**Cálculo passou do cliente pro banco.** `conceder_cashback` deixou de receber `p_valor`/`p_vencimento` — agora lê `vendas.total` (o valor já persistido, de fato pago, depois de desconto/acréscimo) e calcula 10% e +30 dias por dentro. Mesmo motivo de sempre: não confiar em número vindo de fora quando o servidor pode calcular a partir de dado que ele mesmo já gravou.
+
+**A trava de 10% também foi pra dentro da trigger de INSERT (`validar_cashback_lancamento`), não só pra dentro de `conceder_cashback`.** RLS `FOR ALL` ainda libera um INSERT direto por admin/vendedor — sem a trigger replicar a regra, um insert direto continuaria podendo conceder qualquer valor, do mesmo jeito que já era preciso fechar pros outros campos (cliente_id/operacao_id/vencimento) na migration original.
+
+**Rebaixado de `numeric`+`date` livres pra só um `boolean` no wrapper (`registrar_venda_varejo_com_cashback`).** Sem valor/vencimento pra passar, não tem porque manter os dois parâmetros — simplifica a assinatura e a tela (um checkbox "Conceder cashback (10% = R$X, vence em 30 dias)" em vez de três campos livres).
+
 ## 2026-10-21 — Excluir peça no catálogo do Varejo: de verdade só sem movimentação, via FK natural
 
 **Excluir de verdade só funciona pra peça que nunca teve estoque/venda/dívida/transferência/etiqueta.** Pedido original era só "conseguir excluir as peças"; perguntado ao usuário se queria exclusão de verdade, desativar (reversível) ou as duas — respondeu "as duas coisas". Com movimentação real, a peça faz parte do histórico do negócio (vendida, com estoque entrado, etc.) — apagar de verdade destruiria rastro que outras partes do sistema dependem (relatórios, custo médio, etiquetas impressas). Sem nenhuma movimentação (cadastro errado/duplicado, apagado na hora), não há nada a preservar.

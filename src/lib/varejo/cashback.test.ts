@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { espacoParaCashback } from "./cashback";
+import { espacoParaCashback, valorCashbackAConceder } from "./cashback";
 
 describe("espacoParaCashback", () => {
   it("sem desconto nem acréscimo, o espaço é o próprio total de itens", () => {
@@ -20,5 +20,19 @@ describe("espacoParaCashback", () => {
 
   it("pode dar negativo quando o desconto passa do total — quem usa decide o que fazer com isso", () => {
     expect(espacoParaCashback(50, 60, 0)).toBe(-10);
+  });
+});
+
+describe("valorCashbackAConceder", () => {
+  it("é 10% do total pago (pedido do usuário, 2026-10-22: compra R$100, R$10 de cashback)", () => {
+    expect(valorCashbackAConceder(100)).toBe(10);
+  });
+
+  it("arredonda pro centavo (meio pra cima, mesma regra do resto do app)", () => {
+    expect(valorCashbackAConceder(99.95)).toBe(10);
+  });
+
+  it("total zero não gera cashback", () => {
+    expect(valorCashbackAConceder(0)).toBe(0);
   });
 });
