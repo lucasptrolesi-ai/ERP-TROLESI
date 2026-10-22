@@ -298,15 +298,24 @@ begin
   -- T3. Wrapper (registrar_venda_varejo_com_cashback) com p_conceder_cashback := true concede 10%
   -- automaticamente numa venda de R$50, sem passar valor nenhum -- so o sim/nao.
   declare
+    v_prod50 uuid;
+    v_var50 uuid;
     v_venda_t3 uuid;
     v_valor_t3 numeric;
   begin
-    -- 'preco_unitario' tem que vir explicito -- sem ele, o item usaria o preco de tabela da
-    -- variacao (100.00), nao os 50.00 que este teste quer vender, e o pagamento de 50.00 falharia
-    -- como "Pagamento insuficiente" (achado ao Lucas rodar o ensaio de verdade).
+    -- Produto PROPRIO com preco de tabela 50.00, vendido sem desconto nenhum no item -- usar
+    -- 'preco_unitario' pra vender o produto de 100.00 por 50.00 (metade da tabela) cai no piso de
+    -- preco minimo: sem preco_minimo configurado, o piso vira a propria tabela (100.00), e qualquer
+    -- preco praticado abaixo dela exige autorizacao de supervisor (achado ao Lucas rodar o ensaio de
+    -- verdade -- "Desconto abaixo do preco minimo exige autorizacao de supervisor").
+    v_prod50 := public.cadastrar_produto_catalogo('ZZ ENSAIO CASHBACK 10PCT 50', 'ANEL',
+      jsonb_build_array(jsonb_build_object('sku', 'ZZ10PCT50', 'atributos', '{}'::jsonb, 'preco_venda', 50.00)));
+    select id into v_var50 from public.catalogo_variacoes where produto_id = v_prod50;
+    perform public.registrar_entrada_estoque(v_dep, v_var50, 5, 10.00, 'ensaio cashback 10pct 50');
+
     v_venda_t3 := public.registrar_venda_varejo_com_cashback(
       v_sessao,
-      jsonb_build_array(jsonb_build_object('variacao_id', v_var, 'quantidade', 1, 'preco_unitario', 50.00)),
+      jsonb_build_array(jsonb_build_object('variacao_id', v_var50, 'quantidade', 1)),
       jsonb_build_array(jsonb_build_object('forma', 'dinheiro', 'valor', 50.00)),
       gen_random_uuid(), null, null, null, null, 0, 0, v_cliente,
       null, true
