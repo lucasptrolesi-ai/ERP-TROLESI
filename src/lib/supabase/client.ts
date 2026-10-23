@@ -12,6 +12,15 @@ export function createClient() {
   instancia ??= createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
+    {
+      // O servidor de Realtime deste projeto rejeita a apikey nova (sb_publishable_...) no
+      // handshake do WebSocket com 401 -- achado numa varredura de erros (2026-10-23): o
+      // RealtimeRefresh (AppShell) reconectava sem parar, pra sempre, em toda aba aberta, sem
+      // nunca autenticar. REST/Auth continuam na chave nova (funcionam normalmente); só o
+      // apikey passado especificamente pro Realtime precisa ser a anon key antiga (JWT, ainda
+      // ativa no projeto) até a Supabase atualizar o servidor de Realtime pra aceitar a nova.
+      realtime: { params: { apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY_LEGACY! } },
+    },
   );
   return instancia;
 }
