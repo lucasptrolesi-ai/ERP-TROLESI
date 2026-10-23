@@ -8,8 +8,8 @@ Pedido do usuário ("está muito lento"). Varredura em advisors/logs/pg_stat_sta
 - `src/lib/supabase/client.ts`: apikey do Realtime trocado pra anon key antiga (JWT) via `realtime.params.apikey` — mudança de baixo risco, mantém REST/Auth na chave nova.
 - `src/components/realtime-refresh.tsx`: canal só é criado depois de `getSession()` resolver, em vez de correr no mount do `useEffect`.
 - Nova env var `NEXT_PUBLIC_SUPABASE_ANON_KEY_LEGACY` (pública, é a anon key) — **precisa ser adicionada no Vercel** (só existe local em `.env.local` por ora).
-- Verificação real pendente: só dá pra confirmar que parou de vez olhando os logs depois do próximo deploy em produção (o teste direto não reproduziu o erro de forma confiável fora do navegador).
 - `tsc`/lint/`vitest`/build confirmados limpos.
+- **Confirmado em produção** (mesmo dia, depois do Lucas adicionar a env var no Vercel e recarregar a aba): logs mostraram o primeiro `101 Switching Protocols` (conexão bem-sucedida) às 13:42, zero reconexões desde então. O loop de 401 que se repetia a cada ~10s, pra sempre, parou de vez.
 
 ## 2026-10-22 (cont.) — Cupom ganha validade obrigatória e limite de 1 uso por cliente, aplicado em produção
 
