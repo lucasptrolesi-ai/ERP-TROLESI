@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { getPerfilAtual } from "@/lib/supabase/auth";
 import { PermissoesView } from "./permissoes-view";
-import type { PermissaoUsuario } from "@/lib/types";
+import type { OperacaoResumo, PermissaoUsuario, VinculoOperacao } from "@/lib/types";
 
 export type PerfilComPapel = { id: string; nome: string; papel: string; ativo: boolean };
 
@@ -17,7 +17,7 @@ export default async function PermissoesPage() {
   }
 
   const supabase = await createClient();
-  const [{ data: perfis }, { data: permissoes }] = await Promise.all([
+  const [{ data: perfis }, { data: permissoes }, { data: operacoes }, { data: vinculos }] = await Promise.all([
     supabase
       .from("profiles")
       .select("id, nome, papel, ativo")
@@ -25,12 +25,16 @@ export default async function PermissoesPage() {
       .eq("ativo", true)
       .order("nome"),
     supabase.from("permissoes_usuario").select("*"),
+    supabase.from("operacoes").select("id, codigo, nome").order("codigo"),
+    supabase.from("usuario_operacoes").select("profile_id, operacao_id, padrao"),
   ]);
 
   return (
     <PermissoesView
       perfis={(perfis ?? []) as PerfilComPapel[]}
       permissoes={(permissoes ?? []) as PermissaoUsuario[]}
+      operacoes={(operacoes ?? []) as OperacaoResumo[]}
+      vinculos={(vinculos ?? []) as VinculoOperacao[]}
     />
   );
 }

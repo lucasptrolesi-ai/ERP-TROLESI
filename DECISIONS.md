@@ -2,6 +2,18 @@
 
 Histórico de decisões de escopo e arquitetura, na ordem em que foram tomadas. Decisões revistas ficam marcadas como tal, não apagadas.
 
+## 2026-10-23 — `/permissoes` ganha "Operações": conceder/revogar uma segunda operação pra funcionário existente
+
+**Achado, não suposto.** Pedido original foi só "configure a Hemilly para o varejo também" -- investigando onde fazer isso, achei que `/permissoes` nunca teve nenhum jeito de dar uma SEGUNDA operação a um funcionário já cadastrado. `usuario_operacoes` só ganhava uma linha, uma única vez, dentro de `criarFuncionario` (vinculada à operação em que o admin estava no momento do cadastro). Não era bug de mobile -- a função não existia em lugar nenhum do app, em nenhuma tela, em nenhuma plataforma.
+
+**Duas functions novas em vez de reabrir `criarFuncionario`:** `conceder_operacao_funcionario`/`revogar_operacao_funcionario` (migration `20261023000001`), mesmo padrão de `conceder_permissao`/`revogar_permissao` que já existiam pra `permissoes_usuario` (tabela irmã dessa, mesma forma de uso).
+
+**Revogar ganhou duas regras que não existiam porque a situação não existia antes (só se concedia, nunca se revogava):**
+1. Nunca pode zerar as operações de alguém -- um funcionário sem nenhuma não vê nada em lugar nenhum do app (mesmo risco já descrito no comentário de `criarFuncionario`). Bloqueado com mensagem clara.
+2. Se a operação revogada era a `padrao` dele, outra (das que sobraram) é promovida a `padrao` na mesma transação -- o índice único `usuario_operacoes_padrao_key` (Etapa 2) já impedia DUAS linhas padrão por usuário, mas nada impedia ZERO; sem essa promoção, `contexto_sessao()` ficaria sem fallback quando o JWT não trouxer claim de operação.
+
+**Conceder é idempotente** (clicar duas vezes não duplica nem dá erro) e a primeira operação de alguém nasce `padrao` automaticamente, reproduzindo o que `criarFuncionario` já fazia -- qualquer operação ALÉM da primeira nasce `padrao=false`, nunca troca o "pouso" de quem já tinha uma, sem pedir.
+
 ## 2026-10-22 — Cupom ganha validade obrigatória e limite de 1 uso por cliente (revisão da decisão de 2026-10-20)
 
 **Reverte a decisão anterior ("sem limite de uso, sem validade/vencimento... se isso virar insuficiente, é ponto pra reabrir depois").** Pedido novo e explícito do usuário: "cupom adiciona limite de uso pra uma vez, por CPF, com porcentagem editável e com data de validade". Virou insuficiente — reabrindo exatamente como a decisão original previa.

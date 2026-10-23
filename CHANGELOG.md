@@ -1,5 +1,15 @@
 # CHANGELOG — ERP Trolesi
 
+## 2026-10-23 (cont.) — `/permissoes` ganha "Operações": conceder/revogar segunda operação de funcionário
+
+Pedido do usuário: dar acesso ao Varejo pra Hemilly, que hoje só tinha Atacado. Investigando, achei que não existia NENHUM jeito no app de dar uma segunda operação a um funcionário já cadastrado -- não era bug de mobile, a função simplesmente faltava.
+
+- Migration `20261023000001_conceder_revogar_operacao_funcionario.sql`: `conceder_operacao_funcionario(p_profile_id, p_operacao_id)` (idempotente, bloqueia alvo admin, primeira operação de alguém nasce padrão) e `revogar_operacao_funcionario(p_profile_id, p_operacao_id)` (bloqueia zerar as operações de alguém, promove outra a padrão quando a revogada era a padrão) -- mesmo padrão de `assert_papel`/`registrar_auditoria` de `conceder_permissao`/`revogar_permissao`.
+- `src/lib/actions/funcionarios.ts`: `concederOperacaoFuncionario`/`revogarOperacaoFuncionario`.
+- `/permissoes`: nova seção "Operações" no painel de detalhe do funcionário, com um switch por operação (Atacado/Varejo), acima da lista de "Permissões especiais" que já existia.
+- `tsc`/lint/`vitest`/build confirmados limpos.
+- Testes T1 a T7 escritos (conceder idempotente, bloqueia admin como alvo, revogar promove novo padrão, bloqueia zerar a única operação, bloqueia revogar quem não tem, só admin pode chamar as duas).
+
 ## 2026-10-23 — Varredura de erros: loop infinito de reconexão (401) no RealtimeRefresh
 
 Pedido do usuário ("está muito lento"). Varredura em advisors/logs/pg_stat_statements não achou volume de dado nem query lenta (maior tabela tem 1.333 linhas) nem erro no Postgres — achou, sim, `RealtimeRefresh` (monta em toda página via `AppShell`, cobre só tabelas antigas do Atacado) reconectando a cada ~10s, pra sempre, em toda aba aberta, desde o início do projeto, sempre com 401 no handshake do WebSocket.

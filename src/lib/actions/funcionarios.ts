@@ -190,6 +190,41 @@ export async function alternarAtivoFuncionario(id: string, ativo: boolean): Prom
   return {};
 }
 
+// Conceder/revogar uma operação EXTRA (achado 2026-10-23, código 20261023000001 -- /permissoes
+// nunca teve jeito de dar uma segunda operação pra um funcionário já cadastrado; o vínculo só
+// nascia uma vez, na hora de criarFuncionario). As regras de negócio (idempotência, nunca permitir
+// zerar as operações, promover outra a padrão quando a padrão é revogada) vivem nas functions do
+// banco, não aqui -- mesmo padrão de concederPermissao/revogarPermissao, a tela só chama e traduz.
+export async function concederOperacaoFuncionario(profileId: string, operacaoId: string): Promise<{ erro?: string }> {
+  const perfil = await getPerfilAtual();
+  if (perfil.papel !== "admin") return { erro: "Só administradores podem conceder operações." };
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("conceder_operacao_funcionario", {
+    p_profile_id: profileId,
+    p_operacao_id: operacaoId,
+  });
+  if (error) return { erro: error.message };
+
+  revalidarFuncionarios();
+  return {};
+}
+
+export async function revogarOperacaoFuncionario(profileId: string, operacaoId: string): Promise<{ erro?: string }> {
+  const perfil = await getPerfilAtual();
+  if (perfil.papel !== "admin") return { erro: "Só administradores podem revogar operações." };
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("revogar_operacao_funcionario", {
+    p_profile_id: profileId,
+    p_operacao_id: operacaoId,
+  });
+  if (error) return { erro: error.message };
+
+  revalidarFuncionarios();
+  return {};
+}
+
 export async function excluirFuncionario(id: string): Promise<{ erro?: string }> {
   const perfil = await getPerfilAtual();
   if (perfil.papel !== "admin") {

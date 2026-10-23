@@ -496,6 +496,12 @@ export type PermissaoUsuario = {
   concedida_em: string;
 };
 
+export type OperacaoResumo = { id: string; codigo: string; nome: string };
+
+// Vínculo funcionário↔operação (tabela usuario_operacoes) -- diferente de PermissaoUsuario:
+// controla quais operações (Atacado/Varejo) a pessoa vê, não uma permissão especial dentro de uma.
+export type VinculoOperacao = { profile_id: string; operacao_id: string; padrao: boolean };
+
 // PDV Eventos (2026-08-13) — estoque e vendas à parte pra evento temporário
 // (Agroshow), sem código×multiplicador nem regras comerciais do PDV real.
 export type FormaPagamentoEvento = "dinheiro" | "pix" | "cartao_vista" | "cartao_parcelado";

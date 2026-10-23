@@ -2,10 +2,10 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { concederPermissao, revogarPermissao } from "@/lib/actions/permissoes";
-import { criarFuncionario } from "@/lib/actions/funcionarios";
+import { criarFuncionario, concederOperacaoFuncionario, revogarOperacaoFuncionario } from "@/lib/actions/funcionarios";
 import { PERMISSAO_LABEL, PERMISSOES_ORDENADAS } from "@/lib/permissao-especial";
 import { formatarDataHoraIso } from "@/lib/datas";
-import type { PermissaoUsuario } from "@/lib/types";
+import type { OperacaoResumo, PermissaoUsuario, VinculoOperacao } from "@/lib/types";
 import type { PerfilComPapel } from "./page";
 
 const PAPEL_LABEL: Record<string, string> = {
@@ -16,7 +16,17 @@ const PAPEL_LABEL: Record<string, string> = {
 
 const PAPEIS_CADASTRAVEIS = ["vendedor", "financeiro", "estoque"] as const;
 
-export function PermissoesView({ perfis, permissoes }: { perfis: PerfilComPapel[]; permissoes: PermissaoUsuario[] }) {
+export function PermissoesView({
+  perfis,
+  permissoes,
+  operacoes,
+  vinculos,
+}: {
+  perfis: PerfilComPapel[];
+  permissoes: PermissaoUsuario[];
+  operacoes: OperacaoResumo[];
+  vinculos: VinculoOperacao[];
+}) {
   const [selecionadoId, setSelecionadoId] = useState<string | null>(perfis[0]?.id ?? null);
 
   const permissoesPorPerfil = useMemo(() => {
@@ -28,8 +38,18 @@ export function PermissoesView({ perfis, permissoes }: { perfis: PerfilComPapel[
     return mapa;
   }, [permissoes]);
 
+  const vinculosPorPerfil = useMemo(() => {
+    const mapa = new Map<string, Map<string, VinculoOperacao>>();
+    for (const v of vinculos) {
+      if (!mapa.has(v.profile_id)) mapa.set(v.profile_id, new Map());
+      mapa.get(v.profile_id)!.set(v.operacao_id, v);
+    }
+    return mapa;
+  }, [vinculos]);
+
   const selecionado = perfis.find((p) => p.id === selecionadoId) ?? null;
   const permissoesDoSelecionado = selecionado ? (permissoesPorPerfil.get(selecionado.id) ?? new Map()) : new Map();
+  const vinculosDoSelecionado = selecionado ? (vinculosPorPerfil.get(selecionado.id) ?? new Map()) : new Map();
 
   return (
     <div className="flex flex-col gap-5">
@@ -73,15 +93,29 @@ export function PermissoesView({ perfis, permissoes }: { perfis: PerfilComPapel[
           </h2>
         </div>
         {selecionado && (
-          <div className="flex flex-col divide-y divide-line">
-            {PERMISSOES_ORDENADAS.map((permissao) => (
-              <LinhaPermissao
-                key={permissao}
-                profileId={selecionado.id}
-                permissao={permissao}
-                concedida={permissoesDoSelecionado.get(permissao) ?? null}
-              />
-            ))}
+          <div className="flex flex-col">
+            <p className="px-4 py-2 text-xs font-bold uppercase tracking-wide text-text-soft sm:px-5">Operações</p>
+            <div className="flex flex-col divide-y divide-line border-b border-line">
+              {operacoes.map((op) => (
+                <LinhaOperacao
+                  key={op.id}
+                  profileId={selecionado.id}
+                  operacao={op}
+                  vinculo={vinculosDoSelecionado.get(op.id) ?? null}
+                />
+              ))}
+            </div>
+            <p className="px-4 py-2 text-xs font-bold uppercase tracking-wide text-text-soft sm:px-5">Permissões especiais</p>
+            <div className="flex flex-col divide-y divide-line">
+              {PERMISSOES_ORDENADAS.map((permissao) => (
+                <LinhaPermissao
+                  key={permissao}
+                  profileId={selecionado.id}
+                  permissao={permissao}
+                  concedida={permissoesDoSelecionado.get(permissao) ?? null}
+                />
+              ))}
+            </div>
           </div>
         )}
       </div>
@@ -219,6 +253,57 @@ function LinhaPermissao({
           <span
             className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${
               concedida ? "translate-x-5" : "translate-x-0.5"
+            }`}
+          />
+        </button>
+      </div>
+      {erro && <p className="text-xs font-medium text-crit">{erro}</p>}
+    </div>
+  );
+}
+
+function LinhaOperacao({
+  profileId,
+  operacao,
+  vinculo,
+}: {
+  profileId: string;
+  operacao: OperacaoResumo;
+  vinculo: VinculoOperacao | null;
+}) {
+  const [pending, iniciar] = useTransition();
+  const [erro, setErro] = useState<string | null>(null);
+
+  function alternar() {
+    setErro(null);
+    iniciar(async () => {
+      const resultado = vinculo
+        ? await revogarOperacaoFuncionario(profileId, operacao.id)
+        : await concederOperacaoFuncionario(profileId, operacao.id);
+      if (resultado.erro) setErro(resultado.erro);
+    });
+  }
+
+  return (
+    <div className="flex flex-col gap-1 px-4 py-3 sm:px-5">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex flex-col">
+          <span className="text-sm font-medium text-ink">{operacao.nome}</span>
+          {vinculo?.padrao && <span className="text-xs text-text-soft">Operação padrão</span>}
+        </div>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={!!vinculo}
+          disabled={pending}
+          onClick={alternar}
+          className={`relative h-6 w-11 shrink-0 rounded-full transition-colors disabled:opacity-60 ${
+            vinculo ? "bg-rose-deep" : "bg-line"
+          }`}
+        >
+          <span
+            className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${
+              vinculo ? "translate-x-5" : "translate-x-0.5"
             }`}
           />
         </button>
