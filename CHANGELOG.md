@@ -1,5 +1,16 @@
 # CHANGELOG — ERP Trolesi
 
+## 2026-10-23 — Varredura de erros: loop infinito de reconexão (401) no RealtimeRefresh
+
+Pedido do usuário ("está muito lento"). Varredura em advisors/logs/pg_stat_statements não achou volume de dado nem query lenta (maior tabela tem 1.333 linhas) nem erro no Postgres — achou, sim, `RealtimeRefresh` (monta em toda página via `AppShell`, cobre só tabelas antigas do Atacado) reconectando a cada ~10s, pra sempre, em toda aba aberta, desde o início do projeto, sempre com 401 no handshake do WebSocket.
+
+- Teste direto do handshake (Node, com e sem Origin, com as duas chaves) **não reproduziu** o 401 fora de uma sessão de navegador real — a hipótese de "chave nova incompatível" não se confirmou isoladamente; o mais provável é uma corrida entre o `channel.subscribe()` e a sessão de auth ainda carregando dos cookies (Realtime usa o token de sessão, não só a apikey, pra autorizar o canal).
+- `src/lib/supabase/client.ts`: apikey do Realtime trocado pra anon key antiga (JWT) via `realtime.params.apikey` — mudança de baixo risco, mantém REST/Auth na chave nova.
+- `src/components/realtime-refresh.tsx`: canal só é criado depois de `getSession()` resolver, em vez de correr no mount do `useEffect`.
+- Nova env var `NEXT_PUBLIC_SUPABASE_ANON_KEY_LEGACY` (pública, é a anon key) — **precisa ser adicionada no Vercel** (só existe local em `.env.local` por ora).
+- Verificação real pendente: só dá pra confirmar que parou de vez olhando os logs depois do próximo deploy em produção (o teste direto não reproduziu o erro de forma confiável fora do navegador).
+- `tsc`/lint/`vitest`/build confirmados limpos.
+
 ## 2026-10-22 (cont.) — Cupom ganha validade obrigatória e limite de 1 uso por cliente, aplicado em produção
 
 Pedido do usuário: cupom de desconto do PDV Varejo ganha limite de uso de 1x por cliente (checado pelo CPF/CNPJ do cadastro) e data de validade obrigatória. Usando cupom passa a exigir cliente selecionado (decisão explícita do usuário).
