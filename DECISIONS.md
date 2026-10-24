@@ -2,6 +2,14 @@
 
 Histórico de decisões de escopo e arquitetura, na ordem em que foram tomadas. Decisões revistas ficam marcadas como tal, não apagadas.
 
+## 2026-10-24 (cont.) — Achado: o Editor SQL do Supabase pode corromper migrations grandes
+
+**O Editor do Dashboard tem um detector de "CREATE TABLE" (pra lembrar de habilitar RLS) que mira errado em migrations grandes com function em PL/pgSQL.** Ao rodar `20261024000001`, ele confundiu variáveis internas da function (`declare v_id uuid; ... select ... into v_id ...`) com tabela nova, e colou `ALTER TABLE v_id ENABLE ROW LEVEL SECURITY` no meio do corpo da function -- quebrou o parsing (`unterminated dollar-quoted string`). Confirmado como comportamento documentado do próprio Supabase (não é bug no nosso arquivo), mas o gatilho exato (tamanho do arquivo? uso de `$fn$` em vez de `$$`? os dois?) não foi isolado -- sem tempo pra isso no momento, urgência do dia.
+
+**Contorno usado desta vez:** aplicado via SQL direto (mesma mudança final da migration, sem a casca de ensaio/teste/`do $x$`), colado no mesmo Editor -- funcionou. Não é garantia de que funcione sempre; pode ter sido o tamanho menor, não a estrutura.
+
+**Ferramenta nova pra próxima vez que isso acontecer:** `scripts/rodar-sql.mjs` (usa o pacote `pg`, `npm install pg --no-save` -- não entra no `package.json`) roda um arquivo `.sql` direto no Postgres via `node-postgres`, sem passar pelo Editor do Dashboard nenhuma vez. Não usado nesta migration (precisava de terminal + connection string, sem tempo no momento), mas fica disponível.
+
 ## 2026-10-24 — Item manual no PDV Varejo: venda fora do catálogo, sem PIN de supervisor
 
 **Pedido do usuário:** poder digitar na hora um item que não está cadastrado (ex: "corrente prata"), com preço e forma de pagamento manuais. Perguntado se deveria exigir PIN de supervisor, como desconto abaixo do mínimo/estoque negativo -- respondeu que não, livre pro vendedor; o fechamento de caixa no fim do dia (contado × esperado) já pega qualquer divergência de dinheiro.
