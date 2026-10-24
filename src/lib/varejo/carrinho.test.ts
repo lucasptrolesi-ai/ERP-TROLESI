@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { calcularLinha, calcularTotais, calcularTroco } from "@/lib/varejo/carrinho";
+import { calcularLinha, calcularTotais, calcularTotalManual, calcularTroco } from "@/lib/varejo/carrinho";
 import type { ItemCatalogo } from "@/lib/varejo/tipos";
 
 function item(overrides: Partial<ItemCatalogo> = {}): ItemCatalogo {
@@ -77,6 +77,25 @@ describe("calcularTotais", () => {
 
   it("carrinho vazio dá zero em tudo, sem exigir autorização", () => {
     expect(calcularTotais([])).toEqual({ subtotal: 0, total: 0, precisaAutorizacao: false, precisaAutorizacaoEstoque: false });
+  });
+});
+
+describe("calcularTotalManual", () => {
+  it("soma preço vezes quantidade de cada item manual", () => {
+    const total = calcularTotalManual([
+      { id: "1", descricao: "Corrente prata", quantidade: 1, precoTexto: "150,00" },
+      { id: "2", descricao: "Conserto de fecho", quantidade: 2, precoTexto: "30,00" },
+    ]);
+    expect(total).toBe(210);
+  });
+
+  it("lista vazia dá zero", () => {
+    expect(calcularTotalManual([])).toBe(0);
+  });
+
+  it("preço em branco/inválido conta como zero, não quebra a soma", () => {
+    const total = calcularTotalManual([{ id: "1", descricao: "Item sem preço", quantidade: 1, precoTexto: "" }]);
+    expect(total).toBe(0);
   });
 });
 

@@ -8,7 +8,14 @@ import { arredondarMoeda, lerMoeda } from "@/lib/dinheiro";
 import { filtra } from "@/lib/filtra";
 import { formatarDataIso, hojeIso } from "@/lib/datas";
 import { cancelarVenda, registrarVenda } from "@/lib/actions/varejo";
-import { calcularLinha, calcularTotais, calcularTroco, type ItemCarrinho } from "@/lib/varejo/carrinho";
+import {
+  calcularLinha,
+  calcularTotais,
+  calcularTotalManual,
+  calcularTroco,
+  type ItemCarrinho,
+  type ItemManualCarrinho,
+} from "@/lib/varejo/carrinho";
 import { calcularDescontoCupomVarejo } from "@/lib/varejo/cupom";
 import { espacoParaCashback, valorCashbackAConceder } from "@/lib/varejo/cashback";
 import { buscarCashbackDisponivel } from "@/lib/actions/cashback-varejo";
@@ -50,6 +57,9 @@ export function PdvVarejoView({
   const router = useRouter();
   const [busca, setBusca] = useState("");
   const [carrinho, setCarrinho] = useState<ItemCarrinho[]>([]);
+  const [itensManuais, setItensManuais] = useState<ItemManualCarrinho[]>([]);
+  const [descricaoManualTexto, setDescricaoManualTexto] = useState("");
+  const [precoManualTexto, setPrecoManualTexto] = useState("");
   const [forma, setForma] = useState<FormaPagamento>("dinheiro");
   const [valorRecebidoTexto, setValorRecebidoTexto] = useState("");
   const [clienteNomeLivre, setClienteNomeLivre] = useState("");
@@ -139,10 +149,44 @@ export function PdvVarejoView({
     setAutorizacaoDesconto(null);
   }
 
+  // Item manual (2026-10-24): vender algo fora do catálogo ("corrente prata" ainda não cadastrada),
+  // descrição e preço digitados na hora. Sem preço mínimo/saldo pra checar contra — nunca exige
+  // autorização de supervisor (decisão do usuário: o fechamento de caixa no fim do dia já pega
+  // qualquer divergência de dinheiro).
+  function adicionarItemManual() {
+    const descricao = descricaoManualTexto.trim();
+    const preco = lerMoeda(precoManualTexto);
+    if (!descricao) {
+      setErro("Informe a descrição do item.");
+      return;
+    }
+    if (preco === null || preco <= 0) {
+      setErro("Informe um preço válido pro item.");
+      return;
+    }
+    setErro(null);
+    setItensManuais((atual) => [...atual, { id: crypto.randomUUID(), descricao, quantidade: 1, precoTexto: precoManualTexto }]);
+    setDescricaoManualTexto("");
+    setPrecoManualTexto("");
+  }
+
+  function removerItemManual(id: string) {
+    setItensManuais((atual) => atual.filter((i) => i.id !== id));
+  }
+
+  function mudarQuantidadeItemManual(id: string, delta: number) {
+    setItensManuais((atual) => atual.map((i) => (i.id === id ? { ...i, quantidade: i.quantidade + delta } : i)).filter((i) => i.quantidade > 0));
+  }
+
   // Matematica do carrinho (preco travado no maximo de tabela, piso, subtotal/total, troco) em
   // src/lib/varejo/carrinho.ts, testada isoladamente — nao repetida aqui.
   const linhas = carrinho.map(calcularLinha);
-  const { subtotal, total: totalItens, precisaAutorizacao, precisaAutorizacaoEstoque } = calcularTotais(linhas);
+  const { subtotal: subtotalCatalogo, total: totalCatalogo, precisaAutorizacao, precisaAutorizacaoEstoque } = calcularTotais(linhas);
+  // Item manual (2026-10-24) soma direto em subtotal/total -- sem preço de tabela próprio, não tem
+  // "desconto" nenhum a mostrar (subtotal e total do item são o mesmo valor).
+  const totalManual = calcularTotalManual(itensManuais);
+  const subtotal = subtotalCatalogo + totalManual;
+  const totalItens = totalCatalogo + totalManual;
   // Desconto/acréscimo do carrinho inteiro (pedido do usuário, 2026-09-30) — livre, sem PIN,
   // separado da autorização de preço abaixo do mínimo por peça acima (essa continua olhando só o
   // preço de cada item). Mesmo padrão do PDV Atacado: o % só calcula o R$, que é o valor real.
@@ -215,6 +259,9 @@ export function PdvVarejoView({
 
   function limparVenda() {
     setCarrinho([]);
+    setItensManuais([]);
+    setDescricaoManualTexto("");
+    setPrecoManualTexto("");
     setValorRecebidoTexto("");
     setClienteNomeLivre("");
     setClienteSelecionado(null);
@@ -232,7 +279,7 @@ export function PdvVarejoView({
 
   function finalizar() {
     setErro(null);
-    if (carrinho.length === 0) {
+    if (carrinho.length === 0 && itensManuais.length === 0) {
       setErro("Adicione ao menos um item.");
       return;
     }
@@ -271,7 +318,14 @@ export function PdvVarejoView({
       // (achado de code review, 2026-10-21 — ver DECISIONS.md).
       const resultado = await registrarVenda({
         sessaoId: sessao!.sessao_id,
-        itens: linhas.map((l) => ({ variacao_id: l.variacao.variacao_id, quantidade: l.quantidade, preco_unitario: l.preco })),
+        itens: [
+          ...linhas.map((l) => ({ variacao_id: l.variacao.variacao_id, quantidade: l.quantidade, preco_unitario: l.preco })),
+          ...itensManuais.map((i) => ({
+            descricao_manual: i.descricao,
+            quantidade: i.quantidade,
+            preco_unitario: lerMoeda(i.precoTexto) ?? 0,
+          })),
+        ],
         pagamentos,
         idempotencyKey,
         clienteId: clienteSelecionado?.id,
@@ -334,11 +388,61 @@ export function PdvVarejoView({
           ))}
           {resultados.length === 0 && <p className="col-span-full text-sm text-text-soft">Nada encontrado.</p>}
         </div>
+
+        <div className="rounded-lg border border-line bg-cream p-3">
+          <p className="mb-2 text-xs font-bold uppercase tracking-wide text-text-soft">
+            Item fora do catálogo (ex: &quot;Corrente prata&quot;)
+          </p>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_7rem_auto]">
+            <input
+              type="text"
+              value={descricaoManualTexto}
+              onChange={(e) => setDescricaoManualTexto(e.target.value)}
+              placeholder="Descrição"
+              className="rounded-lg border border-line bg-surface px-3 py-2 text-sm"
+            />
+            <input
+              type="text"
+              value={precoManualTexto}
+              onChange={(e) => setPrecoManualTexto(e.target.value)}
+              placeholder="Preço"
+              inputMode="decimal"
+              className="rounded-lg border border-line bg-surface px-3 py-2 text-sm"
+            />
+            <button
+              type="button"
+              onClick={adicionarItemManual}
+              className="rounded-lg border border-line px-3 py-2 text-sm font-semibold text-rose-deep"
+            >
+              Adicionar
+            </button>
+          </div>
+        </div>
       </div>
 
       <div className="flex flex-col gap-3 rounded-[14px] border border-line bg-surface p-4 shadow-sm sm:p-5">
         <div className="flex flex-col gap-2 border-b border-line pb-3">
-          {linhas.length === 0 && <p className="text-sm text-text-soft">Carrinho vazio.</p>}
+          {itensManuais.map((i) => (
+            <div key={i.id} className="flex flex-col gap-1 border-b border-line pb-2 last:border-0">
+              <div className="flex items-center justify-between text-sm">
+                <span className="font-medium">{i.descricao} <span className="text-xs text-text-soft">(manual)</span></span>
+                <span>{formatarMoeda((lerMoeda(i.precoTexto) ?? 0) * i.quantidade)}</span>
+              </div>
+              <div className="flex items-center gap-2 text-xs text-text-soft">
+                <button type="button" onClick={() => mudarQuantidadeItemManual(i.id, -1)} className="h-7 w-7 rounded-full border border-line">
+                  −
+                </button>
+                <span className="min-w-[1.5rem] text-center">{i.quantidade}</span>
+                <button type="button" onClick={() => mudarQuantidadeItemManual(i.id, 1)} className="h-7 w-7 rounded-full border border-line">
+                  +
+                </button>
+                <button type="button" onClick={() => removerItemManual(i.id)} className="ml-auto font-semibold text-rose-deep underline decoration-dotted">
+                  Remover
+                </button>
+              </div>
+            </div>
+          ))}
+          {linhas.length === 0 && itensManuais.length === 0 && <p className="text-sm text-text-soft">Carrinho vazio.</p>}
           {linhas.map((l) => (
             <div key={l.variacao.variacao_id} className="flex flex-col gap-1 border-b border-line pb-2 last:border-0">
               <div className="flex items-center justify-between text-sm">

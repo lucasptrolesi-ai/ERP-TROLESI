@@ -37,3 +37,14 @@ export function calcularTotais(linhas: LinhaCarrinho[]): TotaisCarrinho {
 export function calcularTroco(forma: string, valorRecebido: number, total: number): number {
   return forma === "dinheiro" ? Math.max(0, arredondarMoeda(valorRecebido - total)) : 0;
 }
+
+// Item manual (2026-10-24) -- algo fora do catálogo, vendido na hora (ex: "corrente prata"
+// ainda não cadastrada). Fica numa lista separada do carrinho de catálogo (não dá pra encaixar em
+// ItemCarrinho: não tem ItemCatalogo nenhum por trás, não tem preço mínimo/saldo pra checar contra
+// -- nunca exige autorização de supervisor, por desenho). O valor soma direto em subtotal/total do
+// carrinho principal (a tela que chama isto é quem faz a soma final).
+export type ItemManualCarrinho = { id: string; descricao: string; quantidade: number; precoTexto: string };
+
+export function calcularTotalManual(itens: ItemManualCarrinho[]): number {
+  return arredondarMoeda(itens.reduce((soma, i) => soma + (lerMoeda(i.precoTexto) ?? 0) * i.quantidade, 0));
+}

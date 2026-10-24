@@ -2,6 +2,16 @@
 
 Histórico de decisões de escopo e arquitetura, na ordem em que foram tomadas. Decisões revistas ficam marcadas como tal, não apagadas.
 
+## 2026-10-24 — Item manual no PDV Varejo: venda fora do catálogo, sem PIN de supervisor
+
+**Pedido do usuário:** poder digitar na hora um item que não está cadastrado (ex: "corrente prata"), com preço e forma de pagamento manuais. Perguntado se deveria exigir PIN de supervisor, como desconto abaixo do mínimo/estoque negativo -- respondeu que não, livre pro vendedor; o fechamento de caixa no fim do dia (contado × esperado) já pega qualquer divergência de dinheiro.
+
+**`venda_itens.variacao_id` virou NULLABLE em vez de uma tabela/function paralela.** Um item manual é uma linha de venda como qualquer outra (entra no mesmo subtotal/total/pagamento/troco) -- só não tem variação de catálogo por trás. Criar uma "venda_itens_manual" separada duplicaria toda a lógica de carrinho/desconto/pagamento só pra guardar uma descrição e um preço. Constraint `num_nonnulls(variacao_id, descricao_manual) = 1` garante que uma linha é sempre uma coisa OU outra, nunca as duas nem nenhuma.
+
+**Item manual não baixa estoque, não tem custo conhecido (`custo_unitario = 0`) e nunca entra nas checagens de preço mínimo/piso de prejuízo.** Não tem catálogo por trás pra comparar contra -- não é uma trava que "esqueceram" de aplicar, é a ausência da própria referência que a trava precisaria. Efeito colateral aceito: o Financeiro do Varejo mostra 100% de margem nessas vendas (não tem custo real pra debitar).
+
+**`registrar_venda` ganhou um `continue` no loop de itens para o ramo manual, em vez de virar uma function nova.** Reabrir a function mais central do Varejo é o tipo de mudança que o projeto normalmente evita (prefere compor por fora) -- mas aqui não tinha como: o "item" em si mudou de forma, não dá pra adicionar isso só por composição ao redor.
+
 ## 2026-10-23 — `/permissoes` ganha "Operações": conceder/revogar uma segunda operação pra funcionário existente
 
 **Achado, não suposto.** Pedido original foi só "configure a Hemilly para o varejo também" -- investigando onde fazer isso, achei que `/permissoes` nunca teve nenhum jeito de dar uma SEGUNDA operação a um funcionário já cadastrado. `usuario_operacoes` só ganhava uma linha, uma única vez, dentro de `criarFuncionario` (vinculada à operação em que o admin estava no momento do cadastro). Não era bug de mobile -- a função não existia em lugar nenhum do app, em nenhuma tela, em nenhuma plataforma.

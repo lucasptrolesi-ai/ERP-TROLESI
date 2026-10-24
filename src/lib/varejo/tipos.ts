@@ -59,7 +59,12 @@ export type VendaDaSessao = {
 
 export type FormaPagamento = "dinheiro" | "pix" | "debito" | "credito";
 
-export type ItemDaVenda = { variacao_id: string; quantidade: number; preco_unitario: number };
+// Item manual (2026-10-24) -- venda de algo fora do catálogo ("corrente prata"), descrição+preço
+// digitados na hora, sem variacao_id nenhum. A union existe porque o banco (registrar_venda) exige
+// exatamente um dos dois formatos por item, nunca os dois juntos nem nenhum.
+export type ItemDaVenda =
+  | { variacao_id: string; quantidade: number; preco_unitario: number }
+  | { descricao_manual: string; quantidade: number; preco_unitario: number };
 export type PagamentoDaVenda = { forma: FormaPagamento; valor: number; parcelas?: number };
 
 export type DadosDaVenda = {

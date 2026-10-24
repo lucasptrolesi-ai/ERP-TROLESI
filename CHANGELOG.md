@@ -1,5 +1,17 @@
 # CHANGELOG — ERP Trolesi
 
+## 2026-10-24 — Item manual no PDV Varejo (venda fora do catálogo), aguardando ensaio
+
+Pedido do usuário: vender algo não cadastrado (ex: "corrente prata"), digitando descrição e preço na hora, no meio de uma venda normal. Sem PIN de supervisor (decisão explícita) -- o fechamento de caixa já cobre a divergência.
+
+- Migration `20261024000001_item_manual_venda_varejo.sql`: `venda_itens.variacao_id` fica NULLABLE, ganha `descricao_manual text` + constraint `num_nonnulls(variacao_id, descricao_manual) = 1`. `registrar_venda` (DROP + CREATE) trata o ramo manual com `continue` no loop de itens -- sem preço de tabela/mínimo, sem baixa de estoque, `custo_unitario = 0`, nunca exige autorização de supervisor. `cancelar_venda` ganha `and i.variacao_id is not null` na devolução de estoque (sem isso quebrava tentando devolver estoque de um item que nunca teve). View `pdv_venda_itens` (sem consumidor em código, achado na investigação) trocada pra LEFT JOIN com `coalesce(nome, descricao_manual)` -- item manual sumia da própria lista da venda.
+- `src/lib/varejo/carrinho.ts`: `ItemManualCarrinho` + `calcularTotalManual` (testados).
+- `src/lib/varejo/tipos.ts`: `ItemDaVenda` virou union (variação de catálogo OU descrição manual).
+- `/varejo/pdv`: novo bloco "Item fora do catálogo" (descrição + preço + Adicionar) na tela de busca; lista de itens manuais no carrinho, com quantidade/remover, somando direto em subtotal/total (cupom/cashback/desconto do carrinho continuam funcionando em cima do total combinado).
+- `tsc`/lint/`vitest`/build confirmados limpos.
+- Testes T1 a T6 escritos (item manual sozinho, sem preço bloqueia, preço zero bloqueia, venda mista soma certo, cancelamento não quebra tentando devolver estoque inexistente, não aceita variação+descrição manual juntos).
+- Não testado em navegador real (sem ferramenta de browser disponível nesta sessão) -- só `tsc`/lint/testes/build. Vale conferir visualmente no PDV depois de aplicar a migration.
+
 ## 2026-10-23 (cont.) — `/permissoes` ganha "Operações": conceder/revogar segunda operação de funcionário
 
 Pedido do usuário: dar acesso ao Varejo pra Hemilly, que hoje só tinha Atacado. Investigando, achei que não existia NENHUM jeito no app de dar uma segunda operação a um funcionário já cadastrado -- não era bug de mobile, a função simplesmente faltava.
