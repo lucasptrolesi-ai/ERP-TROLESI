@@ -1,5 +1,9 @@
 # CHANGELOG — ERP Trolesi
 
+## 2026-10-24 (cont. 2) — Fix: botão Finalizar venda travado com só item manual no carrinho
+
+Achado pelo usuário ("não estou conseguindo finalizar nenhuma venda") -- confirmado via logs que nenhuma chamada chegava no servidor, então o problema era client-side. `disabled={enviando || linhas.length === 0}` só olhava os itens de catálogo, sobra de antes do item manual existir -- uma venda só com item manual (sem nenhuma peça de catálogo) deixava o botão sempre desabilitado. Corrigido pra `disabled={enviando || (linhas.length === 0 && itensManuais.length === 0)}`. `tsc`/lint/testes/build confirmados limpos.
+
 ## 2026-10-24 — Item manual no PDV Varejo (venda fora do catálogo), aguardando ensaio
 
 Pedido do usuário: vender algo não cadastrado (ex: "corrente prata"), digitando descrição e preço na hora, no meio de uma venda normal. Sem PIN de supervisor (decisão explícita) -- o fechamento de caixa já cobre a divergência.
