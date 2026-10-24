@@ -724,7 +724,7 @@ export function PdvVarejoView({
         <button
           type="button"
           onClick={finalizar}
-          disabled={enviando || linhas.length === 0}
+          disabled={enviando || (linhas.length === 0 && itensManuais.length === 0)}
           className="rounded-lg bg-gradient-to-br from-gold-start to-gold-end px-4 py-2.5 font-semibold text-gold-ink disabled:opacity-60"
         >
           {enviando ? "Finalizando…" : "Finalizar venda"}
