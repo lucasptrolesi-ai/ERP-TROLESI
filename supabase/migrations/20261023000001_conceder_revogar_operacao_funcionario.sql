@@ -63,7 +63,7 @@ begin
 
   create function public.conceder_operacao_funcionario(p_profile_id uuid, p_operacao_id uuid)
   returns void
-  language plpgsql security definer set search_path = public as $fn$
+  language plpgsql security definer set search_path = public as $$
   declare
     v_ja_tem boolean;
   begin
@@ -89,14 +89,14 @@ begin
     perform public.registrar_auditoria('usuario_operacoes', p_profile_id, 'conceder_operacao', null,
       jsonb_build_object('operacao_id', p_operacao_id));
   end
-  $fn$;
+  $$;
 
   revoke execute on function public.conceder_operacao_funcionario(uuid, uuid) from public, anon;
   grant execute on function public.conceder_operacao_funcionario(uuid, uuid) to authenticated;
 
   create function public.revogar_operacao_funcionario(p_profile_id uuid, p_operacao_id uuid)
   returns void
-  language plpgsql security definer set search_path = public as $fn$
+  language plpgsql security definer set search_path = public as $$
   declare
     v_total int;
     v_era_padrao boolean;
@@ -128,7 +128,7 @@ begin
     perform public.registrar_auditoria('usuario_operacoes', p_profile_id, 'revogar_operacao',
       jsonb_build_object('operacao_id', p_operacao_id), null);
   end
-  $fn$;
+  $$;
 
   revoke execute on function public.revogar_operacao_funcionario(uuid, uuid) from public, anon;
   grant execute on function public.revogar_operacao_funcionario(uuid, uuid) to authenticated;
@@ -223,7 +223,7 @@ begin
     raise exception 'TESTE FALHOU [T5]: revogar a unica operacao deveria ter sido bloqueado';
   exception
     when others then
-      if sqlerrm !~ 'unica operacao' then raise; end if;
+      if sqlerrm !~ 'única operação' then raise; end if;
   end;
 
   -- T6. Revogar uma operacao que o funcionario NAO tem (ATACADO, ja revogada no T4) -> bloqueado
