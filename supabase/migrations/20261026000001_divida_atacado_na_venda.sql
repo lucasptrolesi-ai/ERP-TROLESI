@@ -629,11 +629,17 @@ begin
     return;
   end if;
 
-  if exists (select 1 from public.varejo_dividas_atacado where venda_item_id is not null) then
-    raise exception 'DESFAZER BLOQUEADO: ja existe divida lancada pelo novo fluxo (venda_item_id preenchido) -- desfazer perderia esse dado. Mantenha a feature em vez de reverter.';
-  end if;
-  if exists (select 1 from public.catalogo_variacoes where codigo_atacado is not null) then
-    raise exception 'DESFAZER BLOQUEADO: ja existe peca com codigo_atacado preenchido -- desfazer perderia esse dado. Mantenha a feature em vez de reverter.';
+  -- So checa dado real em modo 'desfazer' de verdade -- em 'ensaio', o $teste$ (T1/T2/T4) acabou de
+  -- criar linhas de teste com venda_item_id/codigo_atacado preenchidos momentos atras, na MESMA
+  -- transacao, e isso NAO pode disparar o bloqueio (sao dados de teste que o proprio ensaio desfaz
+  -- de qualquer jeito, abortando a transacao inteira no final).
+  if current_setting('app.modo_migration', true) = 'desfazer' then
+    if exists (select 1 from public.varejo_dividas_atacado where venda_item_id is not null) then
+      raise exception 'DESFAZER BLOQUEADO: ja existe divida lancada pelo novo fluxo (venda_item_id preenchido) -- desfazer perderia esse dado. Mantenha a feature em vez de reverter.';
+    end if;
+    if exists (select 1 from public.catalogo_variacoes where codigo_atacado is not null) then
+      raise exception 'DESFAZER BLOQUEADO: ja existe peca com codigo_atacado preenchido -- desfazer perderia esse dado. Mantenha a feature em vez de reverter.';
+    end if;
   end if;
 
   create or replace function public.registrar_venda(
