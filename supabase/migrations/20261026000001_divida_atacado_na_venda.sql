@@ -640,6 +640,13 @@ begin
     if exists (select 1 from public.catalogo_variacoes where codigo_atacado is not null) then
       raise exception 'DESFAZER BLOQUEADO: ja existe peca com codigo_atacado preenchido -- desfazer perderia esse dado. Mantenha a feature em vez de reverter.';
     end if;
+  else
+    -- Em ensaio (unico outro modo que chega aqui), o $teste$ acima criou linhas novas
+    -- (venda_item_id preenchido, movimento_estoque_id nulo) que violam a constraint ANTIGA
+    -- (movimento_estoque_id NOT NULL, mais abaixo) de proposito -- e exatamente o que a feature
+    -- precisa permitir. Limpa so essas linhas de teste antes de devolver a constraint, pra simular
+    -- o que um desfazer de verdade veria (zero linhas assim, ja bloqueado no ramo acima).
+    delete from public.varejo_dividas_atacado where venda_item_id is not null;
   end if;
 
   create or replace function public.registrar_venda(
