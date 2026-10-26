@@ -1,6 +1,6 @@
 # CHANGELOG — ERP Trolesi
 
-## 2026-10-26 — Dívida com o Atacado nasce na venda, não no cadastro, aguardando ensaio
+## 2026-10-26 — Dívida com o Atacado nasce na venda, não no cadastro
 
 Pedido do usuário: cadastrar peça não pode mais gerar dívida com o Atacado -- só vender gera (peça de catálogo ou item manual). No PDV, item manual ganha um campo opcional "Cód. Atacado" que não afeta o preço cobrado, só lança a dívida (código × 2,8).
 
@@ -12,6 +12,7 @@ Pedido do usuário: cadastrar peça não pode mais gerar dívida com o Atacado -
 - `tsc`/lint/`vitest`/build confirmados limpos.
 - Testes T1 a T7 escritos (cadastro nunca gera dívida, venda de peça com código gera automaticamente, peça sem código não gera, item manual com/sem código, código inválido bloqueia, editar seta/limpa o metadado).
 - Escopo decidido, não pedido: `cancelar_venda` não reverte a dívida automaticamente -- fica limitação conhecida (ver `DECISIONS.md`).
+- Ensaio rodou limpo (T1 a T7, rollback idêntico ao original) -- durante o ensaio, dois bugs reais apareceram e foram corrigidos no próprio arquivo antes de aplicar: o guard "DESFAZER BLOQUEADO" disparava até em modo ensaio contra as linhas de teste recém-criadas na mesma transação (corrigido restringindo o guard a modo `desfazer` de verdade); corrigido isso, o `alter column movimento_estoque_id set not null` do `$down$` passou a falhar contra essas mesmas linhas de teste (corrigido apagando as linhas de teste antes do ALTER, simulando o que um desfazer real veria). **Aplicado em produção** -- confirmado via introspecção do schema: `codigo_atacado`/`venda_item_id` existem, `variacao_id`/`movimento_estoque_id` nullable, `registrar_compra_atacado_varejo` removida, `editar_produto_catalogo` só com a assinatura nova (12 params); zero peça de teste (`ZZ ENSAIO%`) restante no banco.
 
 ## 2026-10-24 (cont. 2) — Fix: botão Finalizar venda travado com só item manual no carrinho
 
