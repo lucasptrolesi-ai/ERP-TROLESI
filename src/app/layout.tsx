@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Cormorant_Garamond, Montserrat } from "next/font/google";
 import "./globals.css";
 
@@ -17,6 +17,15 @@ const montserrat = Montserrat({
 export const metadata: Metadata = {
   title: "Trolesi ERP",
   description: "Sistema de gestão da Trolesi Joias",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "Trolesi ERP",
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#2c2520",
 };
 
 export default function RootLayout({
