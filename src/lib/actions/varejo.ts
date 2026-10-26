@@ -179,17 +179,6 @@ export async function cadastrarProdutoCatalogo(
   return {};
 }
 
-// Compra do Atacado lançada junto no cadastro da peça (pedido do dono, 2026-10-09): ele digita o
-// "código" do Atacado (ex: 8,4) em vez de usar a transferência formal — o custo/entrada de
-// estoque/dívida saem tudo de um RPC só (registrar_compra_atacado_varejo, migration
-// 20261009000001), encadeado logo depois que a peça existe.
-export type CompraAtacadoNaCadastro = {
-  codigoAtacado: number;
-  quantidade: number;
-  status: "em_aberto" | "pago";
-  depositoId: string;
-};
-
 // produtoId/variacaoId/sku só vêm preenchidos ao CRIAR uma peça nova (pra abrir a tela "Imprimir
 // etiqueta" em seguida, ver onPecaCriada em peca-catalogo-form.tsx) — editarPecaCatalogo também
 // devolve esse formato (sempre undefined) só pra manter o mesmo tipo nos dois lados do `peca ? ... :
@@ -210,7 +199,10 @@ export async function cadastrarPecaCatalogo(
   foto: File | null,
   fotoUrlDoCelular: string | null,
   localizacaoTexto: string,
-  compraAtacado: CompraAtacadoNaCadastro | null = null,
+  // Código do Atacado (2026-10-26, revisão): vira só metadado da peça -- cadastrar nunca gera
+  // dívida nenhuma, só a VENDA dessa peça gera (registrar_venda lê este valor sozinho, na hora de
+  // vender). Ver DECISIONS.md.
+  codigoAtacado: number | null = null,
 ): Promise<ResultadoPecaCatalogo> {
   if (nome.trim() === "") return { erro: "Informe o nome do produto." };
   if (!Number.isFinite(precoVenda) || precoVenda <= 0) return { erro: "Informe o preço de venda." };
@@ -237,38 +229,21 @@ export async function cadastrarPecaCatalogo(
         preco_minimo: precoMinimo,
         foto_url: fotoUrl,
         localizacao: parseAtributos(localizacaoTexto),
+        codigo_atacado: codigoAtacado,
       },
     ],
   });
   if (error) return { erro: mensagem(error) };
 
   // sku em branco vira número sequencial sozinho (trigger, ver comentário acima) — busca de volta a
-  // variação recém-criada tanto pra encadear a compra do Atacado abaixo quanto pra devolver o sku de
-  // verdade pro chamador abrir a tela "Imprimir etiqueta" com o código que o PDV realmente bipa.
+  // variação recém-criada pra devolver o sku de verdade pro chamador abrir a tela "Imprimir
+  // etiqueta" com o código que o PDV realmente bipa.
   const { data: variacao } = await supabase
     .from("catalogo_variacoes")
     .select("id, sku")
     .eq("produto_id", produtoId as string)
     .limit(1)
     .maybeSingle();
-
-  if (compraAtacado && variacao) {
-    const { error: erroCompra } = await supabase.rpc("registrar_compra_atacado_varejo", {
-      p_variacao_id: variacao.id,
-      p_deposito_id: compraAtacado.depositoId,
-      p_codigo_atacado: compraAtacado.codigoAtacado,
-      p_quantidade: compraAtacado.quantidade,
-      p_status: compraAtacado.status,
-    });
-    if (erroCompra) {
-      return {
-        erro: `Peça cadastrada, mas falhou ao registrar a compra do Atacado: ${mensagem(erroCompra)}`,
-        produtoId: produtoId as string,
-        variacaoId: variacao.id,
-        sku: variacao.sku,
-      };
-    }
-  }
 
   revalidatePath("/varejo/catalogo");
   revalidatePath("/varejo/financeiro", "layout");
@@ -295,6 +270,7 @@ export async function editarPecaCatalogo(
   fotoUrlAtual: string | null,
   ativo: boolean,
   localizacaoTexto: string,
+  codigoAtacado: number | null = null,
 ): Promise<ResultadoPecaCatalogo> {
   if (nome.trim() === "") return { erro: "Informe o nome do produto." };
   if (!Number.isFinite(precoVenda) || precoVenda <= 0) return { erro: "Informe o preço de venda." };
@@ -319,6 +295,7 @@ export async function editarPecaCatalogo(
     p_foto_url: fotoUrl,
     p_ativo: ativo,
     p_localizacao: parseAtributos(localizacaoTexto),
+    p_codigo_atacado: codigoAtacado,
   });
   if (error) return { erro: mensagem(error) };
   revalidatePath("/varejo/catalogo");

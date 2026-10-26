@@ -102,11 +102,15 @@ describe("2026-10-08 — Controle Financeiro do Varejo: piso de prejuízo no PDV
   it.todo("despesas variáveis configuradas em 100% ou mais dá erro explícito na hora de vender, em vez de desligar a trava silenciosamente");
 });
 
-describe("2026-10-09 — Dívida com o Atacado por cadastro direto no Varejo (implementado em SQL, sem teste de integração)", () => {
+describe("2026-10-26 — Dívida com o Atacado nasce na venda, não no cadastro (implementado em SQL, sem teste de integração em vitest)", () => {
   it.todo(
-    "registrar_compra_atacado_varejo calcula custo = código × multiplicador_vigente e amarra entrada de estoque + dívida na mesma transação (migration 20261009000001; cenário conferido manualmente — código 8,4 — na conversa com o dono)",
+    "cadastrar peça com codigo_atacado nunca gera linha em varejo_dividas_atacado -- só fica salvo como metadado em catalogo_variacoes (revisão 2026-10-26 da decisão de 2026-10-09; migration 20261026000001; coberto por ensaio T1, não por vitest)",
   );
-  it.todo("só admin registra compra do Atacado (papel estoque/vendedor não acessa custo nem dívida)");
+  it.todo(
+    "vender uma peça de catálogo com codigo_atacado salvo gera a dívida automaticamente (código × multiplicador_vigente), sem o vendedor digitar nada no PDV (ensaio T2)",
+  );
+  it.todo("item manual no PDV com código do Atacado preenchido gera a mesma dívida, sem afetar o preço cobrado do cliente (ensaio T4)");
+  it.todo("código do Atacado <= 0 no item manual é rejeitado com mensagem clara (ensaio T6)");
   it.todo("marcar uma dívida como paga/em aberto exige pago_em coerente com o status (check constraint) e fica auditado");
 });
 

@@ -60,6 +60,7 @@ export function PdvVarejoView({
   const [itensManuais, setItensManuais] = useState<ItemManualCarrinho[]>([]);
   const [descricaoManualTexto, setDescricaoManualTexto] = useState("");
   const [precoManualTexto, setPrecoManualTexto] = useState("");
+  const [codigoAtacadoManualTexto, setCodigoAtacadoManualTexto] = useState("");
   const [forma, setForma] = useState<FormaPagamento>("dinheiro");
   const [valorRecebidoTexto, setValorRecebidoTexto] = useState("");
   const [clienteNomeLivre, setClienteNomeLivre] = useState("");
@@ -164,10 +165,28 @@ export function PdvVarejoView({
       setErro("Informe um preço válido pro item.");
       return;
     }
+    // Código do Atacado (2026-10-26, opcional): NÃO afeta o preço acima, cobrado do cliente -- só
+    // vira dívida com o Atacado (código × 2,8) quando a venda for registrada. Validação completa
+    // (>0) fica pro servidor; aqui só não deixa passar um texto que não é número.
+    const codigoAtacadoLido = lerMoeda(codigoAtacadoManualTexto);
+    if (codigoAtacadoManualTexto.trim() !== "" && codigoAtacadoLido === null) {
+      setErro("Código do Atacado inválido.");
+      return;
+    }
     setErro(null);
-    setItensManuais((atual) => [...atual, { id: crypto.randomUUID(), descricao, quantidade: 1, precoTexto: precoManualTexto }]);
+    setItensManuais((atual) => [
+      ...atual,
+      {
+        id: crypto.randomUUID(),
+        descricao,
+        quantidade: 1,
+        precoTexto: precoManualTexto,
+        codigoAtacado: codigoAtacadoLido ?? undefined,
+      },
+    ]);
     setDescricaoManualTexto("");
     setPrecoManualTexto("");
+    setCodigoAtacadoManualTexto("");
   }
 
   function removerItemManual(id: string) {
@@ -262,6 +281,7 @@ export function PdvVarejoView({
     setItensManuais([]);
     setDescricaoManualTexto("");
     setPrecoManualTexto("");
+    setCodigoAtacadoManualTexto("");
     setValorRecebidoTexto("");
     setClienteNomeLivre("");
     setClienteSelecionado(null);
@@ -324,6 +344,7 @@ export function PdvVarejoView({
             descricao_manual: i.descricao,
             quantidade: i.quantidade,
             preco_unitario: lerMoeda(i.precoTexto) ?? 0,
+            ...(i.codigoAtacado ? { codigo_atacado: i.codigoAtacado } : {}),
           })),
         ],
         pagamentos,
@@ -393,7 +414,7 @@ export function PdvVarejoView({
           <p className="mb-2 text-xs font-bold uppercase tracking-wide text-text-soft">
             Item fora do catálogo (ex: &quot;Corrente prata&quot;)
           </p>
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_7rem_auto]">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_7rem_7rem_auto]">
             <input
               type="text"
               value={descricaoManualTexto}
@@ -409,6 +430,15 @@ export function PdvVarejoView({
               inputMode="decimal"
               className="rounded-lg border border-line bg-surface px-3 py-2 text-sm"
             />
+            <input
+              type="text"
+              value={codigoAtacadoManualTexto}
+              onChange={(e) => setCodigoAtacadoManualTexto(e.target.value)}
+              placeholder="Cód. Atacado"
+              inputMode="decimal"
+              title="Opcional -- não afeta o preço acima, só gera a dívida com o Atacado (código × 2,8)"
+              className="rounded-lg border border-line bg-surface px-3 py-2 text-sm"
+            />
             <button
               type="button"
               onClick={adicionarItemManual}
@@ -417,6 +447,9 @@ export function PdvVarejoView({
               Adicionar
             </button>
           </div>
+          <p className="mt-1 text-[0.65rem] text-text-soft">
+            Código do Atacado é opcional e não muda o preço cobrado — só lança sua dívida com o Atacado (código × 2,8).
+          </p>
         </div>
       </div>
 
@@ -425,7 +458,9 @@ export function PdvVarejoView({
           {itensManuais.map((i) => (
             <div key={i.id} className="flex flex-col gap-1 border-b border-line pb-2 last:border-0">
               <div className="flex items-center justify-between text-sm">
-                <span className="font-medium">{i.descricao} <span className="text-xs text-text-soft">(manual)</span></span>
+                <span className="font-medium">
+                  {i.descricao} <span className="text-xs text-text-soft">(manual{i.codigoAtacado ? ` · cód. atacado ${i.codigoAtacado}` : ""})</span>
+                </span>
                 <span>{formatarMoeda((lerMoeda(i.precoTexto) ?? 0) * i.quantidade)}</span>
               </div>
               <div className="flex items-center gap-2 text-xs text-text-soft">

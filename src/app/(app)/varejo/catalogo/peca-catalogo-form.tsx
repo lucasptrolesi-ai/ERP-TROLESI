@@ -24,7 +24,6 @@ export function PecaCatalogoForm({
   skusExistentes,
   codigoInicial,
   calculadora,
-  depositoId,
   onPecaCriada,
 }: {
   aberto: boolean;
@@ -37,9 +36,6 @@ export function PecaCatalogoForm({
   // Controle Financeiro do Varejo, Fase 5 — só vem preenchido pro admin (nunca pro perfil estoque,
   // que também cadastra peça nesta tela, mas não deve ver custo/margem).
   calculadora?: CalculadoraPreco;
-  // Depósito da loja (Varejo só tem um, "LOJA") — usado pra lançar a entrada de estoque quando
-  // "Veio do Atacado?" está ligado. Sem isso, o toggle não tem como registrar a compra.
-  depositoId?: string;
   // Chamado só numa peça NOVA (nunca editando), depois de salvar com sucesso — abre a tela
   // "Imprimir etiqueta" (catalogo-varejo-view.tsx) com os dados que acabaram de ser gravados.
   onPecaCriada?: (dados: {
@@ -56,19 +52,21 @@ export function PecaCatalogoForm({
   const [erro, setErro] = useState<string | null>(null);
   const [pendente, iniciar] = useTransition();
 
-  // "Veio do Atacado?" (pedido do dono, 2026-10-09): ele digita o código do Atacado (ex: 8,4) em vez
-  // de usar a transferência formal — o sistema calcula custo/preço sugerido/mínimo sozinho e, ao
-  // salvar, lança a entrada de estoque + a dívida com o Atacado (pago/em aberto). Só faz sentido
-  // cadastrando peça NOVA (não editando) e só pro admin (calculadora nunca vem pro perfil estoque).
-  const permiteAtacado = !peca && !!calculadora;
-  const [veioDoAtacado, setVeioDoAtacado] = useState(false);
-  const [codigoTexto, setCodigoTexto] = useState("");
-  const [quantidadeTexto, setQuantidadeTexto] = useState("1");
-  const [statusDivida, setStatusDivida] = useState<"em_aberto" | "pago">("em_aberto");
-  // Controlados só quando permiteAtacado (peça nova + admin) — edição de peça existente continua
-  // 100% como antes (defaultValue, não-controlado), sem nenhuma mudança de comportamento.
-  const [precoVendaTexto, setPrecoVendaTexto] = useState("");
-  const [precoMinimoTexto, setPrecoMinimoTexto] = useState("");
+  // "Veio do Atacado?" (pedido do dono, 2026-10-09; revisão 2026-10-26): ele digita o código do
+  // Atacado (ex: 8,4) em vez de usar a transferência formal — o sistema calcula custo/preço
+  // sugerido/mínimo sozinho pra ajudar a decidir o preço. Desde 2026-10-26 o código só fica salvo
+  // como metadado da peça -- NÃO lança mais entrada de estoque nem dívida aqui (a dívida só nasce
+  // quando a peça VENDE, ver DECISIONS.md); por isso agora também faz sentido numa peça já
+  // existente (editar pra adicionar/corrigir o código), não só numa peça nova. Só pro admin
+  // (calculadora nunca vem pro perfil estoque).
+  const permiteAtacado = !!calculadora;
+  const [veioDoAtacado, setVeioDoAtacado] = useState(!!peca?.codigo_atacado);
+  const [codigoTexto, setCodigoTexto] = useState(peca?.codigo_atacado != null ? peca.codigo_atacado.toFixed(2).replace(".", ",") : "");
+  // Controlados quando permiteAtacado (admin) — preenchidos a partir da peça quando editando, pra
+  // não perder o valor já salvo (o toggle/código acima só reaproveita os MESMOS campos de preço,
+  // nunca duplica).
+  const [precoVendaTexto, setPrecoVendaTexto] = useState(peca ? peca.preco_venda.toFixed(2).replace(".", ",") : "");
+  const [precoMinimoTexto, setPrecoMinimoTexto] = useState(peca?.preco_minimo != null ? peca.preco_minimo.toFixed(2).replace(".", ",") : "");
 
   const lido = lerMoeda(codigoTexto);
   const codigo = lido !== null && lido > 0 ? lido : null;
@@ -83,10 +81,12 @@ export function PecaCatalogoForm({
   // Preenche o sugerido/mínimo toda vez que o código (ou o toggle) muda -- ajuste de estado durante
   // a própria renderização (padrão recomendado pelo React pra "derivar estado a partir de uma prop",
   // sem useEffect: https://react.dev/learn/you-might-not-need-an-effect). Se o dono digitar por cima
-  // depois, o valor dele fica até o código mudar de novo (não reaplica a cada render).
+  // depois, o valor dele fica até o código mudar de novo (não reaplica a cada render). Só numa peça
+  // NOVA (!peca) -- editando uma peça existente, o código serve pra salvar o metadado, mas nunca
+  // sobrescreve um preço que o dono já tinha definido com cuidado antes.
   const chaveAutoPreenchimento = `${veioDoAtacado}:${codigo}`;
   const [chaveAnterior, setChaveAnterior] = useState(chaveAutoPreenchimento);
-  if (chaveAutoPreenchimento !== chaveAnterior) {
+  if (!peca && chaveAutoPreenchimento !== chaveAnterior) {
     setChaveAnterior(chaveAutoPreenchimento);
     if (veioDoAtacado) {
       setPrecoVendaTexto(sugerido != null ? sugerido.toFixed(2) : "");
@@ -109,22 +109,13 @@ export function PecaCatalogoForm({
     const arquivoFoto = arquivo instanceof File && arquivo.size > 0 ? arquivo : null;
     const fotoUrlAtual = String(formData.get("foto_url_atual") ?? "").trim() || null;
 
-    let quantidadeAtacado = 0;
-    if (permiteAtacado && veioDoAtacado) {
-      if (codigo === null) {
-        setErro("Informe o código do Atacado (maior que zero).");
-        return;
-      }
-      if (!depositoId) {
-        setErro("Nenhum depósito ativo encontrado para o Varejo.");
-        return;
-      }
-      quantidadeAtacado = Number(quantidadeTexto);
-      if (!Number.isInteger(quantidadeAtacado) || quantidadeAtacado <= 0) {
-        setErro("Informe uma quantidade válida.");
-        return;
-      }
+    if (permiteAtacado && veioDoAtacado && codigo === null) {
+      setErro("Informe o código do Atacado (maior que zero).");
+      return;
     }
+    // Metadado só (2026-10-26) -- nunca mais entrada de estoque nem dívida aqui. null quando o
+    // toggle está desligado (inclusive editando: desligar remove o código salvo na peça).
+    const codigoAtacado = permiteAtacado && veioDoAtacado && codigo !== null ? codigo : null;
 
     iniciar(async () => {
       const resultado = peca
@@ -141,6 +132,7 @@ export function PecaCatalogoForm({
             fotoUrlAtual,
             ativo,
             localizacao,
+            codigoAtacado,
           )
         : await cadastrarPecaCatalogo(
             nome,
@@ -152,9 +144,7 @@ export function PecaCatalogoForm({
             arquivoFoto,
             fotoUrlAtual,
             localizacao,
-            permiteAtacado && veioDoAtacado && codigo !== null && depositoId
-              ? { codigoAtacado: codigo, quantidade: quantidadeAtacado, status: statusDivida, depositoId }
-              : null,
+            codigoAtacado,
           );
       if (resultado.erro) {
         setErro(resultado.erro);
@@ -171,7 +161,9 @@ export function PecaCatalogoForm({
           categoria: categoria || null,
           atributosTexto: atributos,
           precoVenda,
-          quantidadeEstoque: permiteAtacado && veioDoAtacado ? quantidadeAtacado : null,
+          // Cadastro nunca lança entrada de estoque (2026-10-26) -- quem imprime etiqueta decide a
+          // quantidade na hora, sem sugestão nenhuma.
+          quantidadeEstoque: null,
         });
       }
       onFechar();
@@ -211,55 +203,33 @@ export function PecaCatalogoForm({
               onChange={(e) => setVeioDoAtacado(e.target.checked)}
               className="h-4 w-4 accent-rose"
             />
-            Veio do Atacado? (calcula o preço pelo código e lança a dívida)
+            Veio do Atacado? (calcula o preço pelo código — a dívida só é lançada quando a peça vender)
           </label>
         )}
 
         {permiteAtacado && veioDoAtacado && calculadora && (
           <div className="flex flex-col gap-3 rounded-lg border border-dashed border-line bg-cream p-3">
-            <div className="grid grid-cols-2 gap-3">
-              <label className="flex flex-col gap-1 text-sm">
-                <span className="text-xs font-semibold uppercase tracking-wide text-text-soft">Código do Atacado</span>
-                <input
-                  type="text"
-                  inputMode="decimal"
-                  value={codigoTexto}
-                  onChange={(e) => setCodigoTexto(e.target.value)}
-                  placeholder="Ex: 10"
-                  className="rounded-lg border border-line bg-surface px-3 py-1.5 text-sm"
-                />
-              </label>
-              <label className="flex flex-col gap-1 text-sm">
-                <span className="text-xs font-semibold uppercase tracking-wide text-text-soft">Quantidade</span>
-                <input
-                  type="number"
-                  min={1}
-                  step={1}
-                  value={quantidadeTexto}
-                  onChange={(e) => setQuantidadeTexto(e.target.value)}
-                  className="rounded-lg border border-line bg-surface px-3 py-1.5 text-sm"
-                />
-              </label>
-            </div>
+            <label className="flex flex-col gap-1 text-sm">
+              <span className="text-xs font-semibold uppercase tracking-wide text-text-soft">Código do Atacado</span>
+              <input
+                type="text"
+                inputMode="decimal"
+                value={codigoTexto}
+                onChange={(e) => setCodigoTexto(e.target.value)}
+                placeholder="Ex: 10"
+                className="w-32 rounded-lg border border-line bg-surface px-3 py-1.5 text-sm"
+              />
+            </label>
             {codigo != null && custo != null && (
               <p className="text-xs text-text-soft">
                 Custo <strong className="text-ink">{formatarMoeda(custo)}</strong> · Piso de prejuízo{" "}
                 <strong className="text-crit">{piso != null && Number.isFinite(piso) ? formatarMoeda(piso) : "—"}</strong>
               </p>
             )}
-            <label className="flex flex-col gap-1 text-sm">
-              <span className="text-xs font-semibold uppercase tracking-wide text-text-soft">Pagamento ao Atacado</span>
-              <select
-                value={statusDivida}
-                onChange={(e) => setStatusDivida(e.target.value as "em_aberto" | "pago")}
-                className="rounded-lg border border-line bg-surface px-3 py-1.5 text-sm"
-              >
-                <option value="em_aberto">Em aberto</option>
-                <option value="pago">Já paguei</option>
-              </select>
-            </label>
             <p className="text-[0.65rem] text-text-soft">
-              Preço de venda e mínimo abaixo já saem preenchidos a partir do código — você ainda pode ajustar antes de salvar.
+              {peca
+                ? "Alterar o código não afeta vendas já feitas — só passa a valer nas próximas."
+                : "Preço de venda e mínimo abaixo já saem preenchidos a partir do código — você ainda pode ajustar antes de salvar."}
             </p>
           </div>
         )}

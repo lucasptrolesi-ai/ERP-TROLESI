@@ -43,7 +43,10 @@ export function calcularTroco(forma: string, valorRecebido: number, total: numbe
 // ItemCarrinho: não tem ItemCatalogo nenhum por trás, não tem preço mínimo/saldo pra checar contra
 // -- nunca exige autorização de supervisor, por desenho). O valor soma direto em subtotal/total do
 // carrinho principal (a tela que chama isto é quem faz a soma final).
-export type ItemManualCarrinho = { id: string; descricao: string; quantidade: number; precoTexto: string };
+// codigoAtacado (2026-10-26, opcional): não entra na conta de subtotal/total nenhuma -- só é
+// enviado junto com o item pro servidor calcular a dívida com o Atacado (código × 2,8), sem afetar
+// o preço cobrado do cliente.
+export type ItemManualCarrinho = { id: string; descricao: string; quantidade: number; precoTexto: string; codigoAtacado?: number };
 
 export function calcularTotalManual(itens: ItemManualCarrinho[]): number {
   return arredondarMoeda(itens.reduce((soma, i) => soma + (lerMoeda(i.precoTexto) ?? 0) * i.quantidade, 0));

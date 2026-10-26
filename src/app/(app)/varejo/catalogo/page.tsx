@@ -24,7 +24,7 @@ export default async function CatalogoVarejoPage() {
   const [{ data: variacoes }, { data: depositos }, { data: modeloPadrao }] = await Promise.all([
     supabase
       .from("catalogo_variacoes")
-      .select("id, produto_id, sku, atributos, preco_venda, preco_minimo, foto_url, localizacao, ativo, catalogo_produtos(nome, categoria)")
+      .select("id, produto_id, sku, atributos, preco_venda, preco_minimo, codigo_atacado, foto_url, localizacao, ativo, catalogo_produtos(nome, categoria)")
       .order("criado_em", { ascending: false }),
     supabase.from("depositos").select("id, nome").eq("ativo", true).order("nome"),
     // Módulo Etiquetas (2026-10-15) -- modal "Imprimir etiqueta" usa o modelo padrão do Varejo.
@@ -43,6 +43,7 @@ export default async function CatalogoVarejoPage() {
       atributos: (v.atributos ?? {}) as Record<string, string>,
       preco_venda: v.preco_venda,
       preco_minimo: v.preco_minimo,
+      codigo_atacado: v.codigo_atacado,
       foto_url: v.foto_url,
       localizacao: (v.localizacao ?? {}) as Record<string, string>,
       ativo: v.ativo,

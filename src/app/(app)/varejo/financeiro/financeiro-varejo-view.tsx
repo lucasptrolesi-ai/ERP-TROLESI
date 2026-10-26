@@ -160,15 +160,19 @@ function AbaRevisarPrecos({ revisao }: { revisao: ItemRevisao[] }) {
 }
 
 // --- Dívidas com o Atacado ---------------------------------------------------------------------
-// Lançadas direto no cadastro da peça (código x fator, "Veio do Atacado?") -- só a baixa/reabertura
-// acontece aqui, nada se cria nesta aba (não é SecaoCrud: a criação é lá no catálogo).
+// Nasce na VENDA (código x fator 2,8), não no cadastro da peça (revisão 2026-10-26 -- ver
+// DECISIONS.md) -- só a baixa/reabertura acontece aqui, nada se cria nesta aba (não é SecaoCrud:
+// quem gera a dívida é vender uma peça com "Veio do Atacado?" marcado, ou um item manual no PDV
+// com código do Atacado preenchido).
 
 function AbaDividasAtacado({ dividas }: { dividas: DividaAtacadoVarejo[] }) {
   const emAberto = dividas.filter((d) => d.status === "em_aberto");
   const totalEmAberto = emAberto.reduce((s, d) => s + d.custo_total, 0);
 
   if (dividas.length === 0) {
-    return <Aviso texto="Nenhuma compra do Atacado lançada ainda — use o botão 'Veio do Atacado?' no cadastro de uma peça nova no catálogo." />;
+    return (
+      <Aviso texto="Nenhuma dívida com o Atacado ainda — ela nasce quando você VENDE uma peça marcada 'Veio do Atacado?' no catálogo, ou um item manual no PDV com código do Atacado preenchido." />
+    );
   }
 
   return (
@@ -193,8 +197,11 @@ function AbaDividasAtacado({ dividas }: { dividas: DividaAtacadoVarejo[] }) {
           <tbody>
             {dividas.map((d) => (
               <tr key={d.id} className="border-b border-line last:border-0">
-                <td className="px-3 py-2 font-medium">{d.produto_nome}</td>
-                <td className="px-3 py-2 font-mono text-xs text-text-soft">#{d.sku}</td>
+                <td className="px-3 py-2 font-medium">
+                  {d.produto_nome}
+                  {d.variacao_id === null && <span className="ml-1 text-xs text-text-soft">(manual)</span>}
+                </td>
+                <td className="px-3 py-2 font-mono text-xs text-text-soft">{d.sku ? `#${d.sku}` : "—"}</td>
                 <td className="px-3 py-2">{d.codigo_atacado}</td>
                 <td className="px-3 py-2">{d.quantidade}</td>
                 <td className="px-3 py-2">{formatarMoeda(d.custo_total)}</td>

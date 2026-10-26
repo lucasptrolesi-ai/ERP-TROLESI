@@ -60,11 +60,15 @@ export type VendaDaSessao = {
 export type FormaPagamento = "dinheiro" | "pix" | "debito" | "credito";
 
 // Item manual (2026-10-24) -- venda de algo fora do catálogo ("corrente prata"), descrição+preço
-// digitados na hora, sem variacao_id nenhum. A union existe porque o banco (registrar_venda) exige
+// digitados na hora, sem variacao_id nenhum. A união existe porque o banco (registrar_venda) exige
 // exatamente um dos dois formatos por item, nunca os dois juntos nem nenhum.
+// codigo_atacado (2026-10-26, só no item manual): opcional, não afeta preco_unitario (o que o
+// cliente paga) -- só gera a dívida com o Atacado (código × 2,8) quando a venda é registrada. Pra
+// peça de catálogo o código já está salvo nela (catalogo_variacoes.codigo_atacado); o banco lê
+// sozinho, o PDV nunca manda esse campo pra item de catálogo.
 export type ItemDaVenda =
   | { variacao_id: string; quantidade: number; preco_unitario: number }
-  | { descricao_manual: string; quantidade: number; preco_unitario: number };
+  | { descricao_manual: string; quantidade: number; preco_unitario: number; codigo_atacado?: number };
 export type PagamentoDaVenda = { forma: FormaPagamento; valor: number; parcelas?: number };
 
 export type DadosDaVenda = {
@@ -149,14 +153,16 @@ export type VendaManualVarejo = {
   origem: "manual" | "importacao";
 };
 
-// Compra registrada no cadastro direto da peça no Varejo (código do Atacado x fator), com o quanto
-// fica devendo -- ledger paralelo, isolado do contas_pagar/transferencias oficial (decisão do dono,
-// 2026-10-09: ele não transfere do Atacado, cadastra peça nova direto no Varejo).
+// Dívida com o Atacado (código x fator 2,8) -- ledger paralelo, isolado do contas_pagar/
+// transferencias oficial (decisão do dono, 2026-10-09: ele não transfere do Atacado, cadastra peça
+// nova direto no Varejo). Nasce na VENDA, não no cadastro da peça (revisão 2026-10-26 -- ver
+// DECISIONS.md): variacao_id fica null pra dívida de item manual (produto_nome então vem da
+// descrição digitada no PDV, não de um produto de catálogo).
 export type DividaAtacadoVarejo = {
   id: string;
-  variacao_id: string;
+  variacao_id: string | null;
   produto_nome: string;
-  sku: string;
+  sku: string | null;
   codigo_atacado: number;
   quantidade: number;
   custo_unitario: number;
@@ -175,6 +181,9 @@ export type LinhaCatalogo = {
   atributos: Record<string, string>;
   preco_venda: number;
   preco_minimo: number | null;
+  // Metadado da peça (2026-10-26) -- nunca gera dívida sozinho; só quando a peça VENDE
+  // (registrar_venda lê este valor automaticamente). Ver DECISIONS.md.
+  codigo_atacado: number | null;
   foto_url: string | null;
   localizacao: Record<string, string>;
   ativo: boolean;

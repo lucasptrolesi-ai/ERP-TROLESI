@@ -1,5 +1,18 @@
 # CHANGELOG — ERP Trolesi
 
+## 2026-10-26 — Dívida com o Atacado nasce na venda, não no cadastro, aguardando ensaio
+
+Pedido do usuário: cadastrar peça não pode mais gerar dívida com o Atacado -- só vender gera (peça de catálogo ou item manual). No PDV, item manual ganha um campo opcional "Cód. Atacado" que não afeta o preço cobrado, só lança a dívida (código × 2,8).
+
+- Migration `20261026000001_divida_atacado_na_venda.sql`: `catalogo_variacoes` ganha `codigo_atacado numeric` (metadado, nunca gera dívida sozinho). `varejo_dividas_atacado` ganha `venda_item_id` (novo elo com a dívida), `variacao_id`/`movimento_estoque_id` viram NULLABLE (as 164 linhas antigas ficam intocadas). `registrar_venda` (CREATE OR REPLACE) lê `codigo_atacado` automaticamente pra peça de catálogo e aceita um `codigo_atacado` opcional no item manual -- em ambos os casos, lança a dívida (código × `multiplicador_vigente`) sem afetar o preço cobrado do cliente. `cadastrar_produto_catalogo`/`editar_produto_catalogo` passam a salvar/atualizar o metadado. `registrar_compra_atacado_varejo` **removida** (única chamadora era o fluxo antigo de cadastro, que não existe mais).
+- `src/lib/actions/varejo.ts`: `cadastrarPecaCatalogo`/`editarPecaCatalogo` trocam `compraAtacado` por `codigoAtacado: number | null` -- metadado, sem RPC de compra nenhum.
+- `/varejo/catalogo`: "Veio do Atacado?" simplificado (sem quantidade/status -- isso nunca mais lança nada na hora) e liberado também pra EDITAR peça existente, não só cadastrar nova.
+- `/varejo/pdv`: item manual ganha campo "Cód. Atacado" (opcional).
+- `/varejo/financeiro`: aba "Dívidas com o Atacado" mostra `(manual)` pra dívida sem peça de catálogo, usando a descrição digitada no PDV.
+- `tsc`/lint/`vitest`/build confirmados limpos.
+- Testes T1 a T7 escritos (cadastro nunca gera dívida, venda de peça com código gera automaticamente, peça sem código não gera, item manual com/sem código, código inválido bloqueia, editar seta/limpa o metadado).
+- Escopo decidido, não pedido: `cancelar_venda` não reverte a dívida automaticamente -- fica limitação conhecida (ver `DECISIONS.md`).
+
 ## 2026-10-24 (cont. 2) — Fix: botão Finalizar venda travado com só item manual no carrinho
 
 Achado pelo usuário ("não estou conseguindo finalizar nenhuma venda") -- confirmado via logs que nenhuma chamada chegava no servidor, então o problema era client-side. `disabled={enviando || linhas.length === 0}` só olhava os itens de catálogo, sobra de antes do item manual existir -- uma venda só com item manual (sem nenhuma peça de catálogo) deixava o botão sempre desabilitado. Corrigido pra `disabled={enviando || (linhas.length === 0 && itensManuais.length === 0)}`. `tsc`/lint/testes/build confirmados limpos.

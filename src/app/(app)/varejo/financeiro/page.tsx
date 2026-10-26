@@ -85,18 +85,23 @@ export default async function FinanceiroVarejoPage({ searchParams }: { searchPar
     supabase.from("parametros_multiplicador").select("valor, vigente_de, vigente_ate").eq("chave", "TRANSFERENCIA_ATACADO_VAREJO"),
     supabase
       .from("varejo_dividas_atacado")
-      .select("id, variacao_id, codigo_atacado, quantidade, custo_unitario, custo_total, status, pago_em, criado_em, catalogo_variacoes(sku, catalogo_produtos(nome))")
+      .select(
+        "id, variacao_id, codigo_atacado, quantidade, custo_unitario, custo_total, status, pago_em, criado_em, catalogo_variacoes(sku, catalogo_produtos(nome)), venda_itens(descricao_manual)",
+      )
       .order("criado_em", { ascending: false }),
   ]);
 
   const dividasAtacado: DividaAtacadoVarejo[] = (dividasBrutas ?? []).map((d) => {
     const variacao = Array.isArray(d.catalogo_variacoes) ? d.catalogo_variacoes[0] : d.catalogo_variacoes;
     const produto = variacao ? (Array.isArray(variacao.catalogo_produtos) ? variacao.catalogo_produtos[0] : variacao.catalogo_produtos) : null;
+    // Dívida de item manual (2026-10-26) não tem variação de catálogo nenhuma -- usa a descrição
+    // digitada no PDV no lugar do nome do produto.
+    const itemManual = Array.isArray(d.venda_itens) ? d.venda_itens[0] : d.venda_itens;
     return {
       id: d.id,
       variacao_id: d.variacao_id,
-      produto_nome: produto?.nome ?? "",
-      sku: variacao?.sku ?? "",
+      produto_nome: produto?.nome ?? itemManual?.descricao_manual ?? "(item removido)",
+      sku: variacao?.sku ?? null,
       codigo_atacado: d.codigo_atacado,
       quantidade: d.quantidade,
       custo_unitario: d.custo_unitario,

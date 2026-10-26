@@ -2,6 +2,22 @@
 
 Histórico de decisões de escopo e arquitetura, na ordem em que foram tomadas. Decisões revistas ficam marcadas como tal, não apagadas.
 
+## 2026-10-26 — Dívida com o Atacado passa a nascer na venda, não no cadastro (revisão da decisão de 2026-10-09)
+
+**Reverte a decisão anterior ("Compra do Atacado lançada junto no cadastro da peça... ele digita o código... o sistema lança a entrada de estoque + a dívida com o Atacado na hora").** Pedido explícito do usuário: "o que eu cadastro de peça não pode ser o que eu devo pro atacado, apenas o que eu vendo, o que é venda finalizada". Cadastrar uma peça não é mais o gatilho da dívida -- só vender é, porque é só aí que o valor de fato sai do bolso dele.
+
+**Código do Atacado virou metadado da peça (`catalogo_variacoes.codigo_atacado`), não mais uma ação que lança dívida na hora.** O cadastro continua podendo usar o código pra sugerir preço de venda/mínimo (a calculadora não mudou -- isso não é o que o usuário pediu pra mudar), mas salvar a peça com o código preenchido não grava mais nada em `varejo_dividas_atacado`. A dívida só nasce dentro de `registrar_venda`, lendo esse metadado automaticamente pra peça de catálogo.
+
+**Item manual (2026-10-24) ganhou o mesmo mecanismo, mas via campo novo no PDV.** Pedido explícito: "na área do PDV que eu digito a peça e o valor deverá ter onde eu digito o código da peça do atacado também". Diferente da peça de catálogo (código já salvo, lido automaticamente), o item manual não tem cadastro nenhum -- o código precisa vir no próprio ato da venda. Em ambos os casos, o código **nunca afeta o preço cobrado do cliente** -- só multiplica por 2,8 (mesmo fator de sempre) pra virar dívida.
+
+**`varejo_dividas_atacado` ganha `venda_item_id` em vez de depender só de `movimento_estoque_id`.** A dívida não nasce mais junto de uma entrada de estoque (não existe entrada nenhuma quando o gatilho é a venda) -- o elo novo é com o item da VENDA que causou a dívida. As 164 linhas já existentes (lançadas pelo fluxo antigo) ficam intocadas, como histórico -- `variacao_id`/`movimento_estoque_id` virão NULLABLE só pra permitir o formato novo coexistir, não pra alterar o formato antigo.
+
+**`registrar_compra_atacado_varejo` foi removida, não só desligada.** Era a única function que fazia "entrada de estoque + dívida" juntas numa ação só -- deixá-la viva permitiria contornar a regra nova chamando-a direto via RPC, mesmo com o cadastro não oferecendo mais essa opção na tela.
+
+**Escopo decidido, não pedido pelo usuário: `cancelar_venda` não reverte a dívida automaticamente.** Se uma venda com dívida lançada for cancelada depois, a dívida fica como está (em_aberto ou pago) -- ajuste manual pela aba "Dívidas com o Atacado" se precisar. Não foi pedido, e a regra "certa" pra esse caso (devolve a peça? ele já pagou o Atacado?) não é óbvia o suficiente pra decidir sem perguntar -- fica como limitação conhecida.
+
+**Não migra as 164 linhas antigas pro formato novo nem recalcula nada retroativo.** São histórico do fluxo anterior, que era legítimo quando foi lançado -- mudar a regra agora não reescreve o passado.
+
 ## 2026-10-24 (cont.) — Achado: o Editor SQL do Supabase pode corromper migrations grandes
 
 **O Editor do Dashboard tem um detector de "CREATE TABLE" (pra lembrar de habilitar RLS) que mira errado em migrations grandes com function em PL/pgSQL.** Ao rodar `20261024000001`, ele confundiu variáveis internas da function (`declare v_id uuid; ... select ... into v_id ...`) com tabela nova, e colou `ALTER TABLE v_id ENABLE ROW LEVEL SECURITY` no meio do corpo da function -- quebrou o parsing (`unterminated dollar-quoted string`). Confirmado como comportamento documentado do próprio Supabase (não é bug no nosso arquivo), mas o gatilho exato (tamanho do arquivo? uso de `$fn$` em vez de `$$`? os dois?) não foi isolado -- sem tempo pra isso no momento, urgência do dia.
