@@ -1,6 +1,6 @@
 # CHANGELOG — ERP Trolesi
 
-## 2026-10-27 — PDV Varejo ganha painel "Meta do dia", aguardando ensaio
+## 2026-10-27 — PDV Varejo ganha painel "Meta do dia"
 
 Pedido do usuário: ver as vendas do dia e uma meta mínima diária (R$500) com gráfico, sem perder a busca por SKU/catálogo nem o carrinho. Aprovado por mockup (Artifact, 7 rodadas de ajuste) antes de codar, conforme a regra do projeto.
 
@@ -9,6 +9,7 @@ Pedido do usuário: ver as vendas do dia e uma meta mínima diária (R$500) com 
 - Catálogo do PDV: a grade só aparece depois que o vendedor digita algo na busca (antes mostrava os primeiros 24 itens sempre); cada peça agora mostra a foto real cadastrada (`catalogo_variacoes.foto_url`), com placeholder discreto pra quem ainda não tem foto. "Item fora do catálogo" continua sempre visível, independente da busca.
 - `meta_diaria` editável em `/varejo/financeiro` → aba Configuração, junto dos outros parâmetros (mesmo padrão insert-only de nova vigência).
 - `tsc`/lint/`vitest`/build confirmados limpos.
+- Ensaio achou um bug real de Postgres (não do código da feature): `CREATE OR REPLACE VIEW` não aceita remover coluna nenhuma ("cannot drop columns from view") -- o `$down$` precisou de DROP+CREATE da view em vez de OR REPLACE, com re-GRANT explícito (grants não sobrevivem a um DROP). **Aplicado em produção** -- confirmado via introspecção: `meta_diaria` existe (500), `pdv_catalogo.foto_url` existe, `authenticated` consegue ler a view.
 
 ## 2026-10-26 — Dívida com o Atacado nasce na venda, não no cadastro
 
