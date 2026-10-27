@@ -1,5 +1,15 @@
 # CHANGELOG — ERP Trolesi
 
+## 2026-10-27 — PDV Varejo ganha painel "Meta do dia", aguardando ensaio
+
+Pedido do usuário: ver as vendas do dia e uma meta mínima diária (R$500) com gráfico, sem perder a busca por SKU/catálogo nem o carrinho. Aprovado por mockup (Artifact, 7 rodadas de ajuste) antes de codar, conforme a regra do projeto.
+
+- Migration `20261027000001_pdv_meta_do_dia.sql`: `varejo_config` ganha `meta_diaria numeric` (default 500, configurável — não fixo no código); `pdv_catalogo` (view) ganha `foto_url` no final da lista de colunas (CREATE OR REPLACE VIEW). Faturamento de hoje/últimos 7 dias não precisa de view/RPC nova — a RLS de `vendas` já libera leitura pra qualquer papel autenticado na operação atual (só `pdv_vendas` estreita pra sessão própria, de propósito, pra outro uso).
+- `/varejo/pdv`: novo painel acima do catálogo/carrinho — anel de progresso (faturamento hoje × meta), número de vendas, e gráfico de 7 dias com linha pontilhada da meta. Nunca mostra custo/margem (regra do módulo de varejo, mantida).
+- Catálogo do PDV: a grade só aparece depois que o vendedor digita algo na busca (antes mostrava os primeiros 24 itens sempre); cada peça agora mostra a foto real cadastrada (`catalogo_variacoes.foto_url`), com placeholder discreto pra quem ainda não tem foto. "Item fora do catálogo" continua sempre visível, independente da busca.
+- `meta_diaria` editável em `/varejo/financeiro` → aba Configuração, junto dos outros parâmetros (mesmo padrão insert-only de nova vigência).
+- `tsc`/lint/`vitest`/build confirmados limpos.
+
 ## 2026-10-26 — Dívida com o Atacado nasce na venda, não no cadastro
 
 Pedido do usuário: cadastrar peça não pode mais gerar dívida com o Atacado -- só vender gera (peça de catálogo ou item manual). No PDV, item manual ganha um campo opcional "Cód. Atacado" que não afeta o preço cobrado, só lança a dívida (código × 2,8).

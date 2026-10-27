@@ -1,8 +1,9 @@
 import { getPerfilAtual } from "@/lib/supabase/auth";
 import { getContextoSessao } from "@/lib/supabase/contexto";
 import { createClient } from "@/lib/supabase/server";
+import { hojeIso, isoEmDias, dataLocalDoTimestamptz } from "@/lib/datas";
 import { PdvVarejoView } from "./pdv-varejo-view";
-import type { CupomVarejo, ItemCatalogo, SessaoCaixa, Supervisor, VendaDaSessao } from "@/lib/varejo/tipos";
+import type { ConfigFinanceira, CupomVarejo, ItemCatalogo, MetaDoDia, SessaoCaixa, Supervisor, VendaDaSessao } from "@/lib/varejo/tipos";
 
 // Venda do varejo: custo e margem NUNCA aparecem aqui, em nenhuma hipótese — regra do módulo de
 // varejo, independente do papel. As views do banco (pdv_catalogo, minha_sessao_caixa,
@@ -19,17 +20,47 @@ export default async function PdvVarejoPage() {
   }
 
   const supabase = await createClient();
-  const [{ data: sessao }, { data: catalogo }, { data: supervisores }, { data: vendas }, { data: cupons }] = await Promise.all([
-    supabase.from("minha_sessao_caixa").select("*").maybeSingle(),
-    supabase.from("pdv_catalogo").select("*").order("nome"),
-    supabase.from("pdv_supervisores").select("*").order("nome"),
-    // Vendas da sessao aberta do proprio operador (pdv_vendas ja filtra por minha_sessao_caixa) —
-    // sem isso nao havia como ver uma venda pra poder cancelar (achado no code review, 2026-09-22).
-    supabase.from("pdv_vendas").select("*").order("criada_em", { ascending: false }),
-    // Cupons carregam inteiros na tela (mesmo espírito do PDV Eventos) — aplicar procura na lista já
-    // em memória, sem ida ao servidor no meio da venda.
-    supabase.from("cupons_varejo").select("*").order("criado_em", { ascending: false }),
-  ]);
+  const hoje = hojeIso();
+  // Janela de 8 dias (margem de 1 dia) pra nunca perder venda de madrugada no agrupamento por dia
+  // local feito em JS logo abaixo (dataLocalDoTimestamptz) -- so os ultimos 7 dias de verdade
+  // chegam na tela.
+  const inicioJanela = `${isoEmDias(-8)}T00:00:00-03:00`;
+  const [{ data: sessao }, { data: catalogo }, { data: supervisores }, { data: vendas }, { data: cupons }, { data: configs }, { data: vendasRecentes }] =
+    await Promise.all([
+      supabase.from("minha_sessao_caixa").select("*").maybeSingle(),
+      supabase.from("pdv_catalogo").select("*").order("nome"),
+      supabase.from("pdv_supervisores").select("*").order("nome"),
+      // Vendas da sessao aberta do proprio operador (pdv_vendas ja filtra por minha_sessao_caixa) —
+      // sem isso nao havia como ver uma venda pra poder cancelar (achado no code review, 2026-09-22).
+      supabase.from("pdv_vendas").select("*").order("criada_em", { ascending: false }),
+      // Cupons carregam inteiros na tela (mesmo espírito do PDV Eventos) — aplicar procura na lista já
+      // em memória, sem ida ao servidor no meio da venda.
+      supabase.from("cupons_varejo").select("*").order("criado_em", { ascending: false }),
+      supabase.from("varejo_config").select("*").order("vigente_desde", { ascending: false }),
+      // Painel "Meta do dia": faturamento da loja inteira (todas as sessoes, nao so a do operador
+      // atual) — a RLS de `vendas` ja libera isso pra qualquer papel autenticado na operacao (so
+      // `pdv_vendas` estreita pra sessao propria, de proposito, pra outro uso). So criada_em/total —
+      // custo e margem nunca aparecem no PDV, em nenhuma hipotese (regra do modulo).
+      supabase.from("vendas").select("criada_em, total").eq("status", "concluida").gte("criada_em", inicioJanela),
+    ]);
+
+  const configVigente = (configs ?? []).find((c) => (c.vigente_desde as string) <= hoje) as ConfigFinanceira | undefined;
+
+  const porDia = new Map<string, number>();
+  for (const v of vendasRecentes ?? []) {
+    const dia = dataLocalDoTimestamptz(v.criada_em as string);
+    porDia.set(dia, (porDia.get(dia) ?? 0) + (v.total as number));
+  }
+  const ultimosDias = Array.from({ length: 7 }, (_, i) => {
+    const data = isoEmDias(-(6 - i));
+    return { data, total: porDia.get(data) ?? 0 };
+  });
+  const metaDoDia: MetaDoDia = {
+    metaDiaria: configVigente?.meta_diaria ?? 500,
+    faturamentoHoje: porDia.get(hoje) ?? 0,
+    vendasHoje: (vendasRecentes ?? []).filter((v) => dataLocalDoTimestamptz(v.criada_em as string) === hoje).length,
+    ultimosDias,
+  };
 
   return (
     <PdvVarejoView
@@ -38,6 +69,7 @@ export default async function PdvVarejoPage() {
       supervisores={(supervisores ?? []) as Supervisor[]}
       vendas={(vendas ?? []) as VendaDaSessao[]}
       cupons={(cupons ?? []) as CupomVarejo[]}
+      metaDoDia={metaDoDia}
     />
   );
 }

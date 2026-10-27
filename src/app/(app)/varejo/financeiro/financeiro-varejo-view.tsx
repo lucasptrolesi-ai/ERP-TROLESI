@@ -413,6 +413,7 @@ function AbaConfiguracao({ config }: { config: ConfigFinanceira | null }) {
         mesAbertura: String(formData.get("mes_abertura")),
         precoPisoEntradaTexto: String(formData.get("preco_piso_entrada")),
         arredondar90: formData.get("arredondar_90") === "on",
+        metaDiariaTexto: String(formData.get("meta_diaria")),
       });
       if (resultado.erro) {
         setErro(resultado.erro);
@@ -431,7 +432,7 @@ function AbaConfiguracao({ config }: { config: ConfigFinanceira | null }) {
           <p className="mt-1 text-text-soft">
             Fator de venda {config.fator_venda_padrao} (faixa {config.fator_venda_min}–{config.fator_venda_max}) · markup ≈ {markup}× sobre o custo ·
             despesas variáveis {(config.despesas_variaveis_pct * 100).toFixed(1)}% · {config.dias_abertos_mes} dias abertos/mês · encargos{" "}
-            {(config.encargos_clt_pct * 100).toFixed(1)}%
+            {(config.encargos_clt_pct * 100).toFixed(1)}% · meta diária do PDV {formatarMoeda(config.meta_diaria)}
           </p>
         </div>
       )}
@@ -451,6 +452,7 @@ function AbaConfiguracao({ config }: { config: ConfigFinanceira | null }) {
           <FormField label="Encargos CLT (%)" name="encargos_clt_pct" type="number" step="0.01" min={0} defaultValue={config ? config.encargos_clt_pct * 100 : 34} required />
           <FormField label="Caixa inicial (R$)" name="caixa_inicial" defaultValue={config?.caixa_inicial ?? 0} />
           <FormField label="Piso de entrada (R$)" name="preco_piso_entrada" defaultValue={config?.preco_piso_entrada ?? 19.9} required />
+          <FormField label="Meta diária do PDV (R$)" name="meta_diaria" defaultValue={config?.meta_diaria ?? 500} required />
         </div>
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" name="arredondar_90" defaultChecked={config?.arredondar_90 ?? true} className="h-4 w-4 accent-rose" />

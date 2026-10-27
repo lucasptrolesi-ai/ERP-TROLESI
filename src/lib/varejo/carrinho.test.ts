@@ -14,6 +14,7 @@ function item(overrides: Partial<ItemCatalogo> = {}): ItemCatalogo {
     preco_venda: 100,
     preco_minimo: 80,
     saldo: 10,
+    foto_url: null,
     ...overrides,
   };
 }

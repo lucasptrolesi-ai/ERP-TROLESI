@@ -42,6 +42,7 @@ export type ItemCatalogo = {
   preco_venda: number;
   preco_minimo: number | null;
   saldo: number;
+  foto_url: string | null;
 };
 
 export type Supervisor = { profile_id: string; nome: string };
@@ -120,6 +121,15 @@ export type ConfigFinanceira = {
   mes_abertura: string;
   preco_piso_entrada: number;
   arredondar_90: boolean;
+  meta_diaria: number;
+};
+
+// Painel "Meta do dia" do PDV -- só faturamento bruto, nunca custo/margem (regra do módulo).
+export type MetaDoDia = {
+  metaDiaria: number;
+  faturamentoHoje: number;
+  vendasHoje: number;
+  ultimosDias: { data: string; total: number }[]; // 7 dias, do mais antigo pro mais recente (hoje por último)
 };
 
 export type GastoVarejo = {

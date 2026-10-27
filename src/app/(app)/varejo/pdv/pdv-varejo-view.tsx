@@ -28,6 +28,7 @@ import type {
   CupomVarejo,
   FormaPagamento,
   ItemCatalogo,
+  MetaDoDia,
   PagamentoDaVenda,
   SessaoCaixa,
   Supervisor,
@@ -47,12 +48,14 @@ export function PdvVarejoView({
   supervisores,
   vendas,
   cupons,
+  metaDoDia,
 }: {
   sessao: SessaoCaixa | null;
   catalogo: ItemCatalogo[];
   supervisores: Supervisor[];
   vendas: VendaDaSessao[];
   cupons: CupomVarejo[];
+  metaDoDia: MetaDoDia;
 }) {
   const router = useRouter();
   const [busca, setBusca] = useState("");
@@ -117,8 +120,10 @@ export function PdvVarejoView({
     };
   }, [clienteSelecionado]);
 
+  // A grade só aparece depois que o vendedor digita algo (pedido do usuário, 2026-10-27) -- antes
+  // mostrava os primeiros 24 itens do catálogo sempre, poluindo a tela à toa.
   const resultados = useMemo(() => {
-    if (busca.trim().length < 1) return catalogo.slice(0, 24);
+    if (busca.trim().length < 1) return [];
     return filtra(catalogo, busca, (i) => `${i.nome} ${i.sku} ${i.codigo_barras ?? ""}`).slice(0, 24);
   }, [catalogo, busca]);
 
@@ -383,32 +388,64 @@ export function PdvVarejoView({
   }
 
   return (
-    <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1.1fr_1fr]">
+    <div className="flex flex-col gap-4">
+      <PainelMetaDoDia meta={metaDoDia} />
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1.1fr_1fr]">
       <div className="flex flex-col gap-3 rounded-[14px] border border-line bg-surface p-4 shadow-sm sm:p-5">
-        <input
-          type="text"
-          value={busca}
-          onChange={(e) => setBusca(e.target.value)}
-          placeholder="Buscar por nome, SKU ou código de barras"
-          className="rounded-lg border border-line bg-surface px-3 py-2 text-sm"
-        />
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-          {resultados.map((item) => (
-            <button
-              key={item.variacao_id}
-              type="button"
-              onClick={() => adicionar(item)}
-              className="rounded-lg border border-line p-2.5 text-left text-sm"
-            >
-              <p className="font-semibold">{item.nome}</p>
-              <p className="text-xs text-text-soft">{Object.values(item.atributos ?? {}).join(" · ") || item.sku}</p>
-              <p className={`mt-1 ${item.saldo <= 0 ? "text-red-700" : ""}`}>
-                {formatarMoeda(item.preco_venda)} · {item.saldo > 0 ? `${item.saldo} un` : "sem saldo — precisa autorização"}
-              </p>
-            </button>
-          ))}
-          {resultados.length === 0 && <p className="col-span-full text-sm text-text-soft">Nada encontrado.</p>}
+        <div className="relative">
+          <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" className="pointer-events-none absolute left-1 top-1/2 h-[15px] w-[15px] -translate-y-1/2 text-text-soft">
+            <circle cx="9" cy="9" r="6.5" />
+            <path d="M18 18l-4-4" />
+          </svg>
+          <input
+            type="text"
+            value={busca}
+            onChange={(e) => setBusca(e.target.value)}
+            placeholder="Buscar por nome, SKU ou código de barras"
+            className="w-full border-0 border-b border-line bg-transparent py-2 pl-7 pr-1 text-sm focus:border-rose-deep focus:outline-none"
+          />
         </div>
+
+        {busca.trim().length < 1 ? (
+          <div className="flex flex-col items-center gap-2 px-5 py-8 text-center">
+            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.4" className="h-7 w-7 text-line">
+              <circle cx="9" cy="9" r="6.5" />
+              <path d="M18 18l-4-4" />
+            </svg>
+            <p className="max-w-[16rem] text-sm text-text-soft">Digite nome, SKU ou código de barras pra ver as peças.</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-3 gap-x-2.5 gap-y-3 sm:grid-cols-4">
+            {resultados.map((item) => (
+              <button key={item.variacao_id} type="button" onClick={() => adicionar(item)} className="group flex flex-col gap-1 text-left">
+                <div className="relative aspect-square overflow-hidden rounded-[10px] bg-cream">
+                  {item.foto_url ? (
+                    <img
+                      src={item.foto_url}
+                      alt={item.nome}
+                      className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-105"
+                    />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center text-line">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.3" className="h-7 w-7">
+                        <rect x="3" y="4" width="18" height="16" rx="2" />
+                        <circle cx="9" cy="10" r="1.6" />
+                        <path d="M21 16l-5.5-5.5a2 2 0 0 0-2.8 0L3 20" />
+                      </svg>
+                    </div>
+                  )}
+                </div>
+                <p className="truncate text-[11px] font-bold text-ink">{item.nome}</p>
+                <p className={`text-[11px] font-semibold ${item.saldo <= 0 ? "text-crit" : "text-rose-deep"}`}>
+                  {formatarMoeda(item.preco_venda)}
+                  {item.saldo <= 0 && " · sem saldo"}
+                </p>
+              </button>
+            ))}
+            {resultados.length === 0 && <p className="col-span-full py-4 text-sm text-text-soft">Nada encontrado.</p>}
+          </div>
+        )}
 
         <div className="rounded-lg border border-line bg-cream p-3">
           <p className="mb-2 text-xs font-bold uppercase tracking-wide text-text-soft">
@@ -791,6 +828,112 @@ export function PdvVarejoView({
           setPinEstoqueAberto(false);
         }}
       />
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Painel "Meta do dia" (pedido do usuário, 2026-10-27, aprovado por mockup/Artifact antes de
+ * codar): faturamento de hoje (loja inteira, não só a sessão aberta) × meta diária configurável
+ * (`varejo_config.meta_diaria`, editável em /varejo/financeiro) + últimos 7 dias. Só faturamento
+ * bruto aparece aqui — nunca custo/margem, regra do módulo de varejo (ver page.tsx).
+ */
+function PainelMetaDoDia({ meta }: { meta: MetaDoDia }) {
+  const pct = meta.metaDiaria > 0 ? Math.min(1, meta.faturamentoHoje / meta.metaDiaria) : 0;
+  const raio = 58;
+  const circunferencia = 2 * Math.PI * raio;
+  const falta = Math.max(0, meta.metaDiaria - meta.faturamentoHoje);
+  const melhorDia = meta.ultimosDias.reduce((m, d) => (d.total > m.total ? d : m), meta.ultimosDias[0]);
+  const maiorValor = Math.max(meta.metaDiaria, ...meta.ultimosDias.map((d) => d.total), 1);
+  const hoje = hojeIso();
+
+  return (
+    <div className="grid grid-cols-1 items-center gap-6 rounded-[16px] border border-line bg-surface p-5 shadow-sm sm:p-6 lg:grid-cols-[auto_1px_1fr]">
+      <div className="flex items-center gap-5">
+        <div className="relative h-[116px] w-[116px] shrink-0">
+          <svg viewBox="0 0 136 136" className="h-full w-full -rotate-90">
+            <defs>
+              <linearGradient id="metaGradiente" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stopColor="var(--color-gold-start)" />
+                <stop offset="100%" stopColor="var(--color-rose-deep)" />
+              </linearGradient>
+            </defs>
+            <circle cx="68" cy="68" r={raio} fill="none" stroke="var(--color-line)" strokeWidth="10" />
+            <circle
+              cx="68"
+              cy="68"
+              r={raio}
+              fill="none"
+              stroke="url(#metaGradiente)"
+              strokeWidth="10"
+              strokeLinecap="round"
+              strokeDasharray={circunferencia}
+              strokeDashoffset={circunferencia * (1 - pct)}
+            />
+          </svg>
+          <div className="absolute inset-0 flex flex-col items-center justify-center">
+            <span className="font-display text-xl font-semibold tabular-nums text-ink">{Math.round(pct * 100)}%</span>
+            <span className="text-[9px] uppercase tracking-wide text-text-soft">da meta</span>
+          </div>
+        </div>
+        <div>
+          <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-text-soft">
+            <span className="text-rose-deep">◆</span> Faturamento hoje · {formatarDataIso(hoje)}
+          </p>
+          <p className="mt-1 font-display text-[34px] font-semibold leading-none tabular-nums text-ink">{formatarMoeda(meta.faturamentoHoje)}</p>
+          <p className="mt-1 text-xs text-text-soft">
+            {meta.vendasHoje} {meta.vendasHoje === 1 ? "venda" : "vendas"} hoje
+          </p>
+          <p className="mt-3 text-xs font-semibold text-text-soft">
+            Meta: <span className="text-ink">{formatarMoeda(meta.metaDiaria)}</span>/dia
+          </p>
+          {falta > 0 ? (
+            <p className="mt-1 text-xs font-semibold text-crit">Faltam {formatarMoeda(falta)} pra meta do dia</p>
+          ) : (
+            <p className="mt-1 text-xs font-semibold text-ok">Meta do dia batida — {formatarMoeda(meta.faturamentoHoje - meta.metaDiaria)} acima</p>
+          )}
+        </div>
+      </div>
+
+      <div className="hidden h-full w-px bg-line lg:block" />
+
+      <div>
+        <div className="mb-3 flex items-baseline justify-between">
+          <span className="text-[11px] font-bold uppercase tracking-wide text-text-soft">Últimos 7 dias vs. meta</span>
+          {melhorDia.total > 0 && (
+            <span className="text-[11.5px] text-text-soft">
+              melhor dia: <b className="font-semibold text-ink">{formatarMoeda(melhorDia.total)}</b> · {formatarDataIso(melhorDia.data).slice(0, 5)}
+            </span>
+          )}
+        </div>
+        <div className="relative flex h-[108px] items-end gap-2.5 pt-4">
+          <div
+            className="pointer-events-none absolute left-0 right-0 border-t border-dashed border-rose opacity-50"
+            style={{ bottom: `${(meta.metaDiaria / maiorValor) * 100}%` }}
+          >
+            <span className="absolute -top-4 right-0 bg-surface pl-1.5 text-[10px] font-semibold text-rose-deep">{formatarMoeda(meta.metaDiaria)}</span>
+          </div>
+          {meta.ultimosDias.map((dia) => {
+            const altura = Math.max(2, (dia.total / maiorValor) * 100);
+            const ehHoje = dia.data === hoje;
+            const bateu = dia.total >= meta.metaDiaria;
+            return (
+              <div key={dia.data} className="flex h-full flex-1 flex-col items-center justify-end gap-1.5">
+                <div
+                  className={`w-full max-w-[34px] rounded-t-[6px] rounded-b-[3px] ${bateu ? "bg-gradient-to-b from-gold-start to-rose-deep" : "bg-line"} ${
+                    ehHoje ? "outline outline-[1.5px] outline-offset-2 outline-rose-deep" : ""
+                  }`}
+                  style={{ height: `${altura}%` }}
+                />
+                <span className={`text-[10.5px] font-semibold ${ehHoje ? "text-rose-deep" : "text-text-soft"}`}>
+                  {ehHoje ? "hoje" : formatarDataIso(dia.data).slice(0, 5)}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 }

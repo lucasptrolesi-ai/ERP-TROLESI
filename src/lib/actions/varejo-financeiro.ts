@@ -85,12 +85,15 @@ export async function criarVigenciaConfig(dados: {
   mesAbertura: string; // "YYYY-MM"
   precoPisoEntradaTexto: string;
   arredondar90: boolean;
+  metaDiariaTexto: string;
 }): Promise<{ erro?: string }> {
   const caixaInicial = lerMoeda(dados.caixaInicialTexto) ?? 0;
   const precoPisoEntrada = lerMoeda(dados.precoPisoEntradaTexto);
   if (precoPisoEntrada === null || precoPisoEntrada < 0) return { erro: "Informe o piso de entrada." };
   if (dados.fatorVendaMin > dados.fatorVendaMax) return { erro: "O fator mínimo não pode ser maior que o máximo." };
   if (dados.diasAbertosMes < 1 || dados.diasAbertosMes > 31) return { erro: "Dias abertos no mês inválido." };
+  const metaDiaria = lerMoeda(dados.metaDiariaTexto);
+  if (metaDiaria === null || metaDiaria <= 0) return { erro: "Informe a meta diária." };
 
   return inserir("varejo_config", {
     vigente_desde: primeiroDiaDoMes(dados.vigenteDesde),
@@ -105,6 +108,7 @@ export async function criarVigenciaConfig(dados: {
     mes_abertura: primeiroDiaDoMes(dados.mesAbertura),
     preco_piso_entrada: precoPisoEntrada,
     arredondar_90: dados.arredondar90,
+    meta_diaria: metaDiaria,
   });
 }
 
@@ -332,6 +336,7 @@ export async function importarControleAntigo(jsonTexto: string): Promise<{ erro?
       mesAbertura: json.config.abertura,
       precoPisoEntradaTexto: "19.90",
       arredondar90: true,
+      metaDiariaTexto: "500",
     });
     if (r.erro) return { erro: `Config: ${r.erro}` };
     partes.push("configuração importada");
