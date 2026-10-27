@@ -81,7 +81,12 @@ function respostaNegada(
     `</body></html>`;
   const resposta = new NextResponse(html, {
     status: decisao.motivo === "sem_contexto" ? 503 : 403,
-    headers: { "content-type": "text/html; charset=utf-8" },
+    // `no-store` aqui não é só higiene de cache -- é o que tira esta resposta do bfcache do Safari
+    // (achado 2026-10-27: o app fixado no Dock reabria mostrando a MESMA tela negada congelada,
+    // sem bater no servidor de novo, mesmo depois do fix de autocorreção já estar no ar -- sem
+    // `no-store`, o navegador pode restaurar essa página do zero a partir do snapshot da aba
+    // fechada, nunca rodando o script de autocorreção de novo).
+    headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store, must-revalidate" },
   });
   // getUser() pode ter renovado o token — preserva os cookies na resposta negada também.
   comCookies.cookies.getAll().forEach((cookie) => resposta.cookies.set(cookie));
