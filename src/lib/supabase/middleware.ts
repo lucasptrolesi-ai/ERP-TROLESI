@@ -29,16 +29,56 @@ async function decidirAcessoDaSessao(supabase: SupabaseClient, caminho: string):
   });
 }
 
-function respostaNegada(decisao: Extract<DecisaoAcesso, { permitido: false }>, comCookies: NextResponse): NextResponse {
+/** Marcador na própria URL pra nunca tentar autocorrigir duas vezes o mesmo carregamento — sem
+ * isso, se a correção não resolver de verdade, o reload cairia num loop infinito. */
+const MARCADOR_AUTOCORRECAO = "_opfix";
+
+function respostaNegada(
+  decisao: Extract<DecisaoAcesso, { permitido: false }>,
+  comCookies: NextResponse,
+  urlOriginal: URL,
+): NextResponse {
+  // Achado 2026-10-27 ("toda vez que fecho e abro o app aparece Acesso negado"): o token guardado
+  // no navegador às vezes reabre com a operação desatualizada (ex: a padrão do usuário) mesmo com
+  // `app_metadata` já certo no banco. Nesses casos o usuário TEM acesso legítimo à operação que a
+  // rota pede (podeTrocar=true) — em vez de travar numa tela morta, a própria página tenta se
+  // autocorrigir uma vez (POST em /api/corrigir-operacao, que revalida tudo server-side) e recarrega
+  // sozinha. Só tenta uma vez por carregamento (marcador na URL) pra nunca entrar em loop.
+  const jaTentouAutocorrigir = urlOriginal.searchParams.has(MARCADOR_AUTOCORRECAO);
+  const podeAutocorrigir = decisao.motivo === "operacao_errada" && decisao.podeTrocar && !jaTentouAutocorrigir;
+
   const dica =
     decisao.motivo === "operacao_errada" && decisao.podeTrocar
       ? `<p>Troque de operação no menu superior para abrir esta página.</p>`
       : "";
+
+  const scriptAutocorrecao = podeAutocorrigir
+    ? `<p id="ajustando">Ajustando sua sessão…</p>
+       <script>
+         fetch("/api/corrigir-operacao", {
+           method: "POST",
+           headers: { "content-type": "application/json" },
+           body: JSON.stringify({ operacaoCodigo: ${JSON.stringify(decisao.operacaoNecessaria ?? "")} }),
+         })
+           .then(function (r) { return r.ok; })
+           .catch(function () { return false; })
+           .then(function (ok) {
+             var destino = new URL(location.href);
+             destino.searchParams.set(${JSON.stringify(MARCADOR_AUTOCORRECAO)}, "1");
+             if (ok) { location.replace(destino.pathname + destino.search); }
+             else { document.getElementById("ajustando").hidden = true; document.getElementById("erro-final").hidden = false; }
+           });
+       </script>`
+    : "";
+
   const html =
     `<!doctype html><html lang="pt-BR"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">` +
     `<title>Acesso negado</title>` +
     `<body style="font-family:system-ui,sans-serif;max-width:34rem;margin:4rem auto;padding:0 1rem;line-height:1.5">` +
-    `<h1>Acesso negado</h1><p>${MENSAGENS[decisao.motivo]}</p>${dica}<p><a href="/">Voltar ao início</a></p></body></html>`;
+    `<h1>Acesso negado</h1>` +
+    `<div id="erro-final"${podeAutocorrigir ? " hidden" : ""}><p>${MENSAGENS[decisao.motivo]}</p>${dica}<p><a href="/">Voltar ao início</a></p></div>` +
+    `${scriptAutocorrecao}` +
+    `</body></html>`;
   const resposta = new NextResponse(html, {
     status: decisao.motivo === "sem_contexto" ? 503 : 403,
     headers: { "content-type": "text/html; charset=utf-8" },
@@ -81,7 +121,7 @@ export async function updateSession(request: NextRequest) {
 
   if (user && !rotaPublica) {
     const decisao = await decidirAcessoDaSessao(supabase, caminho);
-    return decisao.permitido ? response : respostaNegada(decisao, response);
+    return decisao.permitido ? response : respostaNegada(decisao, response, request.nextUrl);
   }
 
   if (!user && rotaPublica) {

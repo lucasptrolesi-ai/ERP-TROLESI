@@ -1,6 +1,12 @@
 # CHANGELOG — ERP Trolesi
 
-## 2026-10-27 — PDV Varejo ganha painel "Meta do dia"
+## 2026-10-27 (cont.) — Fix: "Acesso negado" toda vez que reabria o app
+
+Achado pelo usuário: toda vez que fechava e reabria o app (PWA/webapp fixado no Dock), caía em "Acesso negado — Esta página é de outra operação" numa página do Varejo. Investigando: `app_metadata.operacao_id` no banco já estava certo (VAREJO), mas o token guardado no navegador reabria carregando a operação padrão antiga (ATACADO) até o usuário trocar manualmente no seletor — o middleware (`proxy.ts`) já sabia que o usuário tinha acesso legítimo à operação certa (`podeTrocar: true`), só nunca agia sobre isso.
+
+- `src/app/api/corrigir-operacao/route.ts` (novo, primeiro Route Handler do projeto -- o resto é tudo Server Action): recebe o código da operação, revalida contra `contexto_sessao()` do próprio usuário autenticado (nunca confia no valor do corpo da requisição sozinho) e chama `trocarOperacao` (mesma action que o seletor manual já usa).
+- `src/lib/supabase/middleware.ts`: quando a negação é por `operacao_errada` e o usuário tem acesso à operação certa, a própria página "Acesso negado" chama esse endpoint e recarrega sozinha — só mostra a mensagem/link manual se a correção falhar. Marcador na URL (`_opfix`) impede loop infinito caso a correção não resolva.
+- `tsc`/lint/`vitest`/build confirmados limpos. Sem migration — mudança só de código.
 
 Pedido do usuário: ver as vendas do dia e uma meta mínima diária (R$500) com gráfico, sem perder a busca por SKU/catálogo nem o carrinho. Aprovado por mockup (Artifact, 7 rodadas de ajuste) antes de codar, conforme a regra do projeto.
 
