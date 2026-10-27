@@ -150,7 +150,13 @@ begin
     return;
   end if;
 
-  create or replace view public.pdv_catalogo as
+  -- CREATE OR REPLACE VIEW nao aceita remover coluna nenhuma (erro real do Postgres, achado
+  -- rodando este ensaio: "cannot drop columns from view") -- precisa derrubar e recriar do zero,
+  -- igual DROP+CREATE de function com assinatura mudada. Grants NAO sobrevivem a um DROP (mesma
+  -- regra de sempre) -- re-GRANT explicito depois.
+  drop view public.pdv_catalogo;
+
+  create view public.pdv_catalogo as
   select
     v.id as variacao_id,
     v.operacao_id,
@@ -170,6 +176,9 @@ begin
   from public.catalogo_variacoes v
   join public.catalogo_produtos p on p.id = v.produto_id and p.operacao_id = v.operacao_id
   where v.ativo and p.ativo and v.operacao_id = (select public.operacao_atual());
+
+  revoke all on public.pdv_catalogo from public, anon;
+  grant select on public.pdv_catalogo to authenticated;
 
   alter table public.varejo_config drop column if exists meta_diaria;
 end $down$;
