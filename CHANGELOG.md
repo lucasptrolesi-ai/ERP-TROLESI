@@ -1,6 +1,6 @@
 # CHANGELOG — ERP Trolesi
 
-## 2026-10-28 — Venda fiado/a prazo no PDV Varejo, "como se fosse um crediário", aguardando ensaio
+## 2026-10-28 — Venda fiado/a prazo no PDV Varejo, "como se fosse um crediário"
 
 Pedido do usuário: "preciso condicionar data para pagamento, como se fosse um crediario". Decisões confirmadas antes de codar: exige PIN de supervisor (mesmo risco financeiro de desconto abaixo do mínimo/estoque negativo); cliente com parcela em atraso NÃO é bloqueado, só mostra aviso; tela de recebimento fica em `/varejo/crediario`, separada do Controle Financeiro; formato é uma data única OU várias parcelas, ajustável (entrada opcional + resto parcelado, igual ao "misto" do Atacado).
 
@@ -9,6 +9,8 @@ Pedido do usuário: "preciso condicionar data para pagamento, como se fosse um c
 - `/varejo/crediario` (tela nova, admin-only): lista parcelas em aberto/atrasadas/pagas, filtro por situação, seleção múltipla + "Marcar como pago" (reaproveita `darBaixaEmLoteContasReceber`, já genérica).
 - `tsc`/lint/`vitest`/build confirmados limpos.
 - Testes T1 a T7 escritos (sem autorização bloqueia, sem cliente bloqueia, fiado puro sem entrada, entrada+parcelas com troco certo, soma de parcelas maior que o total bloqueia, whitelist de autorizar_acao, aviso de atraso).
+- Ensaio achou 3 bugs reais, todos corrigidos: (1) `clientes`/`autorizacoes_pontuais` têm trigger que bloqueia informar `operacao_id` manualmente (o teste tentava); (2) `autorizacoes_pontuais.acao` tem um CHECK constraint próprio, separado da whitelist dentro de `autorizar_acao()` -- faltava atualizar os dois; (3) o mais importante: **`CREATE OR REPLACE FUNCTION` com parâmetros novos no final NÃO substitui a function antiga** -- cria uma segunda, coexistindo com a original órfã. `registrar_venda`/`registrar_venda_varejo_com_cashback` precisaram do DROP+CREATE+re-GRANT de sempre pra mudança de assinatura, que eu tinha deixado de aplicar aqui por engano.
+- **Aplicado em produção** pelo usuário via `scripts/rodar-sql.mjs` (Editor do Dashboard não aceitou colar o arquivo inteiro -- 1200+ linhas, cortou no meio). Confirmado via introspecção: `venda_id`, as functions novas, só 1 assinatura de `registrar_venda` (sem sobra da versão antiga), grants corretos, zero resíduo de teste.
 
 ## 2026-10-27 (cont.) — Fix: "Acesso negado" toda vez que reabria o app
 

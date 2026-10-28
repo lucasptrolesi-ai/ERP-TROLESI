@@ -70,6 +70,13 @@ begin
   alter table public.contas_receber add constraint contas_receber_origem_check
     check (num_nonnulls(pedido_id, venda_id) = 1);
 
+  -- autorizacoes_pontuais.acao tem um CHECK proprio, separado da whitelist dentro de autorizar_acao()
+  -- -- achado rodando este ensaio ("violates check constraint autorizacoes_pontuais_acao_check"):
+  -- atualizar só a function não bastava, o banco também bloqueava no INSERT.
+  alter table public.autorizacoes_pontuais drop constraint autorizacoes_pontuais_acao_check;
+  alter table public.autorizacoes_pontuais add constraint autorizacoes_pontuais_acao_check
+    check (acao = any (array['desconto_abaixo_piso', 'cancelamento_venda', 'estorno_pagamento', 'estoque_negativo', 'venda_fiado']));
+
   create or replace function public.autorizar_acao(p_acao text, p_supervisor_id uuid, p_pin text, p_alvo_id uuid default null::uuid)
   returns jsonb
   language plpgsql security definer set search_path = public as $$
@@ -117,7 +124,15 @@ begin
   end
   $$;
 
-  create or replace function public.registrar_venda(
+  -- CREATE OR REPLACE com parametros NOVOS no final (mesmo com default) NAO substitui a function
+  -- antiga -- cria uma SEGUNDA function (mesmo nome, assinatura diferente) coexistindo com a
+  -- original, que fica orfa mas continua existindo. Achado rodando este ensaio (o $cmp$ final
+  -- acusou "rollback nao devolveu o schema ao estado original" -- as duas assinaturas antigas, de 11
+  -- e 14 parametros, nunca tinham sumido). Mesma regra de sempre pra mudanca de assinatura: DROP da
+  -- assinatura antiga exata + CREATE da nova + re-GRANT (grants nao sobrevivem a um DROP).
+  drop function if exists public.registrar_venda(uuid, jsonb, jsonb, uuid, text, text, uuid, uuid, numeric, numeric, uuid);
+
+  create function public.registrar_venda(
     p_sessao_id uuid, p_itens jsonb, p_pagamentos jsonb, p_idempotency_key uuid default null::uuid,
     p_cliente_nome text default null::text, p_cliente_documento text default null::text,
     p_autorizacao_desconto_id uuid default null::uuid, p_autorizacao_estoque_id uuid default null::uuid,
@@ -465,10 +480,16 @@ begin
   end
   $$;
 
+  revoke execute on function public.registrar_venda(uuid, jsonb, jsonb, uuid, text, text, uuid, uuid, numeric, numeric, uuid, jsonb, uuid) from public, anon;
+  grant execute on function public.registrar_venda(uuid, jsonb, jsonb, uuid, text, text, uuid, uuid, numeric, numeric, uuid, jsonb, uuid) to authenticated;
+
   -- registrar_venda_varejo_com_cashback e quem o app chama de verdade (nunca registrar_venda
   -- direto) -- so repassa pra ela, com cashback/cupom por cima. Precisa dos 2 parametros novos
-  -- tambem, repassados direto, senao o fiado nunca chegaria em registrar_venda vindo do app.
-  create or replace function public.registrar_venda_varejo_com_cashback(
+  -- tambem, repassados direto, senao o fiado nunca chegaria em registrar_venda vindo do app. Mesmo
+  -- motivo do DROP+CREATE acima: CREATE OR REPLACE com assinatura diferente nao substitui a antiga.
+  drop function if exists public.registrar_venda_varejo_com_cashback(uuid, jsonb, jsonb, uuid, text, text, uuid, uuid, numeric, numeric, uuid, uuid, boolean, uuid);
+
+  create function public.registrar_venda_varejo_com_cashback(
     p_sessao_id uuid, p_itens jsonb, p_pagamentos jsonb, p_idempotency_key uuid default null::uuid,
     p_cliente_nome text default null::text, p_cliente_documento text default null::text,
     p_autorizacao_desconto_id uuid default null::uuid, p_autorizacao_estoque_id uuid default null::uuid,
@@ -546,6 +567,9 @@ begin
     return v_venda_id;
   end
   $$;
+
+  revoke execute on function public.registrar_venda_varejo_com_cashback(uuid, jsonb, jsonb, uuid, text, text, uuid, uuid, numeric, numeric, uuid, uuid, boolean, uuid, jsonb, uuid) from public, anon;
+  grant execute on function public.registrar_venda_varejo_com_cashback(uuid, jsonb, jsonb, uuid, text, text, uuid, uuid, numeric, numeric, uuid, uuid, boolean, uuid, jsonb, uuid) to authenticated;
 
   -- Aviso (nao bloqueio -- decisao do usuario) de atraso no PDV: contas_receber so e legivel direto
   -- por admin/financeiro via RLS, mas quem roda o PDV e vendedor -- devolve so um sinal, nao a
@@ -638,7 +662,9 @@ begin
   select id into v_dep from public.depositos where operacao_id = v_varejo and ativo limit 1;
   perform public.registrar_entrada_estoque(v_dep, v_var1, 10, 50.00, 'ensaio venda fiado');
 
-  insert into public.clientes (nome, operacao_id) values ('ZZ ENSAIO CLIENTE FIADO', v_varejo) returning id into v_cliente;
+  -- operacao_id NUNCA vai explicito (trg_carimbar_operacao bloqueia e preenche sozinho a partir
+  -- da sessao) -- achado rodando este ensaio: "operacao_id nao pode ser informado".
+  insert into public.clientes (nome) values ('ZZ ENSAIO CLIENTE FIADO') returning id into v_cliente;
 
   select id into v_sessao from public.caixa_sessoes where operador_id = v_lucas and status = 'aberta' limit 1;
   if v_sessao is null then
@@ -662,9 +688,13 @@ begin
       if sqlerrm !~ 'exige autorizacao de supervisor' then raise; end if;
   end;
 
-  -- T2. Sem cliente -> bloqueado (mesmo com autorizacao).
+  -- T2. Sem cliente -> bloqueado (mesmo com autorizacao). Fixture (insert direto em
+  -- autorizacoes_pontuais) roda fora do role authenticated -- de proposito, `authenticated` nao
+  -- tem INSERT nessa tabela (so a function autorizar_acao escreve nela); achado rodando este ensaio.
+  execute 'reset role';
   insert into public.autorizacoes_pontuais (acao, supervisor_id, solicitante_id, alvo_id, expira_em)
     values ('venda_fiado', v_lucas, v_lucas, v_sessao, now() + interval '5 minutes') returning id into v_autorizacao;
+  execute 'set local role authenticated';
   begin
     perform public.registrar_venda_varejo_com_cashback(
       v_sessao, jsonb_build_array(jsonb_build_object('variacao_id', v_var1, 'quantidade', 1)),
@@ -681,8 +711,10 @@ begin
 
   -- T3. Fiado puro (sem entrada), 1 parcela = total inteiro -> aceita, cria 1 linha em
   -- contas_receber ligada a venda_id, sem venda_pagamentos nenhum.
+  execute 'reset role';
   insert into public.autorizacoes_pontuais (acao, supervisor_id, solicitante_id, alvo_id, expira_em)
     values ('venda_fiado', v_lucas, v_lucas, v_sessao, now() + interval '5 minutes') returning id into v_autorizacao;
+  execute 'set local role authenticated';
   v_venda := public.registrar_venda_varejo_com_cashback(
     v_sessao, jsonb_build_array(jsonb_build_object('variacao_id', v_var1, 'quantidade', 1)),
     '[]'::jsonb, gen_random_uuid(), null, null, null, null, 0, 0, v_cliente,
@@ -702,8 +734,10 @@ begin
 
   -- T4. Entrada em dinheiro (100) + 2 parcelas (100 + 100) cobrindo o resto de uma venda de 300 ->
   -- aceita, troco zero, 2 parcelas de 100 cada.
+  execute 'reset role';
   insert into public.autorizacoes_pontuais (acao, supervisor_id, solicitante_id, alvo_id, expira_em)
     values ('venda_fiado', v_lucas, v_lucas, v_sessao, now() + interval '5 minutes') returning id into v_autorizacao;
+  execute 'set local role authenticated';
   v_venda := public.registrar_venda_varejo_com_cashback(
     v_sessao, jsonb_build_array(jsonb_build_object('variacao_id', v_var1, 'quantidade', 1)),
     jsonb_build_array(jsonb_build_object('forma', 'dinheiro', 'valor', 100.00)),
@@ -725,8 +759,10 @@ begin
   end if;
 
   -- T5. Soma das parcelas maior que o total -> bloqueado.
+  execute 'reset role';
   insert into public.autorizacoes_pontuais (acao, supervisor_id, solicitante_id, alvo_id, expira_em)
     values ('venda_fiado', v_lucas, v_lucas, v_sessao, now() + interval '5 minutes') returning id into v_autorizacao;
+  execute 'set local role authenticated';
   begin
     perform public.registrar_venda_varejo_com_cashback(
       v_sessao, jsonb_build_array(jsonb_build_object('variacao_id', v_var1, 'quantidade', 1)),
@@ -780,7 +816,11 @@ begin
 
   drop function if exists public.cliente_tem_atraso_fiado(uuid);
 
-  create or replace function public.registrar_venda(
+  -- Mesmo motivo do $up$: DROP da assinatura com fiado (13 params) + CREATE da assinatura antiga
+  -- (11 params) -- CREATE OR REPLACE nao apaga a versao com mais parametros.
+  drop function if exists public.registrar_venda(uuid, jsonb, jsonb, uuid, text, text, uuid, uuid, numeric, numeric, uuid, jsonb, uuid);
+
+  create function public.registrar_venda(
     p_sessao_id uuid, p_itens jsonb, p_pagamentos jsonb, p_idempotency_key uuid default null::uuid,
     p_cliente_nome text default null::text, p_cliente_documento text default null::text,
     p_autorizacao_desconto_id uuid default null::uuid, p_autorizacao_estoque_id uuid default null::uuid,
@@ -1037,7 +1077,12 @@ begin
   end
   $$;
 
-  create or replace function public.registrar_venda_varejo_com_cashback(
+  revoke execute on function public.registrar_venda(uuid, jsonb, jsonb, uuid, text, text, uuid, uuid, numeric, numeric, uuid) from public, anon;
+  grant execute on function public.registrar_venda(uuid, jsonb, jsonb, uuid, text, text, uuid, uuid, numeric, numeric, uuid) to authenticated;
+
+  drop function if exists public.registrar_venda_varejo_com_cashback(uuid, jsonb, jsonb, uuid, text, text, uuid, uuid, numeric, numeric, uuid, uuid, boolean, uuid, jsonb, uuid);
+
+  create function public.registrar_venda_varejo_com_cashback(
     p_sessao_id uuid, p_itens jsonb, p_pagamentos jsonb, p_idempotency_key uuid default null::uuid,
     p_cliente_nome text default null::text, p_cliente_documento text default null::text,
     p_autorizacao_desconto_id uuid default null::uuid, p_autorizacao_estoque_id uuid default null::uuid,
@@ -1115,6 +1160,9 @@ begin
   end
   $$;
 
+  revoke execute on function public.registrar_venda_varejo_com_cashback(uuid, jsonb, jsonb, uuid, text, text, uuid, uuid, numeric, numeric, uuid, uuid, boolean, uuid) from public, anon;
+  grant execute on function public.registrar_venda_varejo_com_cashback(uuid, jsonb, jsonb, uuid, text, text, uuid, uuid, numeric, numeric, uuid, uuid, boolean, uuid) to authenticated;
+
   create or replace function public.autorizar_acao(p_acao text, p_supervisor_id uuid, p_pin text, p_alvo_id uuid default null::uuid)
   returns jsonb
   language plpgsql security definer set search_path = public as $$
@@ -1161,6 +1209,15 @@ begin
     return jsonb_build_object('ok', true, 'autorizacao_id', v_id);
   end
   $$;
+
+  -- Limpa autorizacoes efemeras de 'venda_fiado' (tokens de 5 minutos, consumidos ou nao -- nunca
+  -- sao dado historico que vale preservar, diferente de parcela/divida) antes de devolver a
+  -- constraint mais estreita -- achado rodando este ensaio: a constraint antiga rejeitava as linhas
+  -- de teste que o $teste$ acabou de criar na mesma transacao.
+  delete from public.autorizacoes_pontuais where acao = 'venda_fiado';
+  alter table public.autorizacoes_pontuais drop constraint if exists autorizacoes_pontuais_acao_check;
+  alter table public.autorizacoes_pontuais add constraint autorizacoes_pontuais_acao_check
+    check (acao = any (array['desconto_abaixo_piso', 'cancelamento_venda', 'estorno_pagamento', 'estoque_negativo']));
 
   alter table public.contas_receber drop constraint if exists contas_receber_origem_check;
   alter table public.contas_receber drop column if exists venda_id;
