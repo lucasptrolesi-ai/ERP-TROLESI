@@ -70,6 +70,7 @@ export const REGRAS_ROTAS: readonly RegraRota[] = [
   { prefixo: "/varejo/supervisores", operacao: "VAREJO", papeis: ["admin"] },
   { prefixo: "/varejo/dashboard", operacao: "VAREJO", papeis: ["admin"] },
   { prefixo: "/varejo/financeiro", operacao: "VAREJO", papeis: ["admin"] },
+  { prefixo: "/varejo/crediario", operacao: "VAREJO", papeis: ["admin"] },
 
   // Módulo Etiquetas (2026-10-15) — mesma dupla de papéis que já cadastra peça no catálogo.
   { prefixo: "/etiquetas", operacao: "VAREJO", papeis: ["admin", "estoque"] },

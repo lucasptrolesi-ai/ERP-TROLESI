@@ -6,8 +6,8 @@ import { useRouter } from "next/navigation";
 import { formatarMoeda } from "@/lib/formatar-moeda";
 import { arredondarMoeda, lerMoeda } from "@/lib/dinheiro";
 import { filtra } from "@/lib/filtra";
-import { formatarDataIso, hojeIso } from "@/lib/datas";
-import { cancelarVenda, registrarVenda } from "@/lib/actions/varejo";
+import { formatarDataIso, hojeIso, isoEmDias } from "@/lib/datas";
+import { buscarAtrasoFiado, cancelarVenda, registrarVenda } from "@/lib/actions/varejo";
 import {
   calcularLinha,
   calcularTotais,
@@ -24,12 +24,14 @@ import { PinSupervisorModal } from "@/components/pin-supervisor-modal";
 import { ClientePickerPdv } from "@/components/cliente-picker-pdv";
 import type { ClienteResumoVarejo } from "@/lib/actions/clientes-varejo";
 import type {
+  AtrasoFiado,
   CashbackDisponivel,
   CupomVarejo,
   FormaPagamento,
   ItemCatalogo,
   MetaDoDia,
   PagamentoDaVenda,
+  ParcelaFiado,
   SessaoCaixa,
   Supervisor,
   VendaDaSessao,
@@ -83,6 +85,15 @@ export function PdvVarejoView({
   const [cashbackDisponivel, setCashbackDisponivel] = useState<CashbackDisponivel[]>([]);
   const [cashbackAplicado, setCashbackAplicado] = useState<CashbackDisponivel | null>(null);
   const [concederCashback, setConcederCashback] = useState(false);
+  // Venda fiado/a prazo (2026-10-28, "como se fosse um crediário"): entrada opcional (reaproveita
+  // forma/valorRecebidoTexto, sempre em dinheiro aqui) + 1 ou mais parcelas com valor e vencimento
+  // ajustáveis. Exige cliente selecionado e PIN de supervisor, igual desconto abaixo do mínimo e
+  // estoque negativo já exigem -- mesmo risco financeiro.
+  const [fiado, setFiado] = useState(false);
+  const [parcelasFiado, setParcelasFiado] = useState<{ valorTexto: string; vencimento: string }[]>([]);
+  const [autorizacaoFiado, setAutorizacaoFiado] = useState<string | null>(null);
+  const [pinFiadoAberto, setPinFiadoAberto] = useState(false);
+  const [atrasoFiado, setAtrasoFiado] = useState<AtrasoFiado | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [sucesso, setSucesso] = useState<string | null>(null);
   const [enviando, iniciarEnvio] = useTransition();
@@ -108,12 +119,19 @@ export function PdvVarejoView({
       setCupomAplicado(null);
       setCupomCodigo("");
       setErroCupom(null);
+      setAtrasoFiado(null);
       if (!clienteSelecionado) {
         setCashbackDisponivel([]);
         return;
       }
-      const lista = await buscarCashbackDisponivel(clienteSelecionado.id);
-      if (!cancelada) setCashbackDisponivel(lista);
+      const [lista, atraso] = await Promise.all([
+        buscarCashbackDisponivel(clienteSelecionado.id),
+        buscarAtrasoFiado(clienteSelecionado.id),
+      ]);
+      if (!cancelada) {
+        setCashbackDisponivel(lista);
+        setAtrasoFiado(atraso);
+      }
     });
     return () => {
       cancelada = true;
@@ -240,7 +258,11 @@ export function PdvVarejoView({
   const cashbackUsavel = cashbackDisponivel.find((c) => c.valor <= espacoCashback) ?? null;
   const total = Math.max(0, arredondarMoeda(totalItens - numDesconto + numAcrescimo));
   const valorRecebido = lerMoeda(valorRecebidoTexto) ?? 0;
-  const troco = calcularTroco(forma, valorRecebido, total);
+  // Fiado: o que falta cobrir AGORA (no caixa) é o total menos o que ficou parcelado -- sem fiado,
+  // continua sendo o total inteiro, igual sempre foi.
+  const somaFiado = fiado ? parcelasFiado.reduce((soma, p) => soma + (lerMoeda(p.valorTexto) ?? 0), 0) : 0;
+  const totalExigidoAgora = fiado ? Math.max(0, arredondarMoeda(total - somaFiado)) : total;
+  const troco = calcularTroco(forma, valorRecebido, totalExigidoAgora);
 
   // Cliente selecionado passou a ser obrigatório pra usar cupom (pedido do usuário, 2026-10-22,
   // decisão explícita): é o cadastro do cliente que o limite de uso (1x por CPF) e o vencimento são
@@ -299,6 +321,9 @@ export function PdvVarejoView({
     setValorAcrescimoTexto("0");
     setCashbackAplicado(null);
     setConcederCashback(false);
+    setFiado(false);
+    setParcelasFiado([]);
+    setAutorizacaoFiado(null);
     setIdempotencyKey(crypto.randomUUID());
   }
 
@@ -316,8 +341,33 @@ export function PdvVarejoView({
       setErro("Há item com saldo insuficiente: autorize com o supervisor antes de finalizar.");
       return;
     }
-    if (forma === "dinheiro" && valorRecebido < total) {
-      setErro("O valor recebido é menor que o total.");
+    // Venda fiado (2026-10-28): valida antes de olhar pro "valor recebido" de hoje, porque o que
+    // precisa ser coberto agora é totalExigidoAgora (total menos o que ficou parcelado), não o total
+    // inteiro.
+    if (fiado) {
+      if (!clienteSelecionado) {
+        setErro("Venda fiado precisa de um cliente selecionado.");
+        return;
+      }
+      if (!autorizacaoFiado) {
+        setErro("Venda fiado exige autorização de supervisor.");
+        return;
+      }
+      if (parcelasFiado.length === 0 || somaFiado <= 0) {
+        setErro("Informe ao menos uma parcela com valor maior que zero.");
+        return;
+      }
+      if (somaFiado > total) {
+        setErro("A soma das parcelas é maior que o total da venda.");
+        return;
+      }
+      if (parcelasFiado.some((p) => !p.vencimento)) {
+        setErro("Informe o vencimento de cada parcela.");
+        return;
+      }
+    }
+    if (forma === "dinheiro" && valorRecebido < totalExigidoAgora) {
+      setErro(fiado ? "O valor da entrada mais as parcelas não cobre o total da venda." : "O valor recebido é menor que o total.");
       return;
     }
     if (cashbackAplicado && !cashbackAplicadoValido) {
@@ -327,13 +377,23 @@ export function PdvVarejoView({
     // registrar_venda sempre exige ao menos um pagamento com valor MAIOR que zero (não aceita uma
     // forma de pagamento com R$0) — uma venda que fecha em R$0 (ex: cashback cobrindo o total
     // inteiro) não tem como ser registrada hoje. Bloqueia aqui com uma mensagem clara em vez de deixar
-    // estourar um erro genérico do servidor (achado de code review, 2026-10-21).
+    // estourar um erro genérico do servidor (achado de code review, 2026-10-21). Fiado puro (sem
+    // entrada) é diferente -- totalExigidoAgora pode ser zero de propósito, então não entra nesse
+    // bloqueio (ele olha pro total da VENDA, não pro que falta pagar agora).
     if (total <= 0) {
       setErro("O total ficaria zerado (cashback cobre tudo) — reduza o cashback usado ou adicione mais itens.");
       return;
     }
-    const pagamentos: PagamentoDaVenda[] =
-      forma === "dinheiro" ? [{ forma, valor: valorRecebido }] : [{ forma, valor: total }];
+    // Fora do fiado, igual sempre foi. No fiado, a "entrada" só existe se o vendedor digitou algo —
+    // venda 100% fiado manda pagamentos vazio (válido agora, registrar_venda aceita quando há
+    // parcelas fiado cobrindo o resto).
+    const pagamentos: PagamentoDaVenda[] = fiado
+      ? valorRecebido > 0
+        ? [{ forma: "dinheiro", valor: valorRecebido }]
+        : []
+      : forma === "dinheiro"
+        ? [{ forma, valor: valorRecebido }]
+        : [{ forma, valor: total }];
 
     iniciarEnvio(async () => {
       // Resgate/concessão de cashback viajam JUNTO com a venda (mesmo registrarVenda, que por baixo
@@ -363,6 +423,12 @@ export function PdvVarejoView({
         cashbackResgatarId: cashbackAplicado?.id,
         concederCashback,
         cupomId: cupomAplicado?.id,
+        parcelasFiado: fiado
+          ? (parcelasFiado
+              .map((p) => ({ valor: lerMoeda(p.valorTexto) ?? 0, vencimento: p.vencimento }))
+              .filter((p) => p.valor > 0) as ParcelaFiado[])
+          : undefined,
+        autorizacaoFiadoId: fiado ? (autorizacaoFiado ?? undefined) : undefined,
       });
       if (resultado.erro) {
         setErro(resultado.erro);
@@ -370,7 +436,8 @@ export function PdvVarejoView({
       }
 
       const trocoTexto = forma === "dinheiro" && troco > 0 ? ` — troco: ${formatarMoeda(troco)}` : "";
-      setSucesso(`Venda registrada${trocoTexto}.`);
+      const fiadoTexto = fiado ? ` — ${formatarMoeda(somaFiado)} ficou parcelado` : "";
+      setSucesso(`Venda registrada${trocoTexto}${fiadoTexto}.`);
       limparVenda();
       router.refresh();
     });
@@ -737,33 +804,122 @@ export function PdvVarejoView({
           onMudarNomeLivre={setClienteNomeLivre}
         />
 
-        <div className="grid grid-cols-4 gap-1.5">
-          {FORMAS.map((f) => (
-            <button
-              key={f.valor}
-              type="button"
-              onClick={() => setForma(f.valor)}
-              className={`rounded-lg border px-2 py-2 text-xs font-semibold ${
-                forma === f.valor ? "border-rose bg-rose-soft text-rose-deep" : "border-line text-text-soft"
-              }`}
-            >
-              {f.rotulo}
-            </button>
-          ))}
-        </div>
+        {clienteSelecionado && atrasoFiado?.atrasado && (
+          <p className="rounded-lg border border-amber-400 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">
+            Esse cliente tem {formatarMoeda(atrasoFiado.valor ?? 0)} em atraso há {atrasoFiado.dias} dia(s) — venda fiado não é bloqueada, só avisando.
+          </p>
+        )}
 
-        {forma === "dinheiro" && (
+        <label className="flex items-center gap-2 text-sm font-semibold">
+          <input
+            type="checkbox"
+            checked={fiado}
+            onChange={(e) => {
+              const ligou = e.target.checked;
+              setFiado(ligou);
+              setAutorizacaoFiado(null);
+              setForma("dinheiro");
+              setParcelasFiado(
+                ligou ? [{ valorTexto: total.toFixed(2).replace(".", ","), vencimento: isoEmDias(30) }] : [],
+              );
+            }}
+            className="h-4 w-4 accent-rose"
+          />
+          Vender fiado / a prazo
+        </label>
+
+        {!fiado && (
+          <div className="grid grid-cols-4 gap-1.5">
+            {FORMAS.map((f) => (
+              <button
+                key={f.valor}
+                type="button"
+                onClick={() => setForma(f.valor)}
+                className={`rounded-lg border px-2 py-2 text-xs font-semibold ${
+                  forma === f.valor ? "border-rose bg-rose-soft text-rose-deep" : "border-line text-text-soft"
+                }`}
+              >
+                {f.rotulo}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {(fiado || forma === "dinheiro") && (
           <label className="flex flex-col gap-1 text-sm">
-            Valor recebido
+            {fiado ? "Entrada em dinheiro (opcional)" : "Valor recebido"}
             <input
               type="text"
               value={valorRecebidoTexto}
               onChange={(e) => setValorRecebidoTexto(e.target.value)}
-              placeholder={formatarMoeda(total)}
+              placeholder={fiado ? "R$ 0,00" : formatarMoeda(total)}
               className="rounded-lg border border-line bg-surface px-3 py-2"
             />
-            {troco > 0 && <span className="text-xs text-text-soft">Troco: {formatarMoeda(troco)}</span>}
+            {!fiado && troco > 0 && <span className="text-xs text-text-soft">Troco: {formatarMoeda(troco)}</span>}
           </label>
+        )}
+
+        {fiado && (
+          <div className="flex flex-col gap-2 rounded-lg border border-line bg-cream p-3">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-bold uppercase tracking-wide text-text-soft">Parcelas</p>
+              <span className={`text-xs font-semibold ${somaFiado + valorRecebido < total ? "text-red-700" : "text-text-soft"}`}>
+                {formatarMoeda(somaFiado)} parcelado + {formatarMoeda(valorRecebido)} de entrada = {formatarMoeda(somaFiado + valorRecebido)} de {formatarMoeda(total)}
+              </span>
+            </div>
+            {parcelasFiado.map((p, i) => (
+              <div key={i} className="grid grid-cols-[1fr_8rem_auto] items-center gap-2">
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={p.valorTexto}
+                  onChange={(e) =>
+                    setParcelasFiado((atual) => atual.map((x, idx) => (idx === i ? { ...x, valorTexto: e.target.value } : x)))
+                  }
+                  placeholder="Valor"
+                  className="rounded-lg border border-line bg-surface px-3 py-2 text-sm"
+                />
+                <input
+                  type="date"
+                  value={p.vencimento}
+                  min={hojeIso()}
+                  onChange={(e) =>
+                    setParcelasFiado((atual) => atual.map((x, idx) => (idx === i ? { ...x, vencimento: e.target.value } : x)))
+                  }
+                  className="rounded-lg border border-line bg-surface px-2 py-2 text-sm"
+                />
+                <button
+                  type="button"
+                  onClick={() => setParcelasFiado((atual) => atual.filter((_, idx) => idx !== i))}
+                  disabled={parcelasFiado.length <= 1}
+                  className="h-8 w-8 rounded-full border border-line text-text-soft disabled:opacity-40"
+                >
+                  −
+                </button>
+              </div>
+            ))}
+            <button
+              type="button"
+              onClick={() =>
+                setParcelasFiado((atual) => [
+                  ...atual,
+                  { valorTexto: "", vencimento: isoEmDias(30 * (atual.length + 1)) },
+                ])
+              }
+              className="self-start text-xs font-semibold text-rose-deep underline decoration-dotted"
+            >
+              + Adicionar parcela
+            </button>
+            <button
+              type="button"
+              onClick={() => setPinFiadoAberto(true)}
+              className={`rounded-lg border px-3 py-2 text-sm font-semibold ${
+                autorizacaoFiado ? "border-line text-text-soft" : "border-red-400 text-red-700"
+              }`}
+            >
+              {autorizacaoFiado ? "Venda fiado autorizada" : "Autorizar venda fiado (PIN de supervisor)"}
+            </button>
+          </div>
         )}
 
         {precisaAutorizacao && (
@@ -826,6 +982,18 @@ export function PdvVarejoView({
         onAutorizado={(id) => {
           setAutorizacaoEstoque(id);
           setPinEstoqueAberto(false);
+        }}
+      />
+
+      <PinSupervisorModal
+        aberto={pinFiadoAberto}
+        onFechar={() => setPinFiadoAberto(false)}
+        acao="venda_fiado"
+        alvoId={sessao.sessao_id}
+        supervisores={supervisores}
+        onAutorizado={(id) => {
+          setAutorizacaoFiado(id);
+          setPinFiadoAberto(false);
         }}
       />
       </div>

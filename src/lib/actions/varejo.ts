@@ -8,6 +8,7 @@ import { mensagemErroExcluir } from "./erros";
 import { parseAtributos } from "@/lib/varejo/atributos";
 import type {
   AcaoPrivilegiada,
+  AtrasoFiado,
   DadosDaVenda,
   ResultadoAutorizacao,
   ResultadoFechamento,
@@ -120,10 +121,22 @@ export async function registrarVenda(dados: DadosDaVenda): Promise<{ erro?: stri
     p_cashback_resgatar_id: dados.cashbackResgatarId ?? null,
     p_conceder_cashback: dados.concederCashback ?? false,
     p_cupom_id: dados.cupomId ?? null,
+    p_parcelas_fiado: dados.parcelasFiado && dados.parcelasFiado.length > 0 ? dados.parcelasFiado : null,
+    p_autorizacao_fiado_id: dados.autorizacaoFiadoId ?? null,
   });
   if (error) return { erro: mensagem(error) };
   atualizarTelas();
   return { vendaId: data as string };
+}
+
+// Aviso (nunca bloqueio -- decisão do usuário) mostrado no PDV quando o cliente selecionado já tem
+// alguma parcela fiado vencida. Roda via RPC porque contas_receber só é legível direto por
+// admin/financeiro (RLS) -- `cliente_tem_atraso_fiado` devolve só o sinal, não a tabela inteira.
+export async function buscarAtrasoFiado(clienteId: string): Promise<AtrasoFiado> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("cliente_tem_atraso_fiado", { p_cliente_id: clienteId });
+  if (error || !data) return { atrasado: false };
+  return data as AtrasoFiado;
 }
 
 // Sempre chama o wrapper (cancelar_venda_varejo_com_cashback) em vez de cancelar_venda direto: sem

@@ -1,5 +1,15 @@
 # CHANGELOG — ERP Trolesi
 
+## 2026-10-28 — Venda fiado/a prazo no PDV Varejo, "como se fosse um crediário", aguardando ensaio
+
+Pedido do usuário: "preciso condicionar data para pagamento, como se fosse um crediario". Decisões confirmadas antes de codar: exige PIN de supervisor (mesmo risco financeiro de desconto abaixo do mínimo/estoque negativo); cliente com parcela em atraso NÃO é bloqueado, só mostra aviso; tela de recebimento fica em `/varejo/crediario`, separada do Controle Financeiro; formato é uma data única OU várias parcelas, ajustável (entrada opcional + resto parcelado, igual ao "misto" do Atacado).
+
+- Migration `20261028000001_venda_fiado_varejo.sql`: reaproveita a infra do Atacado em vez de duplicar (já era genérica, não presa a ATACADO) -- `contas_receber` ganha `venda_id` (paralelo a `pedido_id`, `num_nonnulls(pedido_id, venda_id) = 1`), `forma_pagamento = 'promissoria'` (mesmo rótulo que o Atacado já usa pra essa ideia), `dar_baixa_em_lote_contas_receber` reaproveitada tal e qual. `autorizar_acao` ganha `'venda_fiado'` na whitelist. `registrar_venda`/`registrar_venda_varejo_com_cashback` (o wrapper que o app chama de verdade) ganham `p_parcelas_fiado`/`p_autorizacao_fiado_id` no final (compatível com CREATE OR REPLACE) -- `p_pagamentos` agora pode vir vazio quando o fiado cobre a venda inteira. `cliente_tem_atraso_fiado` (function nova): aviso de atraso pro PDV, já que `contas_receber` só é legível direto por admin/financeiro via RLS.
+- `/varejo/pdv`: checkbox "Vender fiado / a prazo" -- quando ligado, troca a entrada pra só dinheiro (opcional) e mostra o construtor de parcelas (valor + vencimento por linha, "+ Adicionar parcela"), exige cliente selecionado e autorização de supervisor. Aviso (não bloqueio) quando o cliente selecionado já tem parcela atrasada.
+- `/varejo/crediario` (tela nova, admin-only): lista parcelas em aberto/atrasadas/pagas, filtro por situação, seleção múltipla + "Marcar como pago" (reaproveita `darBaixaEmLoteContasReceber`, já genérica).
+- `tsc`/lint/`vitest`/build confirmados limpos.
+- Testes T1 a T7 escritos (sem autorização bloqueia, sem cliente bloqueia, fiado puro sem entrada, entrada+parcelas com troco certo, soma de parcelas maior que o total bloqueia, whitelist de autorizar_acao, aviso de atraso).
+
 ## 2026-10-27 (cont.) — Fix: "Acesso negado" toda vez que reabria o app
 
 Achado pelo usuário: toda vez que fechava e reabria o app (PWA/webapp fixado no Dock), caía em "Acesso negado — Esta página é de outra operação" numa página do Varejo. Investigando: `app_metadata.operacao_id` no banco já estava certo (VAREJO), mas o token guardado no navegador reabria carregando a operação padrão antiga (ATACADO) até o usuário trocar manualmente no seletor — o middleware (`proxy.ts`) já sabia que o usuário tinha acesso legítimo à operação certa (`podeTrocar: true`), só nunca agia sobre isso.

@@ -22,6 +22,7 @@ const ITENS = [
   { href: "/varejo/supervisores", label: "Supervisores", icone: "🔐" },
   { href: "/varejo/dashboard", label: "Painel Varejo", icone: "🧮" },
   { href: "/varejo/financeiro", label: "Controle Financeiro", icone: "📐" },
+  { href: "/varejo/crediario", label: "Crediário Varejo", icone: "📇" },
   { href: "/transferencia", label: "Transferência", icone: "🔁" },
   { href: "/consolidado", label: "Painel Consolidado", icone: "🧭" },
   { href: "/pdv-eventos", label: "PDV Eventos", icone: "🎪" },
