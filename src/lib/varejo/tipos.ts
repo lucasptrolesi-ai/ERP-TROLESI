@@ -95,13 +95,13 @@ export type DadosDaVenda = {
   // então viaja JUNTO com a venda igual o cashback: validado e registrado atomicamente, pelo mesmo
   // motivo (se a venda não for criada, o uso do cupom também não pode ser registrado).
   cupomId?: string;
-  // Venda fiado/a prazo (2026-10-28) -- quando preenchido, exige clienteId e autorizacaoFiadoId;
-  // a soma das parcelas + o que entrar em `pagamentos` (entrada opcional) precisa bater com o total.
+  // Venda fiado/a prazo (2026-10-28, livre pro vendedor -- sem PIN de supervisor) -- quando
+  // preenchido, exige clienteId; a soma das parcelas + o que entrar em `pagamentos` (entrada
+  // opcional) precisa bater com o total.
   parcelasFiado?: ParcelaFiado[];
-  autorizacaoFiadoId?: string;
 };
 
-export type AcaoPrivilegiada = "desconto_abaixo_piso" | "cancelamento_venda" | "estorno_pagamento" | "estoque_negativo" | "venda_fiado";
+export type AcaoPrivilegiada = "desconto_abaixo_piso" | "cancelamento_venda" | "estorno_pagamento" | "estoque_negativo";
 
 export type ResultadoAutorizacao = { ok: boolean; motivo?: string; autorizacaoId?: string };
 

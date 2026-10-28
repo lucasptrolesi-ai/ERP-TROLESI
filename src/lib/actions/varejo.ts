@@ -122,7 +122,6 @@ export async function registrarVenda(dados: DadosDaVenda): Promise<{ erro?: stri
     p_conceder_cashback: dados.concederCashback ?? false,
     p_cupom_id: dados.cupomId ?? null,
     p_parcelas_fiado: dados.parcelasFiado && dados.parcelasFiado.length > 0 ? dados.parcelasFiado : null,
-    p_autorizacao_fiado_id: dados.autorizacaoFiadoId ?? null,
   });
   if (error) return { erro: mensagem(error) };
   atualizarTelas();

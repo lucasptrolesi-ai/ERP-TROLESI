@@ -1,5 +1,13 @@
 # CHANGELOG — ERP Trolesi
 
+## 2026-10-28 (cont.) — Venda fiado deixa de exigir PIN de supervisor
+
+Pedido do usuário, revendo a decisão de algumas horas antes: fica livre pro vendedor, igual o item manual já é hoje (continua exigindo cliente selecionado).
+
+- Migration `20261028000002_venda_fiado_sem_pin.sql`: `registrar_venda`/`registrar_venda_varejo_com_cashback` perdem `p_autorizacao_fiado_id` (DROP+CREATE de novo, mesma regra de assinatura) e o bloqueio de PIN; `autorizar_acao` perde `'venda_fiado'` da whitelist, `autorizacoes_pontuais_acao_check` volta pra 4 valores.
+- `/varejo/pdv`: removido o botão "Autorizar venda fiado (PIN de supervisor)" e o modal correspondente.
+- Ensaio passou de primeira (T1 a T4). Aplicado e confirmado.
+
 ## 2026-10-28 — Venda fiado/a prazo no PDV Varejo, "como se fosse um crediário"
 
 Pedido do usuário: "preciso condicionar data para pagamento, como se fosse um crediario". Decisões confirmadas antes de codar: exige PIN de supervisor (mesmo risco financeiro de desconto abaixo do mínimo/estoque negativo); cliente com parcela em atraso NÃO é bloqueado, só mostra aviso; tela de recebimento fica em `/varejo/crediario`, separada do Controle Financeiro; formato é uma data única OU várias parcelas, ajustável (entrada opcional + resto parcelado, igual ao "misto" do Atacado).

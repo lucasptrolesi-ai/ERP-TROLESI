@@ -85,14 +85,12 @@ export function PdvVarejoView({
   const [cashbackDisponivel, setCashbackDisponivel] = useState<CashbackDisponivel[]>([]);
   const [cashbackAplicado, setCashbackAplicado] = useState<CashbackDisponivel | null>(null);
   const [concederCashback, setConcederCashback] = useState(false);
-  // Venda fiado/a prazo (2026-10-28, "como se fosse um crediário"): entrada opcional (reaproveita
+  // Venda fiado/a prazo (2026-10-28, "como se fosse um crediário"; PIN de supervisor removido no
+  // mesmo dia -- livre pro vendedor, igual o item manual já é): entrada opcional (reaproveita
   // forma/valorRecebidoTexto, sempre em dinheiro aqui) + 1 ou mais parcelas com valor e vencimento
-  // ajustáveis. Exige cliente selecionado e PIN de supervisor, igual desconto abaixo do mínimo e
-  // estoque negativo já exigem -- mesmo risco financeiro.
+  // ajustáveis. Continua exigindo cliente selecionado (precisa saber de quem cobrar).
   const [fiado, setFiado] = useState(false);
   const [parcelasFiado, setParcelasFiado] = useState<{ valorTexto: string; vencimento: string }[]>([]);
-  const [autorizacaoFiado, setAutorizacaoFiado] = useState<string | null>(null);
-  const [pinFiadoAberto, setPinFiadoAberto] = useState(false);
   const [atrasoFiado, setAtrasoFiado] = useState<AtrasoFiado | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [sucesso, setSucesso] = useState<string | null>(null);
@@ -323,7 +321,6 @@ export function PdvVarejoView({
     setConcederCashback(false);
     setFiado(false);
     setParcelasFiado([]);
-    setAutorizacaoFiado(null);
     setIdempotencyKey(crypto.randomUUID());
   }
 
@@ -347,10 +344,6 @@ export function PdvVarejoView({
     if (fiado) {
       if (!clienteSelecionado) {
         setErro("Venda fiado precisa de um cliente selecionado.");
-        return;
-      }
-      if (!autorizacaoFiado) {
-        setErro("Venda fiado exige autorização de supervisor.");
         return;
       }
       if (parcelasFiado.length === 0 || somaFiado <= 0) {
@@ -428,7 +421,6 @@ export function PdvVarejoView({
               .map((p) => ({ valor: lerMoeda(p.valorTexto) ?? 0, vencimento: p.vencimento }))
               .filter((p) => p.valor > 0) as ParcelaFiado[])
           : undefined,
-        autorizacaoFiadoId: fiado ? (autorizacaoFiado ?? undefined) : undefined,
       });
       if (resultado.erro) {
         setErro(resultado.erro);
@@ -817,7 +809,6 @@ export function PdvVarejoView({
             onChange={(e) => {
               const ligou = e.target.checked;
               setFiado(ligou);
-              setAutorizacaoFiado(null);
               setForma("dinheiro");
               setParcelasFiado(
                 ligou ? [{ valorTexto: total.toFixed(2).replace(".", ","), vencimento: isoEmDias(30) }] : [],
@@ -910,15 +901,6 @@ export function PdvVarejoView({
             >
               + Adicionar parcela
             </button>
-            <button
-              type="button"
-              onClick={() => setPinFiadoAberto(true)}
-              className={`rounded-lg border px-3 py-2 text-sm font-semibold ${
-                autorizacaoFiado ? "border-line text-text-soft" : "border-red-400 text-red-700"
-              }`}
-            >
-              {autorizacaoFiado ? "Venda fiado autorizada" : "Autorizar venda fiado (PIN de supervisor)"}
-            </button>
           </div>
         )}
 
@@ -985,17 +967,6 @@ export function PdvVarejoView({
         }}
       />
 
-      <PinSupervisorModal
-        aberto={pinFiadoAberto}
-        onFechar={() => setPinFiadoAberto(false)}
-        acao="venda_fiado"
-        alvoId={sessao.sessao_id}
-        supervisores={supervisores}
-        onAutorizado={(id) => {
-          setAutorizacaoFiado(id);
-          setPinFiadoAberto(false);
-        }}
-      />
       </div>
     </div>
   );
