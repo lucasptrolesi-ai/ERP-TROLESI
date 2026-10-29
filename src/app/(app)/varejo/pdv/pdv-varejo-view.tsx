@@ -980,8 +980,6 @@ export function PdvVarejoView({
  * aqui — nunca custo/margem, regra do módulo de varejo (ver page.tsx).
  */
 function PainelMetaDoDia({ meta }: { meta: MetaDoDia }) {
-  const router = useRouter();
-  const [atualizando, iniciarAtualizacao] = useTransition();
   const pct = meta.metaDiaria > 0 ? Math.min(1, meta.faturamentoHoje / meta.metaDiaria) : 0;
   const raio = 58;
   const circunferencia = 2 * Math.PI * raio;
@@ -994,12 +992,11 @@ function PainelMetaDoDia({ meta }: { meta: MetaDoDia }) {
     <div className="relative rounded-[16px] border border-line bg-surface p-5 shadow-sm sm:p-6">
     <button
       type="button"
-      onClick={() => iniciarAtualizacao(() => router.refresh())}
-      disabled={atualizando}
-      title="Atualizar números"
-      className="absolute right-4 top-4 flex h-8 w-8 items-center justify-center rounded-full border border-line text-text-soft hover:text-rose-deep disabled:opacity-50"
+      onClick={() => window.location.reload()}
+      title="Recarregar a página"
+      className="absolute right-4 top-4 flex h-8 w-8 items-center justify-center rounded-full border border-line text-text-soft hover:text-rose-deep"
     >
-      <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" className={`h-4 w-4 ${atualizando ? "animate-spin" : ""}`}>
+      <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" className="h-4 w-4">
         <path d="M16.5 9a6.5 6.5 0 1 1-1.9-4.6" strokeLinecap="round" />
         <path d="M16.5 2.5v4.5H12" strokeLinecap="round" strokeLinejoin="round" />
       </svg>
