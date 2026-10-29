@@ -414,6 +414,8 @@ function AbaConfiguracao({ config }: { config: ConfigFinanceira | null }) {
         precoPisoEntradaTexto: String(formData.get("preco_piso_entrada")),
         arredondar90: formData.get("arredondar_90") === "on",
         metaDiariaTexto: String(formData.get("meta_diaria")),
+        metaSemanalTexto: String(formData.get("meta_semanal")),
+        metaMensalTexto: String(formData.get("meta_mensal")),
       });
       if (resultado.erro) {
         setErro(resultado.erro);
@@ -432,7 +434,8 @@ function AbaConfiguracao({ config }: { config: ConfigFinanceira | null }) {
           <p className="mt-1 text-text-soft">
             Fator de venda {config.fator_venda_padrao} (faixa {config.fator_venda_min}–{config.fator_venda_max}) · markup ≈ {markup}× sobre o custo ·
             despesas variáveis {(config.despesas_variaveis_pct * 100).toFixed(1)}% · {config.dias_abertos_mes} dias abertos/mês · encargos{" "}
-            {(config.encargos_clt_pct * 100).toFixed(1)}% · meta diária do PDV {formatarMoeda(config.meta_diaria)}
+            {(config.encargos_clt_pct * 100).toFixed(1)}% · metas do PDV {formatarMoeda(config.meta_diaria)}/dia ·{" "}
+            {formatarMoeda(config.meta_semanal)}/semana · {formatarMoeda(config.meta_mensal)}/mês
           </p>
         </div>
       )}
@@ -453,6 +456,8 @@ function AbaConfiguracao({ config }: { config: ConfigFinanceira | null }) {
           <FormField label="Caixa inicial (R$)" name="caixa_inicial" defaultValue={config?.caixa_inicial ?? 0} />
           <FormField label="Piso de entrada (R$)" name="preco_piso_entrada" defaultValue={config?.preco_piso_entrada ?? 19.9} required />
           <FormField label="Meta diária do PDV (R$)" name="meta_diaria" defaultValue={config?.meta_diaria ?? 500} required />
+          <FormField label="Meta semanal do PDV (R$)" name="meta_semanal" defaultValue={config?.meta_semanal ?? 3000} required />
+          <FormField label="Meta mensal do PDV (R$)" name="meta_mensal" defaultValue={config?.meta_mensal ?? 13000} required />
         </div>
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" name="arredondar_90" defaultChecked={config?.arredondar_90 ?? true} className="h-4 w-4 accent-rose" />

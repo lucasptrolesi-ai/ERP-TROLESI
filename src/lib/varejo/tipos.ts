@@ -150,14 +150,22 @@ export type ConfigFinanceira = {
   preco_piso_entrada: number;
   arredondar_90: boolean;
   meta_diaria: number;
+  meta_semanal: number;
+  meta_mensal: number;
 };
 
 // Painel "Meta do dia" do PDV -- só faturamento bruto, nunca custo/margem (regra do módulo).
+// Semana/mês (2026-10-29): mesma ideia da meta diária, só com outro período -- "meta do dia" ficou
+// o nome por história, mas carrega as três agora.
 export type MetaDoDia = {
   metaDiaria: number;
   faturamentoHoje: number;
   vendasHoje: number;
   ultimosDias: { data: string; total: number }[]; // 7 dias, do mais antigo pro mais recente (hoje por último)
+  metaSemanal: number;
+  faturamentoSemana: number;
+  metaMensal: number;
+  faturamentoMes: number;
 };
 
 export type GastoVarejo = {

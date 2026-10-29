@@ -1,7 +1,7 @@
 import { getPerfilAtual } from "@/lib/supabase/auth";
 import { getContextoSessao } from "@/lib/supabase/contexto";
 import { createClient } from "@/lib/supabase/server";
-import { hojeIso, isoEmDias, dataLocalDoTimestamptz } from "@/lib/datas";
+import { hojeIso, isoEmDias, dataLocalDoTimestamptz, inicioDaSemanaIso, inicioDoMesIso } from "@/lib/datas";
 import { PdvVarejoView } from "./pdv-varejo-view";
 import type { ConfigFinanceira, CupomVarejo, ItemCatalogo, MetaDoDia, SessaoCaixa, Supervisor, VendaDaSessao } from "@/lib/varejo/tipos";
 
@@ -21,10 +21,13 @@ export default async function PdvVarejoPage() {
 
   const supabase = await createClient();
   const hoje = hojeIso();
-  // Janela de 8 dias (margem de 1 dia) pra nunca perder venda de madrugada no agrupamento por dia
-  // local feito em JS logo abaixo (dataLocalDoTimestamptz) -- so os ultimos 7 dias de verdade
-  // chegam na tela.
-  const inicioJanela = `${isoEmDias(-8)}T00:00:00-03:00`;
+  const inicioSemana = inicioDaSemanaIso(hoje);
+  const inicioMes = inicioDoMesIso(hoje);
+  // Janela larga o bastante pra cobrir os ultimos 7 dias (grafico) E o inicio do mes atual (meta
+  // mensal) -- a mais antiga das duas datas, com 1 dia de margem pra nunca perder venda de
+  // madrugada no agrupamento por dia local feito em JS logo abaixo (dataLocalDoTimestamptz).
+  const inicioBusca = [isoEmDias(-8), inicioMes].sort()[0];
+  const inicioJanela = `${inicioBusca}T00:00:00-03:00`;
   const [{ data: sessao }, { data: catalogo }, { data: supervisores }, { data: vendas }, { data: cupons }, { data: configs }, { data: vendasRecentes }] =
     await Promise.all([
       supabase.from("minha_sessao_caixa").select("*").maybeSingle(),
@@ -47,9 +50,14 @@ export default async function PdvVarejoPage() {
   const configVigente = (configs ?? []).find((c) => (c.vigente_desde as string) <= hoje) as ConfigFinanceira | undefined;
 
   const porDia = new Map<string, number>();
+  let faturamentoSemana = 0;
+  let faturamentoMes = 0;
   for (const v of vendasRecentes ?? []) {
     const dia = dataLocalDoTimestamptz(v.criada_em as string);
-    porDia.set(dia, (porDia.get(dia) ?? 0) + (v.total as number));
+    const total = v.total as number;
+    porDia.set(dia, (porDia.get(dia) ?? 0) + total);
+    if (dia >= inicioSemana) faturamentoSemana += total;
+    if (dia >= inicioMes) faturamentoMes += total;
   }
   const ultimosDias = Array.from({ length: 7 }, (_, i) => {
     const data = isoEmDias(-(6 - i));
@@ -60,6 +68,10 @@ export default async function PdvVarejoPage() {
     faturamentoHoje: porDia.get(hoje) ?? 0,
     vendasHoje: (vendasRecentes ?? []).filter((v) => dataLocalDoTimestamptz(v.criada_em as string) === hoje).length,
     ultimosDias,
+    metaSemanal: configVigente?.meta_semanal ?? 3000,
+    faturamentoSemana,
+    metaMensal: configVigente?.meta_mensal ?? 13000,
+    faturamentoMes,
   };
 
   return (

@@ -975,8 +975,9 @@ export function PdvVarejoView({
 /**
  * Painel "Meta do dia" (pedido do usuário, 2026-10-27, aprovado por mockup/Artifact antes de
  * codar): faturamento de hoje (loja inteira, não só a sessão aberta) × meta diária configurável
- * (`varejo_config.meta_diaria`, editável em /varejo/financeiro) + últimos 7 dias. Só faturamento
- * bruto aparece aqui — nunca custo/margem, regra do módulo de varejo (ver page.tsx).
+ * (`varejo_config.meta_diaria`, editável em /varejo/financeiro) + últimos 7 dias. Ganhou meta
+ * semanal/mensal em 2026-10-29, mesmo espírito, também configuráveis. Só faturamento bruto aparece
+ * aqui — nunca custo/margem, regra do módulo de varejo (ver page.tsx).
  */
 function PainelMetaDoDia({ meta }: { meta: MetaDoDia }) {
   const pct = meta.metaDiaria > 0 ? Math.min(1, meta.faturamentoHoje / meta.metaDiaria) : 0;
@@ -988,7 +989,8 @@ function PainelMetaDoDia({ meta }: { meta: MetaDoDia }) {
   const hoje = hojeIso();
 
   return (
-    <div className="grid grid-cols-1 items-center gap-6 rounded-[16px] border border-line bg-surface p-5 shadow-sm sm:p-6 lg:grid-cols-[auto_1px_1fr]">
+    <div className="rounded-[16px] border border-line bg-surface p-5 shadow-sm sm:p-6">
+    <div className="grid grid-cols-1 items-center gap-6 lg:grid-cols-[auto_1px_1fr]">
       <div className="flex items-center gap-5">
         <div className="relative h-[116px] w-[116px] shrink-0">
           <svg viewBox="0 0 136 136" className="h-full w-full -rotate-90">
@@ -1073,6 +1075,39 @@ function PainelMetaDoDia({ meta }: { meta: MetaDoDia }) {
           })}
         </div>
       </div>
+    </div>
+
+    <div className="mt-5 grid grid-cols-1 gap-4 border-t border-line pt-4 sm:grid-cols-2">
+      <MedidorPeriodo rotulo="Meta da semana" faturamento={meta.faturamentoSemana} meta={meta.metaSemanal} />
+      <MedidorPeriodo rotulo="Meta do mês" faturamento={meta.faturamentoMes} meta={meta.metaMensal} />
+    </div>
+    </div>
+  );
+}
+
+/** Barra horizontal (não anel, pra não competir com a meta diária, que é a métrica principal do
+ * painel) pra semana/mês -- mesmo padrão visual já usado em /varejo/financeiro (AbaResumo). */
+function MedidorPeriodo({ rotulo, faturamento, meta }: { rotulo: string; faturamento: number; meta: number }) {
+  const pct = meta > 0 ? Math.min(1, faturamento / meta) : 0;
+  const falta = Math.max(0, meta - faturamento);
+  const bateu = faturamento >= meta;
+  return (
+    <div>
+      <div className="flex items-baseline justify-between">
+        <span className="text-[11px] font-bold uppercase tracking-wide text-text-soft">{rotulo}</span>
+        <span className="text-xs font-semibold tabular-nums text-ink">
+          {formatarMoeda(faturamento)} <span className="font-normal text-text-soft">/ {formatarMoeda(meta)}</span>
+        </span>
+      </div>
+      <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-cream">
+        <div
+          className={`h-full rounded-full ${bateu ? "bg-ok" : "bg-gradient-to-r from-gold-start to-rose-deep"}`}
+          style={{ width: `${pct * 100}%` }}
+        />
+      </div>
+      <p className={`mt-1.5 text-[11px] font-semibold ${bateu ? "text-ok" : "text-text-soft"}`}>
+        {bateu ? `Meta batida — ${formatarMoeda(faturamento - meta)} acima` : `Faltam ${formatarMoeda(falta)} (${Math.round(pct * 100)}%)`}
+      </p>
     </div>
   );
 }

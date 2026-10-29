@@ -75,3 +75,28 @@ export function formatarDataHoraIso(iso: string): string {
 export function comoTimestamptzBrasilia(dataIso: string): string {
   return `${dataIso}T12:00:00-03:00`;
 }
+
+// Primeiro dia do mês de uma data "AAAA-MM-DD" -- só string, sem Date nenhum
+// envolvido (não tem fuso pra deslocar).
+export function inicioDoMesIso(dataIso: string): string {
+  return `${dataIso.slice(0, 7)}-01`;
+}
+
+/** Segunda-feira da semana que contém `dataIso` (semana começa na segunda,
+ * convenção comercial). O `Date.UTC` aqui é só ferramenta de aritmética de
+ * calendário (dia da semana, subtração de dias) -- nunca passa por
+ * `paraIso`/formatador com fuso, que reintroduziria o mesmo deslocamento que
+ * esse arquivo existe pra evitar. Lê e escreve os componentes Y-M-D direto
+ * com os getters/campos UTC, então o resultado bate exatamente com a
+ * aritmética, sem reinterpretação de fuso no meio. */
+export function inicioDaSemanaIso(dataIso: string): string {
+  const [ano, mes, dia] = dataIso.split("-").map(Number);
+  const data = new Date(Date.UTC(ano, mes - 1, dia));
+  const diaSemana = data.getUTCDay(); // 0 = domingo, 1 = segunda, ..., 6 = sábado
+  const deslocamento = diaSemana === 0 ? 6 : diaSemana - 1;
+  data.setUTCDate(data.getUTCDate() - deslocamento);
+  const y = data.getUTCFullYear();
+  const m = String(data.getUTCMonth() + 1).padStart(2, "0");
+  const d = String(data.getUTCDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}

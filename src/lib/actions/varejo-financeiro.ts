@@ -86,6 +86,8 @@ export async function criarVigenciaConfig(dados: {
   precoPisoEntradaTexto: string;
   arredondar90: boolean;
   metaDiariaTexto: string;
+  metaSemanalTexto: string;
+  metaMensalTexto: string;
 }): Promise<{ erro?: string }> {
   const caixaInicial = lerMoeda(dados.caixaInicialTexto) ?? 0;
   const precoPisoEntrada = lerMoeda(dados.precoPisoEntradaTexto);
@@ -94,6 +96,10 @@ export async function criarVigenciaConfig(dados: {
   if (dados.diasAbertosMes < 1 || dados.diasAbertosMes > 31) return { erro: "Dias abertos no mês inválido." };
   const metaDiaria = lerMoeda(dados.metaDiariaTexto);
   if (metaDiaria === null || metaDiaria <= 0) return { erro: "Informe a meta diária." };
+  const metaSemanal = lerMoeda(dados.metaSemanalTexto);
+  if (metaSemanal === null || metaSemanal <= 0) return { erro: "Informe a meta semanal." };
+  const metaMensal = lerMoeda(dados.metaMensalTexto);
+  if (metaMensal === null || metaMensal <= 0) return { erro: "Informe a meta mensal." };
 
   return inserir("varejo_config", {
     vigente_desde: primeiroDiaDoMes(dados.vigenteDesde),
@@ -109,6 +115,8 @@ export async function criarVigenciaConfig(dados: {
     preco_piso_entrada: precoPisoEntrada,
     arredondar_90: dados.arredondar90,
     meta_diaria: metaDiaria,
+    meta_semanal: metaSemanal,
+    meta_mensal: metaMensal,
   });
 }
 
@@ -337,6 +345,8 @@ export async function importarControleAntigo(jsonTexto: string): Promise<{ erro?
       precoPisoEntradaTexto: "19.90",
       arredondar90: true,
       metaDiariaTexto: "500",
+      metaSemanalTexto: "3000",
+      metaMensalTexto: "13000",
     });
     if (r.erro) return { erro: `Config: ${r.erro}` };
     partes.push("configuração importada");
