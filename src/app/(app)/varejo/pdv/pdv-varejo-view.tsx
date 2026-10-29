@@ -1021,30 +1021,32 @@ function PainelMetaDoDia({ meta, podeEditarMetas }: { meta: MetaDoDia; podeEdita
   }
 
   return (
-    <div className="relative rounded-[16px] border border-line bg-surface p-5 shadow-sm sm:p-6">
-    {podeEditarMetas && (
+    <div className="rounded-[16px] border border-line bg-surface p-5 shadow-sm sm:p-6">
+    <div className="mb-4 flex justify-end gap-2">
+      {podeEditarMetas && (
+        <button
+          type="button"
+          onClick={abrirEdicao}
+          title="Editar metas"
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-line text-text-soft hover:text-rose-deep"
+        >
+          <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" className="h-4 w-4">
+            <path d="M13.3 3.3l3.4 3.4L6.3 17.1l-3.8.5.5-3.8L13.3 3.3z" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
+      )}
       <button
         type="button"
-        onClick={abrirEdicao}
-        title="Editar metas"
-        className="absolute right-14 top-4 flex h-8 w-8 items-center justify-center rounded-full border border-line text-text-soft hover:text-rose-deep"
+        onClick={() => window.location.reload()}
+        title="Recarregar a página"
+        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-line text-text-soft hover:text-rose-deep"
       >
         <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" className="h-4 w-4">
-          <path d="M13.3 3.3l3.4 3.4L6.3 17.1l-3.8.5.5-3.8L13.3 3.3z" strokeLinecap="round" strokeLinejoin="round" />
+          <path d="M16.5 9a6.5 6.5 0 1 1-1.9-4.6" strokeLinecap="round" />
+          <path d="M16.5 2.5v4.5H12" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       </button>
-    )}
-    <button
-      type="button"
-      onClick={() => window.location.reload()}
-      title="Recarregar a página"
-      className="absolute right-4 top-4 flex h-8 w-8 items-center justify-center rounded-full border border-line text-text-soft hover:text-rose-deep"
-    >
-      <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" className="h-4 w-4">
-        <path d="M16.5 9a6.5 6.5 0 1 1-1.9-4.6" strokeLinecap="round" />
-        <path d="M16.5 2.5v4.5H12" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
-    </button>
+    </div>
     {editando && (
       <Modal aberto onFechar={() => setEditando(false)} titulo="Editar metas do PDV">
         <form
