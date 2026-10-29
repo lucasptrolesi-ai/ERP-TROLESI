@@ -59,7 +59,7 @@ export default async function FinanceiroVarejoPage({ searchParams }: { searchPar
   if (perfil.papel !== "admin") {
     return <Aviso texto="O Controle Financeiro é restrito a administradores." />;
   }
-  if (contexto?.operacao_codigo !== "VAREJO") {
+  if (contexto?.operacao_codigo !== "VAREJO" && !contexto?.dono) {
     return <Aviso texto="Troque para a operação Varejo (seletor no topo) para acessar o Controle Financeiro." />;
   }
 

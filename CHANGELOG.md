@@ -1,5 +1,15 @@
 # CHANGELOG — ERP Trolesi
 
+## 2026-10-29 (cont.) — Acesso total pro login do Lucas
+
+Pedido do usuário: "eu lucas no meu login eu posso fazer o que eu quiser a qualquer momento". Amarrado ao id da conta dele (não ao papel "admin" em geral — escolha explícita, pra não se estender sozinho a um futuro segundo admin). Três frentes:
+
+- **PIN de supervisor**: `autorizar_acao` bloqueava "autoautorização" sem exceção (nem o dono podia aprovar a própria ação sensível). Agora só bloqueia quando não for o dono — ele se autoautoriza com o próprio PIN (`supervisores` já tem uma linha dele no Varejo). Carona: a function tinha DUAS sobrecargas coexistindo (resto de uma troca de ordem de parâmetro numa migration anterior sem `DROP` — mesma lição já documentada em 20261028000001/2), uma delas com `EXECUTE` liberado pra `anon`; esta migration derruba a sobrecarga antiga.
+- **Rotas/papel**: `decidirAcesso` (`src/lib/autorizacao/rotas.ts`) ganha bypass total quando `contexto.dono` vier `true` (continua negando rota sem declaração — isso não é permissão, é a página não existir). 12 páginas que tinham checagem redundante de `operacao_codigo` (além do middleware) ganharam `&& !contexto?.dono`.
+- **Trava de operação (RLS)**: nova function `public.sou_dono()` (id fixo do Lucas). As políticas RESTRICTIVE "escopo de operação" — 52 tabelas com o padrão idêntico `operacao_id = operacao_atual()`, mais `audit_log`/`empresas`/`transferencias`/`storage.objects` com variações — ganham `OR public.sou_dono()`. `pdv_supervisores` também passa a listar o próprio dono (hoje sempre excluído da lista, pra PIN pedir outra pessoa).
+- Migration `20261029000002_acesso_total_lucas.sql`: ensaio com 5 testes de comportamento (sou_dono, autoautorização de PIN, RLS cruzando operação via `clientes`, `pdv_supervisores`, `contexto_sessao`). **Ainda não aplicada** — o usuário roda via `scripts/rodar-sql.mjs` (migration grande demais pro Editor do Dashboard).
+- `tsc`/lint/`vitest` (182 testes, 3 novos)/build confirmados limpos.
+
 ## 2026-10-29 (cont.) — Metas do PDV editáveis direto no painel "Meta do dia"
 
 Pedido do usuário: "quero que mude isso, colocar no painel mesmo, no no financeiro" — editar a meta diária/semanal/mensal sem precisar ir em `/varejo/financeiro` → Configuração.

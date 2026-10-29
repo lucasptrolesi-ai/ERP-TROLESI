@@ -10,7 +10,7 @@ export default async function TransferenciaPage() {
   if (perfil.papel !== "admin") {
     return <Aviso texto="Só administradores transferem estoque entre operações." />;
   }
-  if (contexto?.operacao_codigo !== "ATACADO") {
+  if (contexto?.operacao_codigo !== "ATACADO" && !contexto?.dono) {
     return <Aviso texto="Troque para a operação Atacado (seletor no topo) para transferir para o varejo." />;
   }
 

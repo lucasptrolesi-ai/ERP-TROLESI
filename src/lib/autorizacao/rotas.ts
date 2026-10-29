@@ -23,6 +23,9 @@ export type ContextoAcesso = {
   papel: string | null;
   operacaoCodigo: string | null;
   operacoes: readonly { codigo: string; ativa: boolean }[];
+  /** true só pro login do Lucas (pedido explícito do usuário, 2026-10-29: "no meu login eu posso
+   * fazer o que eu quiser a qualquer momento") — pula papel e operação, nunca "sem_declaracao". */
+  dono?: boolean;
 };
 
 export type MotivoNegacao = "sem_declaracao" | "sem_contexto" | "sem_operacao" | "papel" | "operacao_errada";
@@ -98,6 +101,8 @@ export function decidirAcesso(caminho: string, contexto: ContextoAcesso | null):
 
   const regra = encontrarRegra(caminho);
   if (!regra) return { permitido: false, motivo: "sem_declaracao" };
+
+  if (contexto.dono) return { permitido: true };
 
   if (!contexto.papel) return { permitido: false, motivo: "papel" };
   if (regra.papeis && !regra.papeis.includes(contexto.papel)) return { permitido: false, motivo: "papel" };

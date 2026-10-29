@@ -11,7 +11,7 @@ export default async function ModelosEtiquetaPage() {
   if (perfil.papel !== "admin" && perfil.papel !== "estoque") {
     return <Aviso texto="Só administradores e o time de estoque acessam Etiquetas." />;
   }
-  if (contexto?.operacao_codigo !== "VAREJO") {
+  if (contexto?.operacao_codigo !== "VAREJO" && !contexto?.dono) {
     return <Aviso texto="Troque para a operação Varejo (seletor no topo) para acessar Etiquetas." />;
   }
 

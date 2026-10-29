@@ -15,7 +15,7 @@ export default async function CrediarioVarejoPage() {
   if (perfil.papel !== "admin") {
     return <Aviso texto="O crediário do Varejo é restrito a administradores." />;
   }
-  if (contexto?.operacao_codigo !== "VAREJO") {
+  if (contexto?.operacao_codigo !== "VAREJO" && !contexto?.dono) {
     return <Aviso texto="Troque para a operação Varejo (seletor no topo) para acessar o crediário." />;
   }
 

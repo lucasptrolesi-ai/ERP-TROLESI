@@ -26,6 +26,7 @@ async function decidirAcessoDaSessao(supabase: SupabaseClient, caminho: string):
     papel: contexto.papel,
     operacaoCodigo: contexto.operacao_codigo,
     operacoes: contexto.operacoes,
+    dono: contexto.dono,
   });
 }
 

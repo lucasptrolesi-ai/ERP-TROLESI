@@ -86,6 +86,24 @@ describe("decidirAcesso — Módulo Etiquetas", () => {
   });
 });
 
+describe("decidirAcesso — dono", () => {
+  const dono: ContextoAcesso = { papel: "admin", operacaoCodigo: "VAREJO", operacoes: [{ codigo: "VAREJO", ativa: true }], dono: true };
+
+  it("pula papel e operação pro dono", () => {
+    expect(decidirAcesso("/relatorios", dono).permitido).toBe(true);
+    expect(decidirAcesso("/pedidos", dono).permitido).toBe(true);
+    expect(decidirAcesso("/dashboard", dono).permitido).toBe(true);
+  });
+
+  it("dono sem papel nenhum ainda assim passa", () => {
+    expect(decidirAcesso("/pedidos", { papel: null, operacaoCodigo: null, operacoes: [], dono: true }).permitido).toBe(true);
+  });
+
+  it("mesmo dono continua negado em rota sem declaração", () => {
+    expect(decidirAcesso("/rota-que-nao-existe", dono)).toEqual({ permitido: false, motivo: "sem_declaracao" });
+  });
+});
+
 describe("destinoInicial", () => {
   it("cada operação abre na sua tela principal", () => {
     expect(destinoInicial("ATACADO")).toBe("/pedidos");

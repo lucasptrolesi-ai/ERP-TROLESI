@@ -15,7 +15,7 @@ export default async function DashboardAtacadoPage() {
   if (perfil.papel !== "admin") {
     return <Aviso texto="O painel do Atacado é restrito a administradores." />;
   }
-  if (contexto?.operacao_codigo !== "ATACADO") {
+  if (contexto?.operacao_codigo !== "ATACADO" && !contexto?.dono) {
     return <Aviso texto="Troque para a operação Atacado (seletor no topo) para ver este painel." />;
   }
 

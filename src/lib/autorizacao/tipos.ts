@@ -17,4 +17,7 @@ export type ContextoSessao = {
   operacoes: OperacaoDoUsuario[];
   /** Permissões especiais concedidas ao usuário na operação atual. */
   permissoes: string[];
+  /** true só para o login do Lucas (ver public.sou_dono() no banco) — acesso total, sem as travas
+   * normais de papel/operação/PIN. Amarrado ao id da conta, não ao papel "admin" em geral. */
+  dono: boolean;
 };

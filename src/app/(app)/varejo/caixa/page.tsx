@@ -11,7 +11,7 @@ export default async function CaixaVarejoPage() {
   if (perfil.papel !== "admin" && perfil.papel !== "vendedor") {
     return <Aviso texto="Você não tem permissão para acessar o caixa do varejo." />;
   }
-  if (contexto?.operacao_codigo !== "VAREJO") {
+  if (contexto?.operacao_codigo !== "VAREJO" && !contexto?.dono) {
     return <Aviso texto="Troque para a operação Varejo (seletor no topo) para acessar o caixa." />;
   }
 
