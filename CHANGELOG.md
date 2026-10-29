@@ -1,6 +1,6 @@
 # CHANGELOG — ERP Trolesi
 
-## 2026-10-29 — Painel "Meta do dia" ganha meta semanal e mensal, aguardando ensaio
+## 2026-10-29 — Painel "Meta do dia" ganha meta semanal e mensal
 
 Pedido do usuário: "preciso de um medidor de meta assim como eu tenho o diario, porem semana e mensal, ajustaveis".
 
@@ -8,6 +8,7 @@ Pedido do usuário: "preciso de um medidor de meta assim como eu tenho o diario,
 - `src/lib/datas.ts`: dois helpers novos, `inicioDoMesIso` (string pura, sem fuso) e `inicioDaSemanaIso` (segunda-feira da semana, aritmética de calendário via `Date.UTC` só como ferramenta -- nunca reformata com fuso, pra não reintroduzir o bug que esse arquivo existe pra evitar).
 - `/varejo/pdv`: a janela de busca de vendas alarga pra cobrir o início do mês (não só os 7 dias do gráfico); painel ganha duas barras horizontais abaixo do anel diário (semana e mês), mesmo padrão visual já usado em `/varejo/financeiro`.
 - `tsc`/lint/`vitest`/build confirmados limpos.
+- **Aplicado em produção** e confirmado via introspecção: `meta_diaria R$500`, `meta_semanal R$3.000`, `meta_mensal R$13.000`.
 
 ## 2026-10-28 (cont.) — Venda fiado deixa de exigir PIN de supervisor
 
