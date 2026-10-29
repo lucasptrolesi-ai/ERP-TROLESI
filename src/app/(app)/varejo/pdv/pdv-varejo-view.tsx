@@ -8,6 +8,7 @@ import { arredondarMoeda, lerMoeda } from "@/lib/dinheiro";
 import { filtra } from "@/lib/filtra";
 import { formatarDataIso, hojeIso, isoEmDias } from "@/lib/datas";
 import { buscarAtrasoFiado, cancelarVenda, registrarVenda } from "@/lib/actions/varejo";
+import { editarMetasVarejo } from "@/lib/actions/varejo-financeiro";
 import {
   calcularLinha,
   calcularTotais,
@@ -51,6 +52,7 @@ export function PdvVarejoView({
   vendas,
   cupons,
   metaDoDia,
+  podeEditarMetas,
 }: {
   sessao: SessaoCaixa | null;
   catalogo: ItemCatalogo[];
@@ -58,6 +60,7 @@ export function PdvVarejoView({
   vendas: VendaDaSessao[];
   cupons: CupomVarejo[];
   metaDoDia: MetaDoDia;
+  podeEditarMetas: boolean;
 }) {
   const router = useRouter();
   const [busca, setBusca] = useState("");
@@ -448,7 +451,7 @@ export function PdvVarejoView({
 
   return (
     <div className="flex flex-col gap-4">
-      <PainelMetaDoDia meta={metaDoDia} />
+      <PainelMetaDoDia meta={metaDoDia} podeEditarMetas={podeEditarMetas} />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1.1fr_1fr]">
       <div className="flex flex-col gap-3 rounded-[14px] border border-line bg-surface p-4 shadow-sm sm:p-5">
@@ -979,7 +982,8 @@ export function PdvVarejoView({
  * semanal/mensal em 2026-10-29, mesmo espírito, também configuráveis. Só faturamento bruto aparece
  * aqui — nunca custo/margem, regra do módulo de varejo (ver page.tsx).
  */
-function PainelMetaDoDia({ meta }: { meta: MetaDoDia }) {
+function PainelMetaDoDia({ meta, podeEditarMetas }: { meta: MetaDoDia; podeEditarMetas: boolean }) {
+  const router = useRouter();
   const pct = meta.metaDiaria > 0 ? Math.min(1, meta.faturamentoHoje / meta.metaDiaria) : 0;
   const raio = 58;
   const circunferencia = 2 * Math.PI * raio;
@@ -988,8 +992,48 @@ function PainelMetaDoDia({ meta }: { meta: MetaDoDia }) {
   const maiorValor = Math.max(meta.metaDiaria, ...meta.ultimosDias.map((d) => d.total), 1);
   const hoje = hojeIso();
 
+  const [editando, setEditando] = useState(false);
+  const [metaDiariaTexto, setMetaDiariaTexto] = useState(String(meta.metaDiaria));
+  const [metaSemanalTexto, setMetaSemanalTexto] = useState(String(meta.metaSemanal));
+  const [metaMensalTexto, setMetaMensalTexto] = useState(String(meta.metaMensal));
+  const [erroEdicao, setErroEdicao] = useState("");
+  const [salvando, startSalvar] = useTransition();
+
+  function abrirEdicao() {
+    setMetaDiariaTexto(String(meta.metaDiaria));
+    setMetaSemanalTexto(String(meta.metaSemanal));
+    setMetaMensalTexto(String(meta.metaMensal));
+    setErroEdicao("");
+    setEditando(true);
+  }
+
+  function salvarMetas() {
+    setErroEdicao("");
+    startSalvar(async () => {
+      const resultado = await editarMetasVarejo({ metaDiariaTexto, metaSemanalTexto, metaMensalTexto });
+      if (resultado.erro) {
+        setErroEdicao(resultado.erro);
+        return;
+      }
+      setEditando(false);
+      router.refresh();
+    });
+  }
+
   return (
     <div className="relative rounded-[16px] border border-line bg-surface p-5 shadow-sm sm:p-6">
+    {podeEditarMetas && (
+      <button
+        type="button"
+        onClick={abrirEdicao}
+        title="Editar metas"
+        className="absolute right-14 top-4 flex h-8 w-8 items-center justify-center rounded-full border border-line text-text-soft hover:text-rose-deep"
+      >
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" className="h-4 w-4">
+          <path d="M13.3 3.3l3.4 3.4L6.3 17.1l-3.8.5.5-3.8L13.3 3.3z" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </button>
+    )}
     <button
       type="button"
       onClick={() => window.location.reload()}
@@ -1001,6 +1045,56 @@ function PainelMetaDoDia({ meta }: { meta: MetaDoDia }) {
         <path d="M16.5 2.5v4.5H12" strokeLinecap="round" strokeLinejoin="round" />
       </svg>
     </button>
+    {editando && (
+      <Modal aberto onFechar={() => setEditando(false)} titulo="Editar metas do PDV">
+        <form
+          className="flex flex-col gap-3"
+          onSubmit={(e) => {
+            e.preventDefault();
+            salvarMetas();
+          }}
+        >
+          <label className="flex flex-col gap-1 text-sm">
+            Meta diária (R$)
+            <input
+              type="text"
+              inputMode="decimal"
+              value={metaDiariaTexto}
+              onChange={(e) => setMetaDiariaTexto(e.target.value)}
+              className="rounded-lg border border-line bg-surface px-3 py-2"
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-sm">
+            Meta semanal (R$)
+            <input
+              type="text"
+              inputMode="decimal"
+              value={metaSemanalTexto}
+              onChange={(e) => setMetaSemanalTexto(e.target.value)}
+              className="rounded-lg border border-line bg-surface px-3 py-2"
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-sm">
+            Meta mensal (R$)
+            <input
+              type="text"
+              inputMode="decimal"
+              value={metaMensalTexto}
+              onChange={(e) => setMetaMensalTexto(e.target.value)}
+              className="rounded-lg border border-line bg-surface px-3 py-2"
+            />
+          </label>
+          {erroEdicao && <p className="text-sm text-red-700">{erroEdicao}</p>}
+          <button
+            type="submit"
+            disabled={salvando}
+            className="rounded-lg bg-gradient-to-br from-gold-start to-gold-end px-4 py-2.5 font-semibold text-gold-ink disabled:opacity-60"
+          >
+            {salvando ? "Salvando…" : "Salvar metas"}
+          </button>
+        </form>
+      </Modal>
+    )}
     <div className="grid grid-cols-1 items-center gap-6 lg:grid-cols-[auto_1px_1fr]">
       <div className="flex items-center gap-5">
         <div className="relative h-[116px] w-[116px] shrink-0">

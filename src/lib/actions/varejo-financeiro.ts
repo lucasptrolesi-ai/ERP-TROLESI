@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { lerMoeda } from "@/lib/dinheiro";
+import { hojeIso } from "@/lib/datas";
 import { mesSeguinte } from "@/lib/varejo/financeiro";
 
 /**
@@ -68,6 +69,47 @@ function validarTextoEValor(
   const valor = lerMoeda(valorTexto);
   if (valor === null || valor <= 0) return { erro: `Informe ${rotuloValor}.` };
   return { valor };
+}
+
+// --- Metas do PDV (editável direto no painel, por cima da vigência atual) ----------------------
+
+/** Metas (diária/semanal/mensal) são só um alvo de acompanhamento, não uma fórmula financeira que
+ * precisa de histórico por vigência (diferente de fator_venda/despesas_variáveis, que afetam o piso
+ * de prejuízo calculado — mudar isso precisa ficar registrado a partir de quando valeu). Por isso
+ * editam a vigência ATUAL direto (pedido do usuário, 2026-10-29: editar no painel do PDV, não mais
+ * só em "Nova vigência" no Configuração) -- o resto dos parâmetros continua insert-only.
+ */
+export async function editarMetasVarejo(dados: {
+  metaDiariaTexto: string;
+  metaSemanalTexto: string;
+  metaMensalTexto: string;
+}): Promise<{ erro?: string }> {
+  const metaDiaria = lerMoeda(dados.metaDiariaTexto);
+  if (metaDiaria === null || metaDiaria <= 0) return { erro: "Informe a meta diária." };
+  const metaSemanal = lerMoeda(dados.metaSemanalTexto);
+  if (metaSemanal === null || metaSemanal <= 0) return { erro: "Informe a meta semanal." };
+  const metaMensal = lerMoeda(dados.metaMensalTexto);
+  if (metaMensal === null || metaMensal <= 0) return { erro: "Informe a meta mensal." };
+
+  const supabase = await createClient();
+  const hoje = hojeIso();
+  const { data: configs, error: erroLeitura } = await supabase
+    .from("varejo_config")
+    .select("id, vigente_desde")
+    .order("vigente_desde", { ascending: false });
+  if (erroLeitura) return { erro: "Não foi possível localizar a configuração vigente." };
+  const vigente = (configs ?? []).find((c) => c.vigente_desde <= hoje);
+  if (!vigente) return { erro: "Nenhuma configuração vigente encontrada." };
+
+  const { error } = await supabase
+    .from("varejo_config")
+    .update({ meta_diaria: metaDiaria, meta_semanal: metaSemanal, meta_mensal: metaMensal })
+    .eq("id", vigente.id);
+  if (error) return { erro: mensagem(error) };
+
+  revalidatePath("/varejo/pdv", "layout");
+  revalidatePath("/varejo/financeiro", "layout");
+  return {};
 }
 
 // --- Configuração (vigência, insert-only) -------------------------------------------------------

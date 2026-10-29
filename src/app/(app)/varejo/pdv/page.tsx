@@ -82,6 +82,7 @@ export default async function PdvVarejoPage() {
       vendas={(vendas ?? []) as VendaDaSessao[]}
       cupons={(cupons ?? []) as CupomVarejo[]}
       metaDoDia={metaDoDia}
+      podeEditarMetas={perfil.papel === "admin"}
     />
   );
 }

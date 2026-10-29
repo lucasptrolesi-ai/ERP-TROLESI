@@ -1,5 +1,13 @@
 # CHANGELOG — ERP Trolesi
 
+## 2026-10-29 (cont.) — Metas do PDV editáveis direto no painel "Meta do dia"
+
+Pedido do usuário: "quero que mude isso, colocar no painel mesmo, no no financeiro" — editar a meta diária/semanal/mensal sem precisar ir em `/varejo/financeiro` → Configuração.
+
+- `src/lib/actions/varejo-financeiro.ts`: nova action `editarMetasVarejo`, que faz `UPDATE` direto na vigência atual de `varejo_config` (só nessas 3 colunas). Decisão de design: meta é só um alvo de acompanhamento, não uma fórmula financeira com efeito retroativo (diferente de `fator_venda_padrao`/`despesas_variaveis_pct`, que afetam o piso de prejuízo calculado e por isso continuam exigindo "Nova vigência"), então não precisa de histórico por vigência — edição em cima da linha vigente é suficiente e mais rápida pro uso do dia a dia.
+- `/varejo/pdv`: painel "Meta do dia" ganha um botão de lápis (visível só pra `admin`, ao lado do botão de recarregar) que abre um modal com os 3 campos, pré-preenchidos com os valores atuais; salvar chama `editarMetasVarejo` e atualiza a tela via `router.refresh()`.
+- `tsc`/lint/`vitest`/build confirmados limpos. Nenhuma migration nova — reaproveita as colunas `meta_diaria`/`meta_semanal`/`meta_mensal` já aplicadas em produção.
+
 ## 2026-10-29 — Painel "Meta do dia" ganha meta semanal e mensal
 
 Pedido do usuário: "preciso de um medidor de meta assim como eu tenho o diario, porem semana e mensal, ajustaveis".
