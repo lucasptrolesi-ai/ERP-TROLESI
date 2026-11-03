@@ -9,5 +9,8 @@
   },
   "dependencies": {
     "usb": "^2.18.0"
+  },
+  "allowScripts": {
+    "usb@2.18.0": true
   }
 }
