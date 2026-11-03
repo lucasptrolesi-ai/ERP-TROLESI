@@ -3,7 +3,6 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { lerMoeda } from "@/lib/dinheiro";
-import { hojeIso } from "@/lib/datas";
 import { mesSeguinte } from "@/lib/varejo/financeiro";
 
 /**
@@ -78,6 +77,12 @@ function validarTextoEValor(
  * de prejuízo calculado — mudar isso precisa ficar registrado a partir de quando valeu). Por isso
  * editam a vigência ATUAL direto (pedido do usuário, 2026-10-29: editar no painel do PDV, não mais
  * só em "Nova vigência" no Configuração) -- o resto dos parâmetros continua insert-only.
+ *
+ * Sem checagem de papel aqui de propósito (pedido do usuário, 2026-11-03: "não peça permissão,
+ * qualquer pessoal possa editar") — quem garante isso é o RPC `editar_metas_varejo` (SECURITY
+ * DEFINER, migration 20261103000001), que só toca meta_diaria/meta_semanal/meta_mensal; o resto de
+ * `varejo_config` (fator_venda_padrão, despesas_variáveis etc. — dado de margem) continua admin-only
+ * via RLS, porque essa action nunca faz select/update direto na tabela.
  */
 export async function editarMetasVarejo(dados: {
   metaDiariaTexto: string;
@@ -92,19 +97,11 @@ export async function editarMetasVarejo(dados: {
   if (metaMensal === null || metaMensal <= 0) return { erro: "Informe a meta mensal." };
 
   const supabase = await createClient();
-  const hoje = hojeIso();
-  const { data: configs, error: erroLeitura } = await supabase
-    .from("varejo_config")
-    .select("id, vigente_desde")
-    .order("vigente_desde", { ascending: false });
-  if (erroLeitura) return { erro: "Não foi possível localizar a configuração vigente." };
-  const vigente = (configs ?? []).find((c) => c.vigente_desde <= hoje);
-  if (!vigente) return { erro: "Nenhuma configuração vigente encontrada." };
-
-  const { error } = await supabase
-    .from("varejo_config")
-    .update({ meta_diaria: metaDiaria, meta_semanal: metaSemanal, meta_mensal: metaMensal })
-    .eq("id", vigente.id);
+  const { error } = await supabase.rpc("editar_metas_varejo", {
+    p_meta_diaria: metaDiaria,
+    p_meta_semanal: metaSemanal,
+    p_meta_mensal: metaMensal,
+  });
   if (error) return { erro: mensagem(error) };
 
   revalidatePath("/varejo/pdv", "layout");

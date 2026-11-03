@@ -52,7 +52,6 @@ export function PdvVarejoView({
   vendas,
   cupons,
   metaDoDia,
-  podeEditarMetas,
 }: {
   sessao: SessaoCaixa | null;
   catalogo: ItemCatalogo[];
@@ -60,7 +59,6 @@ export function PdvVarejoView({
   vendas: VendaDaSessao[];
   cupons: CupomVarejo[];
   metaDoDia: MetaDoDia;
-  podeEditarMetas: boolean;
 }) {
   const router = useRouter();
   const [busca, setBusca] = useState("");
@@ -451,7 +449,7 @@ export function PdvVarejoView({
 
   return (
     <div className="flex flex-col gap-4">
-      <PainelMetaDoDia meta={metaDoDia} podeEditarMetas={podeEditarMetas} />
+      <PainelMetaDoDia meta={metaDoDia} />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1.1fr_1fr]">
       <div className="flex flex-col gap-3 rounded-[14px] border border-line bg-surface p-4 shadow-sm sm:p-5">
@@ -982,7 +980,7 @@ export function PdvVarejoView({
  * semanal/mensal em 2026-10-29, mesmo espírito, também configuráveis. Só faturamento bruto aparece
  * aqui — nunca custo/margem, regra do módulo de varejo (ver page.tsx).
  */
-function PainelMetaDoDia({ meta, podeEditarMetas }: { meta: MetaDoDia; podeEditarMetas: boolean }) {
+function PainelMetaDoDia({ meta }: { meta: MetaDoDia }) {
   const router = useRouter();
   const pct = meta.metaDiaria > 0 ? Math.min(1, meta.faturamentoHoje / meta.metaDiaria) : 0;
   const raio = 58;
@@ -1023,18 +1021,16 @@ function PainelMetaDoDia({ meta, podeEditarMetas }: { meta: MetaDoDia; podeEdita
   return (
     <div className="rounded-[16px] border border-line bg-surface p-5 shadow-sm sm:p-6">
     <div className="mb-4 flex justify-end gap-2">
-      {podeEditarMetas && (
-        <button
-          type="button"
-          onClick={abrirEdicao}
-          title="Editar metas"
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-line text-text-soft hover:text-rose-deep"
-        >
-          <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" className="h-4 w-4">
-            <path d="M13.3 3.3l3.4 3.4L6.3 17.1l-3.8.5.5-3.8L13.3 3.3z" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </button>
-      )}
+      <button
+        type="button"
+        onClick={abrirEdicao}
+        title="Editar metas"
+        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-line text-text-soft hover:text-rose-deep"
+      >
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" className="h-4 w-4">
+          <path d="M13.3 3.3l3.4 3.4L6.3 17.1l-3.8.5.5-3.8L13.3 3.3z" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </button>
       <button
         type="button"
         onClick={() => window.location.reload()}

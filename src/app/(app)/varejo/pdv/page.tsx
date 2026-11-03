@@ -3,7 +3,7 @@ import { getContextoSessao } from "@/lib/supabase/contexto";
 import { createClient } from "@/lib/supabase/server";
 import { hojeIso, isoEmDias, dataLocalDoTimestamptz, inicioDaSemanaIso, inicioDoMesIso } from "@/lib/datas";
 import { PdvVarejoView } from "./pdv-varejo-view";
-import type { ConfigFinanceira, CupomVarejo, ItemCatalogo, MetaDoDia, SessaoCaixa, Supervisor, VendaDaSessao } from "@/lib/varejo/tipos";
+import type { CupomVarejo, ItemCatalogo, MetaDoDia, SessaoCaixa, Supervisor, VendaDaSessao } from "@/lib/varejo/tipos";
 
 // Venda do varejo: custo e margem NUNCA aparecem aqui, em nenhuma hipótese — regra do módulo de
 // varejo, independente do papel. As views do banco (pdv_catalogo, minha_sessao_caixa,
@@ -28,7 +28,7 @@ export default async function PdvVarejoPage() {
   // madrugada no agrupamento por dia local feito em JS logo abaixo (dataLocalDoTimestamptz).
   const inicioBusca = [isoEmDias(-8), inicioMes].sort()[0];
   const inicioJanela = `${inicioBusca}T00:00:00-03:00`;
-  const [{ data: sessao }, { data: catalogo }, { data: supervisores }, { data: vendas }, { data: cupons }, { data: configs }, { data: vendasRecentes }] =
+  const [{ data: sessao }, { data: catalogo }, { data: supervisores }, { data: vendas }, { data: cupons }, { data: metas }, { data: vendasRecentes }] =
     await Promise.all([
       supabase.from("minha_sessao_caixa").select("*").maybeSingle(),
       supabase.from("pdv_catalogo").select("*").order("nome"),
@@ -39,7 +39,11 @@ export default async function PdvVarejoPage() {
       // Cupons carregam inteiros na tela (mesmo espírito do PDV Eventos) — aplicar procura na lista já
       // em memória, sem ida ao servidor no meio da venda.
       supabase.from("cupons_varejo").select("*").order("criado_em", { ascending: false }),
-      supabase.from("varejo_config").select("*").order("vigente_desde", { ascending: false }),
+      // RPC (SECURITY DEFINER), não select direto em `varejo_config` -- essa tabela é admin-only via
+      // RLS (guarda fator_venda/despesas_variáveis, dado de margem que não pode chegar no vendedor).
+      // `metas_varejo_atual()` só expõe as 3 metas, pra qualquer um que acessa o PDV (migration
+      // 20261103000001 -- pedido do usuário: "qualquer pessoal possa editar" a meta, sem permissão).
+      supabase.rpc("metas_varejo_atual").maybeSingle(),
       // Painel "Meta do dia": faturamento da loja inteira (todas as sessoes, nao so a do operador
       // atual) — a RLS de `vendas` ja libera isso pra qualquer papel autenticado na operacao (so
       // `pdv_vendas` estreita pra sessao propria, de proposito, pra outro uso). So criada_em/total —
@@ -47,7 +51,7 @@ export default async function PdvVarejoPage() {
       supabase.from("vendas").select("criada_em, total").eq("status", "concluida").gte("criada_em", inicioJanela),
     ]);
 
-  const configVigente = (configs ?? []).find((c) => (c.vigente_desde as string) <= hoje) as ConfigFinanceira | undefined;
+  const metasVarejo = metas as { meta_diaria: number; meta_semanal: number; meta_mensal: number } | null;
 
   const porDia = new Map<string, number>();
   let faturamentoSemana = 0;
@@ -64,13 +68,13 @@ export default async function PdvVarejoPage() {
     return { data, total: porDia.get(data) ?? 0 };
   });
   const metaDoDia: MetaDoDia = {
-    metaDiaria: configVigente?.meta_diaria ?? 500,
+    metaDiaria: metasVarejo?.meta_diaria ?? 500,
     faturamentoHoje: porDia.get(hoje) ?? 0,
     vendasHoje: (vendasRecentes ?? []).filter((v) => dataLocalDoTimestamptz(v.criada_em as string) === hoje).length,
     ultimosDias,
-    metaSemanal: configVigente?.meta_semanal ?? 3000,
+    metaSemanal: metasVarejo?.meta_semanal ?? 3000,
     faturamentoSemana,
-    metaMensal: configVigente?.meta_mensal ?? 13000,
+    metaMensal: metasVarejo?.meta_mensal ?? 13000,
     faturamentoMes,
   };
 
@@ -82,7 +86,6 @@ export default async function PdvVarejoPage() {
       vendas={(vendas ?? []) as VendaDaSessao[]}
       cupons={(cupons ?? []) as CupomVarejo[]}
       metaDoDia={metaDoDia}
-      podeEditarMetas={perfil.papel === "admin"}
     />
   );
 }

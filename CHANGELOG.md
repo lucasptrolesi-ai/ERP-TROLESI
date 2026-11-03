@@ -1,5 +1,14 @@
 # CHANGELOG — ERP Trolesi
 
+## 2026-11-03 (cont.) — Editar a meta do PDV deixa de exigir admin
+
+Pedido do usuário: "o ajuste de metas, nao peca permisssao, qualquer pessoal possa editar".
+
+- Achado investigando: o botão de editar já era só-admin na tela, mas o problema era mais embaixo — `varejo_config` só tem UMA policy RLS permissiva, admin-only, pra TODOS os comandos. Sem outra permissiva, ninguém além do admin conseguia nem SELECT nem UPDATE nessa tabela (regra do Postgres: zero policy permissiva que valha = zero acesso). Na prática, o vendedor no PDV nunca via a meta real configurada — o painel mostrava os defaults do fallback em JS (500/3000/13000), mesmo quando o admin já tinha configurado outro valor.
+- `varejo_config` guarda `fator_venda_padrao`/`despesas_variaveis_pct`/`lucro_desejado_pct`/`encargos_clt_pct`/`caixa_inicial` — dado de margem que não pode chegar no vendedor (regra do módulo de varejo). Por isso a solução não é abrir a tabela toda: migration `20261103000001_metas_varejo_qualquer_pessoa.sql` cria duas functions `SECURITY DEFINER` sem checagem de papel nenhuma — `metas_varejo_atual()` (lê) e `editar_metas_varejo(...)` (escreve, com a mesma validação > 0 de antes) — que só tocam `meta_diaria`/`meta_semanal`/`meta_mensal` da config vigente da operação atual. O resto da tabela continua admin-only.
+- `src/lib/actions/varejo-financeiro.ts` (`editarMetasVarejo`) passa a chamar o RPC em vez de select+update direto. `/varejo/pdv` (`page.tsx`) lê as metas via `metas_varejo_atual()` em vez do `varejo_config.select("*")` que só o admin conseguia de fato ler. `podeEditarMetas` saiu da tela (`pdv-varejo-view.tsx`) — o lápis de editar aparece pra qualquer um.
+- Ensaio com 4 testes de comportamento (vendedor de verdade, sem ser admin: lê a meta real via RPC, edita sem papel/PIN, continua sem conseguir ler a tabela cheia direto, validação > 0 continua valendo). **Aplicada em produção** — ensaio e aplicação concluídos sem erro. `tsc`/lint/`vitest`/build confirmados limpos.
+
 ## 2026-11-03 — Relatório de vendas (/relatorios) ganha lista venda a venda e quebra por cliente/vendedor
 
 Pedido do usuário: "preciso de um relatorio de vendas diferente do que eu tenho hoje... quero que some tambem os codigos do atacad que eu digito, pra eu saber quantos pontos eu vendi". O card único "Pontos vendidos" (total do período) já existia; faltava ver o detalhe por venda e por pessoa.
