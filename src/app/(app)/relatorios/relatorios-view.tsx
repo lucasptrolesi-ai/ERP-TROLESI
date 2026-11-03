@@ -16,9 +16,13 @@ import {
   movimentoDiario,
   pedidosNoPeriodo,
   periodoAnterior,
+  pontosDoPedido,
   pontosTotal,
+  quebraPorCliente,
   quebraPorFormaPagamento,
+  quebraPorVendedor,
   variacaoPercentual,
+  type ItemQuebra,
   type PedidoRelatorio,
   type TipoPeriodo,
 } from "@/lib/relatorios";
@@ -26,8 +30,9 @@ import { dataLocalDoTimestamptz, formatarDataIso, hojeIso } from "@/lib/datas";
 import { situacaoEfetiva } from "@/lib/situacao-conta";
 import type { Abatimento, Cliente, CrediarioLancamento, Expedicao, Garantia, Produto, SituacaoConta } from "@/lib/types";
 
-type PedidoComCliente = PedidoRelatorio & { cliente_id: string | null };
+type PedidoComCliente = PedidoRelatorio & { cliente_id: string | null; vendedor_id: string | null };
 type ComissaoRelatorio = { valor_comissao: number; criado_em: string };
+type Perfil = { id: string; nome: string };
 
 const PERIODOS: { valor: TipoPeriodo; rotulo: string }[] = [
   { valor: "dia", rotulo: "Diário" },
@@ -44,6 +49,7 @@ export function RelatoriosView({
   expedicoes,
   comissoes,
   clientes,
+  perfis,
 }: {
   pedidos: PedidoComCliente[];
   abatimentos: Abatimento[];
@@ -53,6 +59,7 @@ export function RelatoriosView({
   expedicoes: Expedicao[];
   comissoes: ComissaoRelatorio[];
   clientes: Cliente[];
+  perfis: Perfil[];
 }) {
   const router = useRouter();
   const [tipoPeriodo, setTipoPeriodo] = useState<TipoPeriodo>("mes");
@@ -96,6 +103,18 @@ export function RelatoriosView({
   const cancelamentos = pedidosPeriodo.filter((p) => p.status === "cancelado").length;
   const ticketMedio = vendasFaturadas.length > 0 ? faturamento / vendasFaturadas.length : 0;
   const quebraForma = quebraPorFormaPagamento(pedidosPeriodo);
+
+  const nomePorVendedorId = useMemo(() => new Map(perfis.map((p) => [p.id, p.nome])), [perfis]);
+
+  // Mesmo critério de "faturado" usado em faturamentoTotal/pontosTotal — a
+  // lista e as quebras abaixo somam exatamente os valores dos cards acima,
+  // não a contagem mais ampla de "Vendas" (que inclui aguardando/lançado no GMax).
+  const vendasFaturamento = useMemo(() => pedidosPeriodo.filter((p) => p.status === "faturado"), [pedidosPeriodo]);
+  const quebraClientes = useMemo(() => quebraPorCliente(pedidosPeriodo), [pedidosPeriodo]);
+  const quebraVendedores = useMemo(
+    () => quebraPorVendedor(pedidosPeriodo, nomePorVendedorId),
+    [pedidosPeriodo, nomePorVendedorId],
+  );
 
   // criado_em é timestamptz (UTC) — comparar a string direto contra
   // "inicio"/"fim" (datas locais de Brasília) já causou esse exato bug de
@@ -292,6 +311,58 @@ export function RelatoriosView({
         </div>
       </div>
 
+      <div className="rounded-[14px] border border-line bg-surface shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-4 py-3 sm:px-5">
+          <h2 className="font-display text-base font-semibold text-ink">
+            Vendas do período ({vendasFaturamento.length})
+          </h2>
+          <p className="text-xs font-semibold text-text-soft">
+            {formatarMoeda(faturamento)} · {formatarPontos(pontos)}
+          </p>
+        </div>
+        <div className="max-h-[480px] overflow-y-auto overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="sticky top-0 bg-surface">
+              <tr className="text-left text-xs font-bold uppercase tracking-wide text-text-soft">
+                <th className="px-5 py-2">Data</th>
+                <th className="px-5 py-2">Pedido</th>
+                <th className="px-5 py-2">Cliente</th>
+                <th className="px-5 py-2">Vendedor</th>
+                <th className="px-5 py-2">Valor</th>
+                <th className="px-5 py-2">Pontos</th>
+              </tr>
+            </thead>
+            <tbody>
+              {vendasFaturamento.map((p) => {
+                const pontosPedido = pontosDoPedido(p);
+                return (
+                  <tr key={p.id} className="border-t border-line">
+                    <td className="whitespace-nowrap px-5 py-2.5">{formatarDataIso(p.criado_em)}</td>
+                    <td className="px-5 py-2.5 tabular-nums">#{p.numero}</td>
+                    <td className="px-5 py-2.5">{p.clientes?.nome ?? "—"}</td>
+                    <td className="px-5 py-2.5">{p.vendedor_id ? nomePorVendedorId.get(p.vendedor_id) ?? "—" : "—"}</td>
+                    <td className="px-5 py-2.5 tabular-nums font-semibold text-rose-deep">{formatarMoeda(p.total)}</td>
+                    <td className="px-5 py-2.5 tabular-nums">{pontosPedido > 0 ? formatarPontos(pontosPedido) : "—"}</td>
+                  </tr>
+                );
+              })}
+              {vendasFaturamento.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="px-5 py-8 text-center text-sm text-text-soft">
+                    Nenhuma venda faturada no período.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <TabelaQuebra titulo="Faturamento por cliente" itens={quebraClientes} />
+        <TabelaQuebra titulo="Faturamento por vendedor" itens={quebraVendedores} />
+      </div>
+
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div className="rounded-[14px] border border-line bg-surface p-4 shadow-sm sm:p-5">
           <h2 className="mb-3 font-display text-base font-semibold text-ink">Abatimentos</h2>
@@ -433,6 +504,52 @@ export function RelatoriosView({
         como dado consultável (só existe o simulador ad-hoc de juros na tela de venda), então fica registrado aqui
         como lacuna deliberada em vez de indicador construído.
       </p>
+    </div>
+  );
+}
+
+const LIMITE_QUEBRA = 20;
+
+function TabelaQuebra({ titulo, itens }: { titulo: string; itens: ItemQuebra[] }) {
+  return (
+    <div className="rounded-[14px] border border-line bg-surface shadow-sm">
+      <div className="border-b border-line px-4 py-3 sm:px-5">
+        <h2 className="font-display text-base font-semibold text-ink">{titulo}</h2>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-left text-xs font-bold uppercase tracking-wide text-text-soft">
+              <th className="px-5 py-2">Nome</th>
+              <th className="px-5 py-2">Vendas</th>
+              <th className="px-5 py-2">Faturamento</th>
+              <th className="px-5 py-2">Pontos</th>
+            </tr>
+          </thead>
+          <tbody>
+            {itens.slice(0, LIMITE_QUEBRA).map((i) => (
+              <tr key={i.id} className="border-t border-line">
+                <td className="px-5 py-2.5">{i.nome}</td>
+                <td className="px-5 py-2.5 tabular-nums">{i.vendas}</td>
+                <td className="px-5 py-2.5 tabular-nums font-semibold text-rose-deep">{formatarMoeda(i.faturamento)}</td>
+                <td className="px-5 py-2.5 tabular-nums">{i.pontos > 0 ? formatarPontos(i.pontos) : "—"}</td>
+              </tr>
+            ))}
+            {itens.length === 0 && (
+              <tr>
+                <td colSpan={4} className="px-5 py-8 text-center text-sm text-text-soft">
+                  Nenhuma venda faturada no período.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+      {itens.length > LIMITE_QUEBRA && (
+        <p className="border-t border-line px-5 py-2 text-xs text-text-soft">
+          e mais {itens.length - LIMITE_QUEBRA}...
+        </p>
+      )}
     </div>
   );
 }

@@ -90,14 +90,18 @@ export function faturamentoTotal(pedidos: { status: string; total: number }[]): 
   return pedidos.filter((p) => p.status === "faturado").reduce((s, p) => s + p.total, 0);
 }
 
+/** Soma de "pontos" (código da peça × quantidade) de um pedido só — mesma
+ * conta usada no cupom e no detalhe do pedido. */
+export function pontosDoPedido(pedido: { pedido_itens: { codigo_peca: number | null; quantidade: number }[] }): number {
+  return pedido.pedido_itens.reduce((s, i) => s + (i.codigo_peca ?? 0) * i.quantidade, 0);
+}
+
 /** Soma de "pontos" (código da peça × quantidade) das vendas faturadas —
  * métrica própria da loja, em paralelo ao faturamento em R$. */
 export function pontosTotal(
   pedidos: { status: string; pedido_itens: { codigo_peca: number | null; quantidade: number }[] }[],
 ): number {
-  return pedidos
-    .filter((p) => p.status === "faturado")
-    .reduce((soma, p) => soma + p.pedido_itens.reduce((s, i) => s + (i.codigo_peca ?? 0) * i.quantidade, 0), 0);
+  return pedidos.filter((p) => p.status === "faturado").reduce((soma, p) => soma + pontosDoPedido(p), 0);
 }
 
 /** "1.234,5 pts" — mesmo formato de número que formatarMoeda, sem o
@@ -115,6 +119,49 @@ export function quebraPorFormaPagamento(
     soma[p.forma_pagamento] = (soma[p.forma_pagamento] ?? 0) + p.total;
   }
   return soma;
+}
+
+export type ItemQuebra = { id: string; nome: string; vendas: number; faturamento: number; pontos: number };
+
+type PedidoParaQuebra = {
+  status: string;
+  total: number;
+  pedido_itens: { codigo_peca: number | null; quantidade: number }[];
+};
+
+/** Agrupa pedidos faturados por uma chave (cliente, vendedor) somando
+ * faturamento e pontos — mesmo critério de "faturado" usado em
+ * faturamentoTotal/pontosTotal, pra bater com os cards de totais. */
+function agruparPorChave<P extends PedidoParaQuebra>(
+  pedidos: P[],
+  chaveDe: (p: P) => string | null | undefined,
+  nomeDe: (p: P) => string,
+): ItemQuebra[] {
+  const porChave = new Map<string, ItemQuebra>();
+  for (const p of pedidos) {
+    if (p.status !== "faturado") continue;
+    const chave = chaveDe(p);
+    if (!chave) continue;
+    const atual = porChave.get(chave) ?? { id: chave, nome: nomeDe(p), vendas: 0, faturamento: 0, pontos: 0 };
+    atual.vendas += 1;
+    atual.faturamento += p.total;
+    atual.pontos += pontosDoPedido(p);
+    porChave.set(chave, atual);
+  }
+  return Array.from(porChave.values()).sort((a, b) => b.faturamento - a.faturamento);
+}
+
+export function quebraPorCliente<P extends PedidoParaQuebra & { cliente_id: string | null; clientes: { nome: string } | null }>(
+  pedidos: P[],
+): ItemQuebra[] {
+  return agruparPorChave(pedidos, (p) => p.cliente_id, (p) => p.clientes?.nome ?? "Cliente");
+}
+
+export function quebraPorVendedor<P extends PedidoParaQuebra & { vendedor_id: string | null }>(
+  pedidos: P[],
+  nomePorVendedorId: Map<string, string>,
+): ItemQuebra[] {
+  return agruparPorChave(pedidos, (p) => p.vendedor_id, (p) => nomePorVendedorId.get(p.vendedor_id ?? "") ?? "—");
 }
 
 export function topProdutos(

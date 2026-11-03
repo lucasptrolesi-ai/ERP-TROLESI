@@ -1,5 +1,14 @@
 # CHANGELOG — ERP Trolesi
 
+## 2026-11-03 — Relatório de vendas (/relatorios) ganha lista venda a venda e quebra por cliente/vendedor
+
+Pedido do usuário: "preciso de um relatorio de vendas diferente do que eu tenho hoje... quero que some tambem os codigos do atacad que eu digito, pra eu saber quantos pontos eu vendi". O card único "Pontos vendidos" (total do período) já existia; faltava ver o detalhe por venda e por pessoa.
+
+- `src/lib/relatorios.ts`: `pontosDoPedido` extraído do reduce que já existia dentro de `pontosTotal` (mesma conta, reaproveitada); `quebraPorCliente`/`quebraPorVendedor` (via helper genérico `agruparPorChave`) somam faturamento, pontos e nº de vendas por cliente/vendedor — mesmo critério de "faturado" de `faturamentoTotal`/`pontosTotal`, pra bater exatamente com os cards de total já existentes.
+- `/relatorios`: nova tabela "Vendas do período" (data, pedido, cliente, vendedor, valor, pontos — rolável, sem corte) e duas tabelas "Faturamento por cliente"/"por vendedor" (top 20 por faturamento, mesmo padrão visual da tabela de `/comissoes`). Query ganhou `vendedor_id` nos pedidos e uma busca em `profiles` pra resolver o nome do vendedor.
+- `src/lib/relatorios.test.ts` (novo arquivo): 7 testes cobrindo `pontosDoPedido` e as duas quebras.
+- `tsc`/lint/`vitest` (189 testes, 7 novos)/build confirmados limpos.
+
 ## 2026-10-29 (cont.) — Acesso total pro login do Lucas
 
 Pedido do usuário: "eu lucas no meu login eu posso fazer o que eu quiser a qualquer momento". Amarrado ao id da conta dele (não ao papel "admin" em geral — escolha explícita, pra não se estender sozinho a um futuro segundo admin). Três frentes:

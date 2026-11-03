@@ -6,7 +6,8 @@ import type { PedidoRelatorio } from "@/lib/relatorios";
 import type { Abatimento, Cliente, CrediarioLancamento, Expedicao, Garantia, Produto } from "@/lib/types";
 
 type ComissaoRelatorio = { valor_comissao: number; criado_em: string };
-type PedidoComCliente = PedidoRelatorio & { cliente_id: string | null };
+type PedidoComCliente = PedidoRelatorio & { cliente_id: string | null; vendedor_id: string | null };
+type Perfil = { id: string; nome: string };
 
 export default async function RelatoriosPage() {
   const perfil = await getPerfilAtual();
@@ -31,11 +32,12 @@ export default async function RelatoriosPage() {
     { data: expedicoes },
     { data: comissoes },
     { data: clientes },
+    { data: perfis },
   ] = await Promise.all([
     supabase
       .from("pedidos")
       .select(
-        "id, numero, status, forma_pagamento, total, criado_em, cliente_id, clientes(nome), pedido_itens(quantidade, preco_unitario, codigo_peca, produto_id, produtos(nome))",
+        "id, numero, status, forma_pagamento, total, criado_em, cliente_id, vendedor_id, clientes(nome), pedido_itens(quantidade, preco_unitario, codigo_peca, produto_id, produtos(nome))",
       )
       .gte("criado_em", desde)
       .order("criado_em", { ascending: false }),
@@ -46,6 +48,7 @@ export default async function RelatoriosPage() {
     supabase.from("expedicoes").select("*, pedidos(numero, clientes(nome))").gte("criado_em", desde),
     supabase.from("comissoes_lancamentos").select("valor_comissao, criado_em").gte("criado_em", desde),
     supabase.from("clientes").select("*").eq("ativo", true),
+    supabase.from("profiles").select("id, nome"),
   ]);
 
   return (
@@ -58,6 +61,7 @@ export default async function RelatoriosPage() {
       expedicoes={(expedicoes ?? []) as unknown as Expedicao[]}
       comissoes={(comissoes ?? []) as ComissaoRelatorio[]}
       clientes={(clientes ?? []) as Cliente[]}
+      perfis={(perfis ?? []) as Perfil[]}
     />
   );
 }
