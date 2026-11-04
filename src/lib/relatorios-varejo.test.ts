@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
+  codigoAtacadoPorVenda,
+  dividaAtacadoEmAberto,
   faturamentoVarejoTotal,
   movimentoVarejoDiario,
   quebraVarejoPorCliente,
   quebraVarejoPorFormaPagamento,
   quebraVarejoPorVendedor,
   vendasNoPeriodo,
+  type DividaAtacadoRelatorio,
   type VendaRelatorio,
 } from "@/lib/relatorios-varejo";
 
@@ -74,8 +77,19 @@ describe("quebraVarejoPorCliente", () => {
       venda({ cliente_id: null, clientes: null }),
     ];
     expect(quebraVarejoPorCliente(vendas)).toEqual([
-      { id: "c2", nome: "Beto", vendas: 1, faturamento: 200 },
-      { id: "c1", nome: "Ana", vendas: 2, faturamento: 150 },
+      { id: "c2", nome: "Beto", vendas: 1, faturamento: 200, codigoAtacado: 0 },
+      { id: "c1", nome: "Ana", vendas: 2, faturamento: 150, codigoAtacado: 0 },
+    ]);
+  });
+
+  it("soma o código do Atacado (via mapa venda->código) dentro de cada grupo", () => {
+    const vendas = [
+      venda({ id: "v1", cliente_id: "c1", clientes: { nome: "Ana" }, total: 100 }),
+      venda({ id: "v2", cliente_id: "c1", clientes: { nome: "Ana" }, total: 50 }),
+    ];
+    const codigoPorVenda = new Map([["v1", 20], ["v2", 5]]);
+    expect(quebraVarejoPorCliente(vendas, codigoPorVenda)).toEqual([
+      { id: "c1", nome: "Ana", vendas: 2, faturamento: 150, codigoAtacado: 25 },
     ]);
   });
 });
@@ -85,8 +99,40 @@ describe("quebraVarejoPorVendedor", () => {
     const vendas = [venda({ operador_id: "v1", total: 300 }), venda({ operador_id: "v2", total: 100 })];
     const nomes = new Map([["v1", "Carla"]]);
     expect(quebraVarejoPorVendedor(vendas, nomes)).toEqual([
-      { id: "v1", nome: "Carla", vendas: 1, faturamento: 300 },
-      { id: "v2", nome: "—", vendas: 1, faturamento: 100 },
+      { id: "v1", nome: "Carla", vendas: 1, faturamento: 300, codigoAtacado: 0 },
+      { id: "v2", nome: "—", vendas: 1, faturamento: 100, codigoAtacado: 0 },
     ]);
+  });
+});
+
+describe("codigoAtacadoPorVenda", () => {
+  function divida(overrides: Partial<DividaAtacadoRelatorio> = {}): DividaAtacadoRelatorio {
+    return { codigo_atacado: 10, quantidade: 1, custo_total: 28, status: "em_aberto", venda_itens: { venda_id: "v1" }, ...overrides };
+  }
+
+  it("soma codigo_atacado × quantidade por venda, somando itens da mesma venda", () => {
+    const dividas = [
+      divida({ venda_itens: { venda_id: "v1" }, codigo_atacado: 10, quantidade: 2 }),
+      divida({ venda_itens: { venda_id: "v1" }, codigo_atacado: 5, quantidade: 1 }),
+      divida({ venda_itens: { venda_id: "v2" }, codigo_atacado: 3, quantidade: 4 }),
+    ];
+    const mapa = codigoAtacadoPorVenda(dividas);
+    expect(mapa.get("v1")).toBe(25);
+    expect(mapa.get("v2")).toBe(12);
+  });
+
+  it("ignora dívida sem venda_itens (origem compra, não venda)", () => {
+    expect(codigoAtacadoPorVenda([divida({ venda_itens: null })]).size).toBe(0);
+  });
+});
+
+describe("dividaAtacadoEmAberto", () => {
+  it("soma custo_total só das dívidas em_aberto, ignora pagas", () => {
+    const dividas = [
+      { status: "em_aberto", custo_total: 100 },
+      { status: "em_aberto", custo_total: 50 },
+      { status: "pago", custo_total: 999 },
+    ];
+    expect(dividaAtacadoEmAberto(dividas)).toBe(150);
   });
 });

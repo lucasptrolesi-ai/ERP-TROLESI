@@ -14,12 +14,15 @@ import {
   type TipoPeriodo,
 } from "@/lib/relatorios";
 import {
+  codigoAtacadoPorVenda,
+  dividaAtacadoEmAberto,
   faturamentoVarejoTotal,
   movimentoVarejoDiario,
   quebraVarejoPorCliente,
   quebraVarejoPorFormaPagamento,
   quebraVarejoPorVendedor,
   vendasNoPeriodo,
+  type DividaAtacadoRelatorio,
   type ItemQuebraVarejo,
   type PagamentoRelatorio,
   type VendaRelatorio,
@@ -41,14 +44,22 @@ const FORMA_LABEL_VAREJO: Record<string, string> = {
   credito: "Crédito",
 };
 
+function formatarCodigo(valor: number): string {
+  return valor.toLocaleString("pt-BR", { maximumFractionDigits: 1 });
+}
+
 export function RelatoriosVarejoView({
   vendas,
   pagamentos,
   perfis,
+  dividasPeriodo,
+  dividasEmAberto,
 }: {
   vendas: VendaRelatorio[];
   pagamentos: PagamentoComVenda[];
   perfis: Perfil[];
+  dividasPeriodo: DividaAtacadoRelatorio[];
+  dividasEmAberto: { status: string; custo_total: number }[];
 }) {
   const [tipoPeriodo, setTipoPeriodo] = useState<TipoPeriodo>("mes");
   const [referencia, setReferencia] = useState(hojeIso());
@@ -79,10 +90,21 @@ export function RelatoriosVarejoView({
   const quebraForma = quebraVarejoPorFormaPagamento(pagamentosPeriodo);
 
   const nomePorOperadorId = useMemo(() => new Map(perfis.map((p) => [p.id, p.nome])), [perfis]);
-  const quebraClientes = useMemo(() => quebraVarejoPorCliente(vendasPeriodo), [vendasPeriodo]);
+
+  // Código do Atacado: mapa venda_id -> código×quantidade vem de TODAS as dívidas carregadas
+  // (até 13 meses atrás), depois filtrado pro período junto com a venda — mesmo critério das
+  // outras somas desta tela.
+  const codigoPorVendaTotal = useMemo(() => codigoAtacadoPorVenda(dividasPeriodo), [dividasPeriodo]);
+  const codigoAtacadoTotal = vendasConcluidas.reduce((s, v) => s + (codigoPorVendaTotal.get(v.id) ?? 0), 0);
+  const dividaEmAberto = dividaAtacadoEmAberto(dividasEmAberto);
+
+  const quebraClientes = useMemo(
+    () => quebraVarejoPorCliente(vendasPeriodo, codigoPorVendaTotal),
+    [vendasPeriodo, codigoPorVendaTotal],
+  );
   const quebraVendedores = useMemo(
-    () => quebraVarejoPorVendedor(vendasPeriodo, nomePorOperadorId),
-    [vendasPeriodo, nomePorOperadorId],
+    () => quebraVarejoPorVendedor(vendasPeriodo, nomePorOperadorId, codigoPorVendaTotal),
+    [vendasPeriodo, nomePorOperadorId, codigoPorVendaTotal],
   );
 
   return (
@@ -132,6 +154,13 @@ export function RelatoriosVarejoView({
         <KpiCard label="Vendas" valor={String(vendasConcluidas.length)} nota="vendas concluídas" />
         <KpiCard label="Ticket médio" valor={formatarMoeda(ticketMedio)} nota="por venda" />
         <KpiCard label="Cancelamentos" valor={String(cancelamentos)} nota="vendas canceladas" tom={cancelamentos > 0 ? "warn" : "ok"} />
+        <KpiCard label="Código Atacado" valor={formatarCodigo(codigoAtacadoTotal)} nota="soma dos códigos digitados/salvos" />
+        <KpiCard
+          label="Dívida com Atacado"
+          valor={formatarMoeda(dividaEmAberto)}
+          nota="só do que foi vendido, saldo total (não só do período)"
+          tom={dividaEmAberto > 0 ? "warn" : "ok"}
+        />
       </div>
 
       {movimentoPeriodo.length > 1 && <GraficoMovimentoVendas dados={movimentoPeriodo} />}
@@ -154,7 +183,9 @@ export function RelatoriosVarejoView({
       <div className="rounded-[14px] border border-line bg-surface shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-4 py-3 sm:px-5">
           <h2 className="font-display text-base font-semibold text-ink">Vendas do período ({vendasConcluidas.length})</h2>
-          <p className="text-xs font-semibold text-text-soft">{formatarMoeda(faturamento)}</p>
+          <p className="text-xs font-semibold text-text-soft">
+            {formatarMoeda(faturamento)} · código {formatarCodigo(codigoAtacadoTotal)}
+          </p>
         </div>
         <div className="max-h-[480px] overflow-y-auto overflow-x-auto">
           <table className="w-full text-sm">
@@ -165,21 +196,26 @@ export function RelatoriosVarejoView({
                 <th className="px-5 py-2">Cliente</th>
                 <th className="px-5 py-2">Vendedor</th>
                 <th className="px-5 py-2">Valor</th>
+                <th className="px-5 py-2">Código Atacado</th>
               </tr>
             </thead>
             <tbody>
-              {vendasConcluidas.map((v) => (
-                <tr key={v.id} className="border-t border-line">
-                  <td className="whitespace-nowrap px-5 py-2.5">{formatarDataIso(v.criada_em)}</td>
-                  <td className="px-5 py-2.5 tabular-nums">#{v.numero}</td>
-                  <td className="px-5 py-2.5">{v.clientes?.nome ?? "—"}</td>
-                  <td className="px-5 py-2.5">{nomePorOperadorId.get(v.operador_id) ?? "—"}</td>
-                  <td className="px-5 py-2.5 tabular-nums font-semibold text-rose-deep">{formatarMoeda(v.total)}</td>
-                </tr>
-              ))}
+              {vendasConcluidas.map((v) => {
+                const codigo = codigoPorVendaTotal.get(v.id) ?? 0;
+                return (
+                  <tr key={v.id} className="border-t border-line">
+                    <td className="whitespace-nowrap px-5 py-2.5">{formatarDataIso(v.criada_em)}</td>
+                    <td className="px-5 py-2.5 tabular-nums">#{v.numero}</td>
+                    <td className="px-5 py-2.5">{v.clientes?.nome ?? "—"}</td>
+                    <td className="px-5 py-2.5">{nomePorOperadorId.get(v.operador_id) ?? "—"}</td>
+                    <td className="px-5 py-2.5 tabular-nums font-semibold text-rose-deep">{formatarMoeda(v.total)}</td>
+                    <td className="px-5 py-2.5 tabular-nums">{codigo > 0 ? formatarCodigo(codigo) : "—"}</td>
+                  </tr>
+                );
+              })}
               {vendasConcluidas.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="px-5 py-8 text-center text-sm text-text-soft">
+                  <td colSpan={6} className="px-5 py-8 text-center text-sm text-text-soft">
                     Nenhuma venda concluída no período.
                   </td>
                 </tr>
@@ -212,6 +248,7 @@ function TabelaQuebraVarejo({ titulo, itens }: { titulo: string; itens: ItemQueb
               <th className="px-5 py-2">Nome</th>
               <th className="px-5 py-2">Vendas</th>
               <th className="px-5 py-2">Faturamento</th>
+              <th className="px-5 py-2">Código Atacado</th>
             </tr>
           </thead>
           <tbody>
@@ -220,11 +257,12 @@ function TabelaQuebraVarejo({ titulo, itens }: { titulo: string; itens: ItemQueb
                 <td className="px-5 py-2.5">{i.nome}</td>
                 <td className="px-5 py-2.5 tabular-nums">{i.vendas}</td>
                 <td className="px-5 py-2.5 tabular-nums font-semibold text-rose-deep">{formatarMoeda(i.faturamento)}</td>
+                <td className="px-5 py-2.5 tabular-nums">{i.codigoAtacado > 0 ? formatarCodigo(i.codigoAtacado) : "—"}</td>
               </tr>
             ))}
             {itens.length === 0 && (
               <tr>
-                <td colSpan={3} className="px-5 py-8 text-center text-sm text-text-soft">
+                <td colSpan={4} className="px-5 py-8 text-center text-sm text-text-soft">
                   Nenhuma venda concluída no período.
                 </td>
               </tr>

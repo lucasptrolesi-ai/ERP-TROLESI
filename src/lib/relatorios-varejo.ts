@@ -23,6 +23,39 @@ export type VendaRelatorio = {
 
 export type PagamentoRelatorio = { forma: string; valor: number };
 
+// Dívida com o Atacado (varejo_dividas_atacado, origem venda -- venda_item_id
+// preenchido): código do Atacado digitado/salvo na peça, por item vendido,
+// vira dívida intercompany que o Varejo ainda deve pagar pro Atacado (ver
+// a tela /varejo/financeiro, que já lista/baixa essas dívidas uma a uma --
+// aqui é só o agregado pro relatório de vendas).
+export type DividaAtacadoRelatorio = {
+  codigo_atacado: number;
+  quantidade: number;
+  custo_total: number;
+  status: string;
+  venda_itens: { venda_id: string } | null;
+};
+
+/** Soma (codigo_atacado × quantidade) por venda -- mesma conta de "pontos"
+ * do relatório de Atacado (pontosDoPedido em lib/relatorios.ts), só que a
+ * origem aqui é a dívida intercompany gerada na venda, não um pedido_item. */
+export function codigoAtacadoPorVenda(dividas: DividaAtacadoRelatorio[]): Map<string, number> {
+  const mapa = new Map<string, number>();
+  for (const d of dividas) {
+    const vendaId = d.venda_itens?.venda_id;
+    if (!vendaId) continue;
+    mapa.set(vendaId, (mapa.get(vendaId) ?? 0) + d.codigo_atacado * d.quantidade);
+  }
+  return mapa;
+}
+
+/** Saldo devedor corrente com o Atacado (R$) -- não é filtrado por período:
+ * pagar uma dívida não está amarrado a quando a venda que a gerou aconteceu,
+ * mesmo espírito do KPI "A pagar (intercompany)" do Painel Varejo. */
+export function dividaAtacadoEmAberto(dividas: { status: string; custo_total: number }[]): number {
+  return dividas.filter((d) => d.status === "em_aberto").reduce((s, d) => s + d.custo_total, 0);
+}
+
 export function vendasNoPeriodo<T extends { criada_em: string }>(vendas: T[], inicio: string, fim: string): T[] {
   return vendas.filter((v) => dentroDoPeriodo(dataLocalDoTimestamptz(v.criada_em), inicio, fim));
 }
@@ -70,23 +103,25 @@ export function quebraVarejoPorFormaPagamento(pagamentos: PagamentoRelatorio[]):
   return soma;
 }
 
-export type ItemQuebraVarejo = { id: string; nome: string; vendas: number; faturamento: number };
+export type ItemQuebraVarejo = { id: string; nome: string; vendas: number; faturamento: number; codigoAtacado: number };
 
-type VendaParaQuebra = { status: string; total: number };
+type VendaParaQuebra = { id: string; status: string; total: number };
 
 function agruparPorChave<V extends VendaParaQuebra>(
   vendas: V[],
   chaveDe: (v: V) => string | null | undefined,
   nomeDe: (v: V) => string,
+  codigoPorVenda: Map<string, number>,
 ): ItemQuebraVarejo[] {
   const porChave = new Map<string, ItemQuebraVarejo>();
   for (const v of vendas) {
     if (v.status !== "concluida") continue;
     const chave = chaveDe(v);
     if (!chave) continue;
-    const atual = porChave.get(chave) ?? { id: chave, nome: nomeDe(v), vendas: 0, faturamento: 0 };
+    const atual = porChave.get(chave) ?? { id: chave, nome: nomeDe(v), vendas: 0, faturamento: 0, codigoAtacado: 0 };
     atual.vendas += 1;
     atual.faturamento += v.total;
+    atual.codigoAtacado += codigoPorVenda.get(v.id) ?? 0;
     porChave.set(chave, atual);
   }
   return Array.from(porChave.values()).sort((a, b) => b.faturamento - a.faturamento);
@@ -94,13 +129,15 @@ function agruparPorChave<V extends VendaParaQuebra>(
 
 export function quebraVarejoPorCliente<V extends VendaParaQuebra & { cliente_id: string | null; clientes: { nome: string } | null }>(
   vendas: V[],
+  codigoPorVenda: Map<string, number> = new Map(),
 ): ItemQuebraVarejo[] {
-  return agruparPorChave(vendas, (v) => v.cliente_id, (v) => v.clientes?.nome ?? "Cliente");
+  return agruparPorChave(vendas, (v) => v.cliente_id, (v) => v.clientes?.nome ?? "Cliente", codigoPorVenda);
 }
 
 export function quebraVarejoPorVendedor<V extends VendaParaQuebra & { operador_id: string }>(
   vendas: V[],
   nomePorOperadorId: Map<string, string>,
+  codigoPorVenda: Map<string, number> = new Map(),
 ): ItemQuebraVarejo[] {
-  return agruparPorChave(vendas, (v) => v.operador_id, (v) => nomePorOperadorId.get(v.operador_id) ?? "—");
+  return agruparPorChave(vendas, (v) => v.operador_id, (v) => nomePorOperadorId.get(v.operador_id) ?? "—", codigoPorVenda);
 }

@@ -178,7 +178,7 @@ function AbaDividasAtacado({ dividas }: { dividas: DividaAtacadoVarejo[] }) {
   return (
     <div className="flex flex-col gap-3">
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <KpiCard label="Em aberto com o Atacado" valor={formatarMoeda(totalEmAberto)} nota={`${emAberto.length} compra(s)`} tom={totalEmAberto > 0 ? "warn" : "ok"} />
+        <KpiCard label="Em aberto com o Atacado" valor={formatarMoeda(totalEmAberto)} nota={`${emAberto.length} venda(s)`} tom={totalEmAberto > 0 ? "warn" : "ok"} />
       </div>
       <div className="overflow-x-auto rounded-[14px] border border-line bg-surface shadow-sm">
         <table className="w-full text-sm">

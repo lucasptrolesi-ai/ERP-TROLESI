@@ -83,11 +83,18 @@ export default async function FinanceiroVarejoPage({ searchParams }: { searchPar
     supabase.from("varejo_vendas_manuais").select("*").order("data"),
     supabase.from("vendas").select("id, criada_em, total").eq("status", "concluida"),
     supabase.from("parametros_multiplicador").select("valor, vigente_de, vigente_ate").eq("chave", "TRANSFERENCIA_ATACADO_VAREJO"),
+    // Só origem venda (venda_item_id) -- as peças chegam em consignação, só viram dívida de
+    // verdade quando VENDIDAS (decisão do usuário, 2026-11-04; já era a intenção documentada
+    // aqui mesmo, ver comentário em AbaDividasAtacado). Linhas antigas com movimento_estoque_id
+    // são do mecanismo de dívida-no-cadastro/compra, descontinuado na migration
+    // 20261026000001_divida_atacado_na_venda.sql (que removeu registrar_compra_atacado_varejo) --
+    // ficaram status em_aberto na tabela sem nunca terem sido filtradas daqui; excluídas agora.
     supabase
       .from("varejo_dividas_atacado")
       .select(
         "id, variacao_id, codigo_atacado, quantidade, custo_unitario, custo_total, status, pago_em, criado_em, catalogo_variacoes(sku, catalogo_produtos(nome)), venda_itens(descricao_manual)",
       )
+      .not("venda_item_id", "is", null)
       .order("criado_em", { ascending: false }),
   ]);
 

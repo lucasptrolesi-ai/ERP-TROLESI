@@ -1,5 +1,22 @@
 # CHANGELOG — ERP Trolesi
 
+## 2026-11-04 (cont. 2) — Mesma correção da dívida também no Controle Financeiro
+
+Pedido do usuário, ao ver o novo saldo de R$ 524,61 no relatório: "isso precisa ser corigido ate para as contas do controle financeiro" — a aba "Dívidas" de `/varejo/financeiro` (`AbaDividasAtacado`) tinha o MESMO problema: somava toda `varejo_dividas_atacado.status = 'em_aberto'`, sem filtrar as ~164 linhas antigas de cadastro/compra de estoque. O próprio comentário que já existia em cima dessa aba (`financeiro-varejo-view.tsx:163-166`, "Nasce na VENDA... não no cadastro da peça") já documentava a intenção certa — só nunca tinha sido aplicada de fato na query.
+
+- `src/app/(app)/varejo/financeiro/page.tsx`: query de `varejo_dividas_atacado` ganhou `.not("venda_item_id", "is", null)` — mesmo filtro do relatório. KPI "Em aberto com o Atacado", a lista itemizada e o badge de contagem na aba lateral passam a refletir só dívida de origem venda. As 164 linhas antigas continuam na tabela (nada foi apagado/alterado no banco), só deixam de ser somadas/listadas como dívida em qualquer tela do app.
+- `financeiro-varejo-view.tsx`: nota do KPI corrigida de "N compra(s)" pra "N venda(s)" (não sobrou nenhuma linha de origem compra pra contar).
+- `tsc`/build confirmados limpos (sem teste novo — mudança é só de filtro na query, já coberta pelos testes de `dividaAtacadoEmAberto`/`codigoAtacadoPorVenda` do relatório).
+
+## 2026-11-04 (cont.) — `/varejo/relatorios` ganha código do Atacado e saldo devedor
+
+Pedido do usuário, logo depois do deploy anterior: "so fala meu faturamento, mas nao diz quanto eu devo pro atacado" / "nao tem a soma dos codigos do atacado". Pedida explicação do cálculo antes de subir (peça cadastrada no catálogo vs. item manual) — ver resposta no chat; resumo: em ambos os casos o banco já grava a dívida sozinho quando a venda é registrada (`varejo_dividas_atacado`, a mesma tabela que já alimenta `/varejo/financeiro`), o relatório só soma o que já está lá, não recalcula nada.
+
+- `src/lib/relatorios-varejo.ts`: `codigoAtacadoPorVenda` (soma `codigo_atacado × quantidade` por venda, a partir das linhas de dívida com `venda_item_id` preenchido — origem venda, não compra de estoque) e `dividaAtacadoEmAberto` (soma `custo_total` das linhas `status = 'em_aberto'`, **sem** filtro de período — saldo corrente, porque pagar a dívida não tem relação com quando a venda foi feita, mesmo espírito do KPI "A pagar (intercompany)" do Painel Varejo). `quebraVarejoPorCliente`/`quebraVarejoPorVendedor` ganham um 3º parâmetro opcional (mapa venda→código) e o campo `codigoAtacado` no retorno.
+- `/varejo/relatorios`: dois KPIs novos ("Código Atacado" no período, "Dívida com Atacado" em aberto/total) e coluna "Código Atacado" na tabela "Vendas do período" e nas duas quebras por cliente/vendedor.
+- **Correção antes de subir** (usuário revisou o número): a primeira versão do KPI "Dívida com Atacado" somava TODO `status = 'em_aberto'`, inclusive ~164 linhas antigas de `movimento_estoque_id` (dívida no cadastro/compra de estoque — modelo descontinuado na migration `20261026000001_divida_atacado_na_venda.sql`, que removeu `registrar_compra_atacado_varejo` exatamente pra parar de gerar dívida no cadastro). Isso inflava o saldo pra R$ 9.912,17. Usuário corrigiu: "eu so devo pro atcado o que é vendido, nao o que foi cadastrado, todas as pecas estao aqui como uma forma de consignado" — as peças chegam em consignação, só viram dívida de verdade quando vendidas. Query do KPI ganhou `.not("venda_item_id", "is", null)`: saldo real recalculado em R$ 524,61 (23 linhas de origem venda).
+- `tsc`/lint/`vitest` (199 testes, 4 novos)/build confirmados limpos.
+
 ## 2026-11-04 — Relatório de vendas próprio pro Varejo (`/varejo/relatorios`)
 
 Pedido do usuário: "quero que altere, quero o varejo separado do atacado, sao operscoes diferentes, relatorio do varejo e no varejo" — depois de descobrir que o relatório novo (venda a venda + quebra por cliente/vendedor) só existia em `/relatorios`, página travada em `operacao: "ATACADO"` (`src/lib/autorizacao/rotas.ts`), e por isso nunca aparecia no menu enquanto ele estava com a operação em VAREJO no seletor do topo.
@@ -7,7 +24,7 @@ Pedido do usuário: "quero que altere, quero o varejo separado do atacado, sao o
 - Não deu pra reaproveitar `/relatorios` nem as funções de `src/lib/relatorios.ts` puras: o Varejo vende por outra tabela (`vendas`/`venda_itens`/`venda_pagamentos`, não `pedidos`/`pedido_itens`), outro vocabulário de status (`concluida`/`cancelada`, não `faturado`/`cancelado`), outro nome de coluna de data (`criada_em`, não `criado_em`) e sem o conceito de "pontos" (código da peça) — isso é só do pedido de atacado, não existe equivalente no Varejo (o "código do Atacado" que o vendedor digita no PDV Varejo é outra coisa: gera dívida intercompany, não é métrica de venda). Nova página própria em vez de generalizar `relatorios.ts` — misturar os dois modelos arriscava regressão no relatório de Atacado só pra economizar algumas linhas.
 - `src/lib/relatorios-varejo.ts` (novo): `faturamentoVarejoTotal`, `movimentoVarejoDiario`, `quebraVarejoPorCliente`/`quebraVarejoPorVendedor` (por `operador_id`), `quebraVarejoPorFormaPagamento` — mesmo desenho de `relatorios.ts`, adaptado pro modelo de dado do Varejo. `src/lib/relatorios-varejo.test.ts`: 6 testes novos.
 - `/varejo/relatorios` (novo, admin-only): mesmo padrão visual de `/relatorios` — seletor de período (dia/semana/mês), KPIs (faturamento, vendas, ticket médio, cancelamentos — sem "pontos"), gráfico de movimento, quebra por forma de pagamento, tabela "Vendas do período" e quebra por cliente/vendedor. Rota declarada em `rotas.ts` (`operacao: "VAREJO", papeis: ["admin"]`) e item "📊 Relatórios Varejo" no menu lateral (`sidebar-nav.tsx`).
-- `tsc`/lint/`vitest` (201 testes, 6 novos)/build confirmados limpos.
+- `tsc`/lint/`vitest` (195 testes, 6 novos)/build confirmados limpos.
 
 ## 2026-11-03 (cont.) — Editar a meta do PDV deixa de exigir admin
 
