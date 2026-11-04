@@ -1,5 +1,14 @@
 # CHANGELOG — ERP Trolesi
 
+## 2026-11-04 — Relatório de vendas próprio pro Varejo (`/varejo/relatorios`)
+
+Pedido do usuário: "quero que altere, quero o varejo separado do atacado, sao operscoes diferentes, relatorio do varejo e no varejo" — depois de descobrir que o relatório novo (venda a venda + quebra por cliente/vendedor) só existia em `/relatorios`, página travada em `operacao: "ATACADO"` (`src/lib/autorizacao/rotas.ts`), e por isso nunca aparecia no menu enquanto ele estava com a operação em VAREJO no seletor do topo.
+
+- Não deu pra reaproveitar `/relatorios` nem as funções de `src/lib/relatorios.ts` puras: o Varejo vende por outra tabela (`vendas`/`venda_itens`/`venda_pagamentos`, não `pedidos`/`pedido_itens`), outro vocabulário de status (`concluida`/`cancelada`, não `faturado`/`cancelado`), outro nome de coluna de data (`criada_em`, não `criado_em`) e sem o conceito de "pontos" (código da peça) — isso é só do pedido de atacado, não existe equivalente no Varejo (o "código do Atacado" que o vendedor digita no PDV Varejo é outra coisa: gera dívida intercompany, não é métrica de venda). Nova página própria em vez de generalizar `relatorios.ts` — misturar os dois modelos arriscava regressão no relatório de Atacado só pra economizar algumas linhas.
+- `src/lib/relatorios-varejo.ts` (novo): `faturamentoVarejoTotal`, `movimentoVarejoDiario`, `quebraVarejoPorCliente`/`quebraVarejoPorVendedor` (por `operador_id`), `quebraVarejoPorFormaPagamento` — mesmo desenho de `relatorios.ts`, adaptado pro modelo de dado do Varejo. `src/lib/relatorios-varejo.test.ts`: 6 testes novos.
+- `/varejo/relatorios` (novo, admin-only): mesmo padrão visual de `/relatorios` — seletor de período (dia/semana/mês), KPIs (faturamento, vendas, ticket médio, cancelamentos — sem "pontos"), gráfico de movimento, quebra por forma de pagamento, tabela "Vendas do período" e quebra por cliente/vendedor. Rota declarada em `rotas.ts` (`operacao: "VAREJO", papeis: ["admin"]`) e item "📊 Relatórios Varejo" no menu lateral (`sidebar-nav.tsx`).
+- `tsc`/lint/`vitest` (201 testes, 6 novos)/build confirmados limpos.
+
 ## 2026-11-03 (cont.) — Editar a meta do PDV deixa de exigir admin
 
 Pedido do usuário: "o ajuste de metas, nao peca permisssao, qualquer pessoal possa editar".
