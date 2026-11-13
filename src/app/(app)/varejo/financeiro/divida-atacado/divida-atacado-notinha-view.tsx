@@ -7,8 +7,10 @@ import { formatarMoeda } from "@/lib/formatar-moeda";
 import { hojeIso, formatarDataIso } from "@/lib/datas";
 import { EMPRESA } from "@/lib/empresa";
 import { linkWhatsapp } from "@/lib/whatsapp";
+import { baixarArquivoBase64 } from "@/lib/baixar-arquivo";
 import { marcarVariasDividasAtacadoPagas } from "@/lib/actions/varejo-financeiro";
 import { buscarStatusImpressaoZpl, solicitarImpressaoZpl } from "@/lib/actions/impressao-zpl";
+import { gerarPdfDividaAtacado } from "@/lib/actions/pdf-divida-atacado";
 import { gerarZplNotinhaDivida } from "@/lib/varejo/divida-atacado-zpl";
 import type { ItemComCodigoAtacado } from "@/lib/relatorios-varejo";
 
@@ -32,6 +34,22 @@ export function DividaAtacadoNotinhaView({ itens }: { itens: ItemComCodigoAtacad
   const [statusL42, setStatusL42] = useState<"parado" | "enviando" | "aguardando" | "impresso" | "erro">("parado");
   const [erroL42, setErroL42] = useState<string | null>(null);
   const imprimindoL42Ref = useRef(false);
+
+  const [gerandoPdf, setGerandoPdf] = useState(false);
+  const [erroPdf, setErroPdf] = useState<string | null>(null);
+
+  async function gerarEBaixarPdf() {
+    setErroPdf(null);
+    setGerandoPdf(true);
+    const resultado = await gerarPdfDividaAtacado(itens);
+    setGerandoPdf(false);
+    if (resultado.erro || !resultado.pdfBase64) {
+      setErroPdf(resultado.erro ?? "Não foi possível gerar o PDF.");
+      return;
+    }
+    const nomeArquivo = `divida-atacado-${hojeIso()}.pdf`;
+    baixarArquivoBase64(resultado.pdfBase64, nomeArquivo, "application/pdf");
+  }
 
   const total = itens.reduce((s, i) => s + i.custo_total, 0);
   const mensagemWhatsapp = `Dívida com o Atacado (Trolesi Joias) — ${itens.length} peça(s) em aberto, total ${formatarMoeda(total)}. Segue o comprovante em PDF em anexo.`;
@@ -156,6 +174,14 @@ export function DividaAtacadoNotinhaView({ itens }: { itens: ItemComCodigoAtacad
 
       <div className="flex w-full max-w-md flex-col items-center gap-3 print:hidden">
         <div className="flex flex-wrap items-center justify-center gap-2">
+          <button
+            type="button"
+            onClick={gerarEBaixarPdf}
+            disabled={gerandoPdf}
+            className="rounded-full bg-gradient-to-br from-gold-start to-gold-end px-5 py-2.5 text-sm font-semibold text-gold-ink disabled:opacity-60"
+          >
+            {gerandoPdf ? "Gerando…" : "⬇️ Gerar PDF"}
+          </button>
           <BotaoImprimir />
           <button
             type="button"
@@ -169,6 +195,7 @@ export function DividaAtacadoNotinhaView({ itens }: { itens: ItemComCodigoAtacad
             {statusL42 === "impresso" && "✓ Impresso na L42"}
           </button>
         </div>
+        {erroPdf && <p className="text-xs text-crit">{erroPdf}</p>}
         {erroL42 && (
           <div className="flex flex-col items-center gap-1 rounded-xl border border-crit bg-crit-bg p-3 text-center">
             <p className="text-xs font-semibold text-crit">{erroL42}</p>
@@ -180,8 +207,8 @@ export function DividaAtacadoNotinhaView({ itens }: { itens: ItemComCodigoAtacad
 
         <div className="flex w-full flex-col items-center gap-2 rounded-xl border border-line bg-surface p-3">
           <p className="text-center text-xs text-text-soft">
-            Enviar por WhatsApp — abre a conversa pronta, só falta anexar o PDF (salve pelo botão
-            &ldquo;Imprimir&rdquo; acima, escolhendo &ldquo;Salvar como PDF&rdquo;) e enviar.
+            Enviar por WhatsApp — abre a conversa pronta, só falta anexar o PDF (clique em
+            &ldquo;Gerar PDF&rdquo; acima primeiro) e enviar.
           </p>
           <input
             value={telefoneWhatsapp}

@@ -1,5 +1,14 @@
 # CHANGELOG — ERP Trolesi
 
+## 2026-11-13 (cont. 3) — Botão "Gerar PDF" direto, sem passar pela caixa de diálogo do navegador
+
+Pedido do usuário, depois de dizer "nao consigo gerar o pdf": "preciso de um 'gerar pdf'" — um botão que baixa o arquivo direto, em vez do fluxo "Imprimir → escolher Salvar como PDF na caixa do navegador" (que ele não estava conseguindo usar).
+
+- `src/lib/pdf-simples.ts` (novo): motor de PDF de texto simples (A4, fonte Courier, sem dependência de npm), portado do `construirPdf`/`construirConteudoPaginaPdf` que já existe em `print-agent/agent.js` pro comprovante do cupom — só que rodando no servidor do Next.js (o print-agent só roda na Mac da loja, não dá pra ele devolver um arquivo pro navegador). 7 testes novos.
+- `src/lib/actions/pdf-divida-atacado.ts` (novo): `gerarPdfDividaAtacado` monta as linhas (peça/código/valor alinhados, igual a notinha visual) e devolve o PDF em base64.
+- `/varejo/financeiro/divida-atacado`: botão "⬇️ Gerar PDF" (ação principal agora) baixa o arquivo direto via `baixarArquivoBase64` (helper que já existia, usado em outro lugar pra exportar `.xlsx`) — zero caixa de diálogo no meio. Botões "Imprimir" (PDF/papel comum) e "Imprimir na L42" continuam existindo como alternativa.
+- `tsc`/lint/`vitest` (212 testes, 7 novos)/build confirmados limpos.
+
 ## 2026-11-13 (cont. 2) — Notinha imprime direto na térmica L42 (ZPL, fila nova no print-agent)
 
 Pedido do usuário: "faz assim" (confirmando a proposta de fazer a notinha passar pelo mesmo caminho do cupom/etiqueta -- print-agent -- em vez do botão "Imprimir" do navegador). Descoberta no caminho: a L42 Pro Full imprime etiqueta via **ZPL** (não ESC/POS como o cupom), raw via CUPS (`lp -d Elgin_L42 -o raw`) -- sem driver nativo de Mac (pesquisado: Seagull/BarTender só lista driver Windows). Confirmado com o usuário que a notinha vai sair numa **bobina contínua** (sem gap), diferente da bobina de etiqueta de joia (corte fixo).
