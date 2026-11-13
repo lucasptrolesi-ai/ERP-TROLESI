@@ -17,12 +17,13 @@ import {
   codigoAtacadoPorVenda,
   dividaAtacadoEmAberto,
   faturamentoVarejoTotal,
+  itensAtacadoNoPeriodo,
   movimentoVarejoDiario,
   quebraVarejoPorCliente,
   quebraVarejoPorFormaPagamento,
   quebraVarejoPorVendedor,
   vendasNoPeriodo,
-  type DividaAtacadoRelatorio,
+  type ItemComCodigoAtacado,
   type ItemQuebraVarejo,
   type PagamentoRelatorio,
   type VendaRelatorio,
@@ -52,13 +53,13 @@ export function RelatoriosVarejoView({
   vendas,
   pagamentos,
   perfis,
-  dividasPeriodo,
+  itensAtacado,
   dividasEmAberto,
 }: {
   vendas: VendaRelatorio[];
   pagamentos: PagamentoComVenda[];
   perfis: Perfil[];
-  dividasPeriodo: DividaAtacadoRelatorio[];
+  itensAtacado: ItemComCodigoAtacado[];
   dividasEmAberto: { status: string; custo_total: number }[];
 }) {
   const [tipoPeriodo, setTipoPeriodo] = useState<TipoPeriodo>("mes");
@@ -91,12 +92,18 @@ export function RelatoriosVarejoView({
 
   const nomePorOperadorId = useMemo(() => new Map(perfis.map((p) => [p.id, p.nome])), [perfis]);
 
-  // Código do Atacado: mapa venda_id -> código×quantidade vem de TODAS as dívidas carregadas
-  // (até 13 meses atrás), depois filtrado pro período junto com a venda — mesmo critério das
-  // outras somas desta tela.
-  const codigoPorVendaTotal = useMemo(() => codigoAtacadoPorVenda(dividasPeriodo), [dividasPeriodo]);
+  // Código do Atacado: mapa venda_id -> código×quantidade vem de TODOS os itens carregados (até
+  // 13 meses atrás), depois filtrado pro período junto com a venda — mesmo critério das outras
+  // somas desta tela.
+  const codigoPorVendaTotal = useMemo(() => codigoAtacadoPorVenda(itensAtacado), [itensAtacado]);
   const codigoAtacadoTotal = vendasConcluidas.reduce((s, v) => s + (codigoPorVendaTotal.get(v.id) ?? 0), 0);
   const dividaEmAberto = dividaAtacadoEmAberto(dividasEmAberto);
+
+  const idsVendasPeriodo = useMemo(() => new Set(vendasConcluidas.map((v) => v.id)), [vendasConcluidas]);
+  const itensAtacadoPeriodo = useMemo(
+    () => itensAtacadoNoPeriodo(itensAtacado, idsVendasPeriodo),
+    [itensAtacado, idsVendasPeriodo],
+  );
 
   const quebraClientes = useMemo(
     () => quebraVarejoPorCliente(vendasPeriodo, codigoPorVendaTotal),
@@ -217,6 +224,44 @@ export function RelatoriosVarejoView({
                 <tr>
                   <td colSpan={6} className="px-5 py-8 text-center text-sm text-text-soft">
                     Nenhuma venda concluída no período.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div className="rounded-[14px] border border-line bg-surface shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-4 py-3 sm:px-5">
+          <h2 className="font-display text-base font-semibold text-ink">
+            Peças vendidas com código do Atacado ({itensAtacadoPeriodo.length})
+          </h2>
+          <p className="text-xs font-semibold text-text-soft">valor = código × fator vigente na venda</p>
+        </div>
+        <div className="max-h-[480px] overflow-y-auto overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="sticky top-0 bg-surface">
+              <tr className="text-left text-xs font-bold uppercase tracking-wide text-text-soft">
+                <th className="px-5 py-2">Peça</th>
+                <th className="px-5 py-2">Código</th>
+                <th className="px-5 py-2">Qtd</th>
+                <th className="px-5 py-2">Valor</th>
+              </tr>
+            </thead>
+            <tbody>
+              {itensAtacadoPeriodo.map((i) => (
+                <tr key={i.id} className="border-t border-line">
+                  <td className="px-5 py-2.5">{i.produto_nome}</td>
+                  <td className="px-5 py-2.5 tabular-nums">{formatarCodigo(i.codigo_atacado)}</td>
+                  <td className="px-5 py-2.5 tabular-nums">{i.quantidade}</td>
+                  <td className="px-5 py-2.5 tabular-nums font-semibold text-rose-deep">{formatarMoeda(i.custo_total)}</td>
+                </tr>
+              ))}
+              {itensAtacadoPeriodo.length === 0 && (
+                <tr>
+                  <td colSpan={4} className="px-5 py-8 text-center text-sm text-text-soft">
+                    Nenhuma peça com código do Atacado vendida no período.
                   </td>
                 </tr>
               )}

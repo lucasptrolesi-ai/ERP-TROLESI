@@ -1,5 +1,15 @@
 # CHANGELOG — ERP Trolesi
 
+## 2026-11-13 — `/varejo/relatorios` ganha lista peça a peça do código do Atacado
+
+Pedido do usuário: "preciso de um local onde eu tenha como gerar um relatorio do que foi vendido no mes onde apareça assim: Peça / código / valor x2,24 — brinco folheado / 10 / 22,4". As tabelas existentes eram por venda (um pedido pode ter várias peças) ou agregadas por cliente/vendedor; faltava a lista item a item.
+
+- `src/lib/relatorios-varejo.ts`: `codigoAtacadoPorVenda` passa a receber a forma já achatada `ItemComCodigoAtacado` (antes recebia a forma crua aninhada da query, só usada internamente) — simplifica porque agora a mesma lista alimenta tanto o agregado por venda quanto a listagem peça a peça. Nova `itensAtacadoNoPeriodo` filtra os itens cuja venda está no conjunto do período selecionado (mesmo critério do resto da tela — o item herda a data da venda).
+- `/varejo/relatorios/page.tsx`: query de `varejo_dividas_atacado` ganha o nome da peça (via `catalogo_variacoes→catalogo_produtos`, com fallback pra `descricao_manual` do item fora do catálogo — mesma resolução que `/varejo/financeiro` já fazia) e monta `ItemComCodigoAtacado[]` no server.
+- `/varejo/relatorios`: nova tabela "Peças vendidas com código do Atacado" (Peça, Código, Qtd, Valor), logo abaixo de "Vendas do período" — um ponto só pra gerar esse relatório mensal (seletor de período já existente cobre dia/semana/mês).
+- Conferido com SQL direto em produção: "brinco folheado" código 4,40 → valor R$ 9,86 (4,40 × 2,24, fator vigente), bate com o formato pedido.
+- `tsc`/lint/`vitest` (200 testes, 1 novo)/build confirmados limpos.
+
 ## 2026-11-04 (cont. 2) — Mesma correção da dívida também no Controle Financeiro
 
 Pedido do usuário, ao ver o novo saldo de R$ 524,61 no relatório: "isso precisa ser corigido ate para as contas do controle financeiro" — a aba "Dívidas" de `/varejo/financeiro` (`AbaDividasAtacado`) tinha o MESMO problema: somava toda `varejo_dividas_atacado.status = 'em_aberto'`, sem filtrar as ~164 linhas antigas de cadastro/compra de estoque. O próprio comentário que já existia em cima dessa aba (`financeiro-varejo-view.tsx:163-166`, "Nasce na VENDA... não no cadastro da peça") já documentava a intenção certa — só nunca tinha sido aplicada de fato na query.

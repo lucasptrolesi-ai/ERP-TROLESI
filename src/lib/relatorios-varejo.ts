@@ -26,27 +26,37 @@ export type PagamentoRelatorio = { forma: string; valor: number };
 // Dívida com o Atacado (varejo_dividas_atacado, origem venda -- venda_item_id
 // preenchido): código do Atacado digitado/salvo na peça, por item vendido,
 // vira dívida intercompany que o Varejo ainda deve pagar pro Atacado (ver
-// a tela /varejo/financeiro, que já lista/baixa essas dívidas uma a uma --
-// aqui é só o agregado pro relatório de vendas).
-export type DividaAtacadoRelatorio = {
+// a tela /varejo/financeiro, que já lista/baixa essas dívidas uma a uma).
+// Forma já achatada/com nome resolvido -- a junção com catalogo_variacoes/
+// venda_itens (pra achar o nome da peça) acontece em page.tsx, igual já
+// fazia financeiro/page.tsx; aqui só o formato final, testável.
+export type ItemComCodigoAtacado = {
+  id: string;
+  produto_nome: string;
   codigo_atacado: number;
   quantidade: number;
   custo_total: number;
-  status: string;
-  venda_itens: { venda_id: string } | null;
+  venda_id: string | null;
 };
 
 /** Soma (codigo_atacado × quantidade) por venda -- mesma conta de "pontos"
  * do relatório de Atacado (pontosDoPedido em lib/relatorios.ts), só que a
  * origem aqui é a dívida intercompany gerada na venda, não um pedido_item. */
-export function codigoAtacadoPorVenda(dividas: DividaAtacadoRelatorio[]): Map<string, number> {
+export function codigoAtacadoPorVenda(itens: { codigo_atacado: number; quantidade: number; venda_id: string | null }[]): Map<string, number> {
   const mapa = new Map<string, number>();
-  for (const d of dividas) {
-    const vendaId = d.venda_itens?.venda_id;
-    if (!vendaId) continue;
-    mapa.set(vendaId, (mapa.get(vendaId) ?? 0) + d.codigo_atacado * d.quantidade);
+  for (const i of itens) {
+    if (!i.venda_id) continue;
+    mapa.set(i.venda_id, (mapa.get(i.venda_id) ?? 0) + i.codigo_atacado * i.quantidade);
   }
   return mapa;
+}
+
+/** Filtra os itens com código do Atacado pros que pertencem a uma venda
+ * dentro do período (mesmo critério de "venda concluída no período" usado
+ * no resto da tela -- o item herda o período da venda, não tem data própria
+ * exibida). */
+export function itensAtacadoNoPeriodo<T extends { venda_id: string | null }>(itens: T[], idsVendasPeriodo: Set<string>): T[] {
+  return itens.filter((i) => i.venda_id !== null && idsVendasPeriodo.has(i.venda_id));
 }
 
 /** Saldo devedor corrente com o Atacado (R$) -- não é filtrado por período:

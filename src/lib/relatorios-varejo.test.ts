@@ -3,12 +3,13 @@ import {
   codigoAtacadoPorVenda,
   dividaAtacadoEmAberto,
   faturamentoVarejoTotal,
+  itensAtacadoNoPeriodo,
   movimentoVarejoDiario,
   quebraVarejoPorCliente,
   quebraVarejoPorFormaPagamento,
   quebraVarejoPorVendedor,
   vendasNoPeriodo,
-  type DividaAtacadoRelatorio,
+  type ItemComCodigoAtacado,
   type VendaRelatorio,
 } from "@/lib/relatorios-varejo";
 
@@ -105,24 +106,32 @@ describe("quebraVarejoPorVendedor", () => {
   });
 });
 
-describe("codigoAtacadoPorVenda", () => {
-  function divida(overrides: Partial<DividaAtacadoRelatorio> = {}): DividaAtacadoRelatorio {
-    return { codigo_atacado: 10, quantidade: 1, custo_total: 28, status: "em_aberto", venda_itens: { venda_id: "v1" }, ...overrides };
-  }
+function item(overrides: Partial<ItemComCodigoAtacado> = {}): ItemComCodigoAtacado {
+  return { id: "d1", produto_nome: "Brinco folheado", codigo_atacado: 10, quantidade: 1, custo_total: 22.4, venda_id: "v1", ...overrides };
+}
 
+describe("codigoAtacadoPorVenda", () => {
   it("soma codigo_atacado × quantidade por venda, somando itens da mesma venda", () => {
-    const dividas = [
-      divida({ venda_itens: { venda_id: "v1" }, codigo_atacado: 10, quantidade: 2 }),
-      divida({ venda_itens: { venda_id: "v1" }, codigo_atacado: 5, quantidade: 1 }),
-      divida({ venda_itens: { venda_id: "v2" }, codigo_atacado: 3, quantidade: 4 }),
+    const itens = [
+      item({ venda_id: "v1", codigo_atacado: 10, quantidade: 2 }),
+      item({ venda_id: "v1", codigo_atacado: 5, quantidade: 1 }),
+      item({ venda_id: "v2", codigo_atacado: 3, quantidade: 4 }),
     ];
-    const mapa = codigoAtacadoPorVenda(dividas);
+    const mapa = codigoAtacadoPorVenda(itens);
     expect(mapa.get("v1")).toBe(25);
     expect(mapa.get("v2")).toBe(12);
   });
 
-  it("ignora dívida sem venda_itens (origem compra, não venda)", () => {
-    expect(codigoAtacadoPorVenda([divida({ venda_itens: null })]).size).toBe(0);
+  it("ignora item sem venda_id (origem compra, não venda)", () => {
+    expect(codigoAtacadoPorVenda([item({ venda_id: null })]).size).toBe(0);
+  });
+});
+
+describe("itensAtacadoNoPeriodo", () => {
+  it("mantém só os itens cuja venda está no conjunto do período", () => {
+    const itens = [item({ id: "d1", venda_id: "v1" }), item({ id: "d2", venda_id: "v2" }), item({ id: "d3", venda_id: null })];
+    const resultado = itensAtacadoNoPeriodo(itens, new Set(["v1"]));
+    expect(resultado.map((i) => i.id)).toEqual(["d1"]);
   });
 });
 
