@@ -1,5 +1,15 @@
 # CHANGELOG — ERP Trolesi
 
+## 2026-11-13 (cont.) — Notinha baixável da dívida com o Atacado (`/varejo/financeiro/divida-atacado`)
+
+Pedido do usuário: "preciso gerar uma notinha baixável, para que eu possa exportar no whatsapp... sobre somente o que esta em aberto, e que tenha algum lugar para que coloque que ja foi pago". Botão "📄 Gerar notinha" na aba Dívidas do Controle Financeiro.
+
+- `src/lib/varejo/divida-atacado.ts` (novo): `DividaBruta`/`mapearItensAtacado` extraídos de `/varejo/relatorios/page.tsx` (mesma resolução de nome da peça/item manual), agora compartilhados entre as duas telas que consultam `varejo_dividas_atacado` com nome resolvido.
+- `/varejo/financeiro/divida-atacado` (novo, admin-only — herda a regra de rota já existente de `/varejo/financeiro`, não precisou de entrada nova em `rotas.ts`): busca só `status = 'em_aberto'` + origem venda (mesmo escopo do KPI já corrigido), monta uma "notinha" com cabeçalho da empresa, tabela Peça/Código/Qtd/Valor, total, e uma área impressa em branco "Pago em: ___" + "Confirmação: ___" pra anotar a quitação na via impressa/PDF. Reaproveita `BotaoImprimir` (`window.print()` → "Salvar como PDF", mesmo padrão do cupom de pedido) e `linkWhatsapp` (telefone digitado na hora, sem cadastro — a dívida é com o Atacado, não com um cliente) pra abrir a conversa com o texto pronto.
+- `marcarVariasDividasAtacadoPagas` (nova action, `varejo-financeiro.ts`): baixa em lote pelos `ids` exatos capturados quando a notinha foi gerada — uma dívida nova criada entre gerar e pagar não entra na baixa, só o que estava na notinha.
+- Conferido com SQL em produção: 36 peças em aberto, total R$ 778,86 — é isso que a notinha mostra agora.
+- `tsc`/lint/`vitest`/build confirmados limpos.
+
 ## 2026-11-13 — `/varejo/relatorios` ganha lista peça a peça do código do Atacado
 
 Pedido do usuário: "preciso de um local onde eu tenha como gerar um relatorio do que foi vendido no mes onde apareça assim: Peça / código / valor x2,24 — brinco folheado / 10 / 22,4". As tabelas existentes eram por venda (um pedido pode ter várias peças) ou agregadas por cliente/vendedor; faltava a lista item a item.

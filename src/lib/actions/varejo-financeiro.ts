@@ -456,3 +456,19 @@ export async function importarControleAntigo(jsonTexto: string): Promise<{ erro?
 export async function marcarDividaAtacado(id: string, pago: boolean): Promise<{ erro?: string }> {
   return editar("varejo_dividas_atacado", id, { status: pago ? "pago" : "em_aberto", pago_em: pago ? new Date().toISOString() : null });
 }
+
+/** Baixa em lote -- usada pela notinha de /varejo/financeiro/divida-atacado: os `ids` são o
+ * instantâneo exato capturado quando a notinha foi gerada (não um "marcar tudo que estiver em
+ * aberto agora"), pra uma dívida nova que entrar entre gerar e pagar não ser baixada por engano
+ * junto com o lote. */
+export async function marcarVariasDividasAtacadoPagas(ids: string[]): Promise<{ erro?: string }> {
+  if (ids.length === 0) return {};
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("varejo_dividas_atacado")
+    .update({ status: "pago", pago_em: new Date().toISOString() })
+    .in("id", ids);
+  if (error) return { erro: mensagem(error) };
+  atualizarTelas();
+  return {};
+}

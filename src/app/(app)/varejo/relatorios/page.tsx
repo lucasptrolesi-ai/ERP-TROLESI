@@ -3,24 +3,8 @@ import { getPerfilAtual } from "@/lib/supabase/auth";
 import { getContextoSessao } from "@/lib/supabase/contexto";
 import { isoEmDias } from "@/lib/datas";
 import { RelatoriosVarejoView } from "./relatorios-varejo-view";
-import type { ItemComCodigoAtacado, PagamentoRelatorio, VendaRelatorio } from "@/lib/relatorios-varejo";
-
-// Forma crua da query (antes de achatar/resolver o nome da peça) -- mesmo
-// jeito de catalogo_variacoes/venda_itens embutido que financeiro/page.tsx já
-// usa pra essa mesma tabela; o cliente supabase-js às vezes devolve essas
-// relações to-one como array de 1, então trata os dois formatos.
-type DividaBruta = {
-  id: string;
-  codigo_atacado: number;
-  quantidade: number;
-  custo_total: number;
-  venda_itens: { venda_id: string; descricao_manual: string | null } | { venda_id: string; descricao_manual: string | null }[] | null;
-  catalogo_variacoes: { catalogo_produtos: { nome: string } | { nome: string }[] | null } | { catalogo_produtos: { nome: string } | { nome: string }[] | null }[] | null;
-};
-
-function primeiro<T>(valor: T | T[] | null): T | null {
-  return Array.isArray(valor) ? (valor[0] ?? null) : valor;
-}
+import { mapearItensAtacado, type DividaBruta } from "@/lib/varejo/divida-atacado";
+import type { PagamentoRelatorio, VendaRelatorio } from "@/lib/relatorios-varejo";
 
 type Perfil = { id: string; nome: string };
 
@@ -72,20 +56,7 @@ export default async function RelatoriosVarejoPage() {
         .not("venda_item_id", "is", null),
     ]);
 
-  const itensAtacado: ItemComCodigoAtacado[] = ((dividasPeriodo ?? []) as unknown as DividaBruta[]).map((d) => {
-    const vendaItem = primeiro(d.venda_itens);
-    const variacao = primeiro(d.catalogo_variacoes);
-    const produto = variacao ? primeiro(variacao.catalogo_produtos) : null;
-    return {
-      id: d.id,
-      // Item manual (fora do catálogo) não tem peça cadastrada -- usa a descrição digitada no PDV.
-      produto_nome: produto?.nome ?? vendaItem?.descricao_manual ?? "(item removido)",
-      codigo_atacado: d.codigo_atacado,
-      quantidade: d.quantidade,
-      custo_total: d.custo_total,
-      venda_id: vendaItem?.venda_id ?? null,
-    };
-  });
+  const itensAtacado = mapearItensAtacado((dividasPeriodo ?? []) as unknown as DividaBruta[]);
 
   return (
     <RelatoriosVarejoView

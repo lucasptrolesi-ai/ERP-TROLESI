@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { formatarMoeda } from "@/lib/formatar-moeda";
@@ -179,6 +180,14 @@ function AbaDividasAtacado({ dividas }: { dividas: DividaAtacadoVarejo[] }) {
     <div className="flex flex-col gap-3">
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <KpiCard label="Em aberto com o Atacado" valor={formatarMoeda(totalEmAberto)} nota={`${emAberto.length} venda(s)`} tom={totalEmAberto > 0 ? "warn" : "ok"} />
+        <div className="flex items-center justify-center rounded-[14px] border border-line bg-surface p-4 shadow-sm">
+          <Link
+            href="/varejo/financeiro/divida-atacado"
+            className="rounded-full bg-gradient-to-br from-gold-start to-gold-end px-4 py-2 text-xs font-semibold text-gold-ink"
+          >
+            📄 Gerar notinha (só em aberto)
+          </Link>
+        </div>
       </div>
       <div className="overflow-x-auto rounded-[14px] border border-line bg-surface shadow-sm">
         <table className="w-full text-sm">
