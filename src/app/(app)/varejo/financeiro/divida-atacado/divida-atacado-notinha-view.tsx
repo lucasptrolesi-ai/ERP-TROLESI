@@ -42,55 +42,62 @@ export function DividaAtacadoNotinhaView({ itens }: { itens: ItemComCodigoAtacad
 
   return (
     <div className="flex flex-col items-center gap-4 py-6 print:gap-0 print:py-0">
-      <style>{`@media print { @page { margin: 12mm; } }`}</style>
+      {/* Mesma impressora térmica 58mm do cupom (pedidos/[id]/cupom) -- a
+          loja troca só a bobina entre etiqueta e recibo, a impressora é a
+          mesma. Preto puro (não --color-ink da marca): numa térmica
+          monocromática, qualquer cor que não seja #000 sai cinza fraco em
+          vez de preto sólido. */}
+      <style>{`
+        @media print {
+          @page { size: 58mm auto; margin: 0; }
+          * { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+        }
+      `}</style>
 
-      <div className="w-full max-w-md rounded-[14px] border border-line bg-surface p-5 text-sm text-ink shadow-sm print:w-full print:max-w-none print:border-0 print:shadow-none">
+      <div className="print:w-[54mm] print:p-[2mm] w-[54mm] rounded border border-line bg-surface p-[2mm] font-sans text-[11px] font-medium leading-snug text-black shadow-sm print:shadow-none">
+        <p className="text-center text-[10px] font-bold tracking-wide">PEÇAS EM ABERTO</p>
         <div className="text-center">
-          <p className="font-display text-base font-bold">{EMPRESA.nome}</p>
-          <p className="text-xs text-text-soft">CNPJ {EMPRESA.cpfCnpj}</p>
+          <p className="text-xs font-bold">{EMPRESA.nome}</p>
+          <p>CNPJ {EMPRESA.cpfCnpj}</p>
         </div>
 
-        <div className="my-3 border-t border-dashed border-line" />
+        <div className="my-1 border-t border-dashed border-black/50" />
 
-        <p className="text-center font-display text-sm font-semibold">Dívida com o Atacado — peças vendidas em aberto</p>
-        <p className="text-center text-xs text-text-soft">Emitido em {formatarDataIso(hojeIso())}</p>
+        <p className="text-center font-bold">Dívida com o Atacado</p>
+        <p className="text-center">Emitido {formatarDataIso(hojeIso())}</p>
 
-        <div className="my-3 border-t border-dashed border-line" />
+        <div className="my-1 border-t border-dashed border-black/50" />
 
-        <table className="w-full text-xs">
-          <thead>
-            <tr className="text-left font-bold uppercase tracking-wide text-text-soft">
-              <th className="py-1">Peça</th>
-              <th className="py-1 text-right">Código</th>
-              <th className="py-1 text-right">Qtd</th>
-              <th className="py-1 text-right">Valor</th>
-            </tr>
-          </thead>
-          <tbody>
-            {itens.map((i) => (
-              <tr key={i.id} className="border-t border-line">
-                <td className="py-1 pr-2">{i.produto_nome}</td>
-                <td className="py-1 text-right tabular-nums">{formatarCodigo(i.codigo_atacado)}</td>
-                <td className="py-1 text-right tabular-nums">{i.quantidade}</td>
-                <td className="py-1 text-right tabular-nums">{formatarMoeda(i.custo_total)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div className="mb-0.5 flex justify-between gap-2 font-bold">
+          <span className="flex-1">Qtd Peça / Código</span>
+          <span>Valor</span>
+        </div>
+        {itens.map((i) => (
+          <div key={i.id} className="mb-0.5 flex justify-between gap-2">
+            <span className="flex-1">
+              {i.quantidade}x {i.produto_nome} {formatarCodigo(i.codigo_atacado)}
+            </span>
+            <span className="tabular-nums">{formatarMoeda(i.custo_total)}</span>
+          </div>
+        ))}
 
-        <div className="my-2 border-t border-line" />
-        <div className="flex justify-between font-display text-sm font-bold">
-          <span>Total em aberto</span>
+        <div className="my-1 border-t border-dashed border-black/50" />
+
+        <div className="flex justify-between text-xs font-bold">
+          <span>TOTAL EM ABERTO</span>
           <span className="tabular-nums">{formatarMoeda(total)}</span>
         </div>
 
-        <div className="my-3 border-t border-dashed border-line" />
+        <div className="my-1 border-t border-dashed border-black/50" />
 
-        {/* Área em branco pra anotar a quitação na via impressa/PDF -- fica
+        {/* Área em branco pra anotar a quitação na via impressa -- fica
             visível tanto na tela quanto impressa, de propósito (pedido do
             usuário: ter "algum lugar" pra marcar que já foi pago). */}
-        <p className="mt-2 text-xs text-text-soft">Pago em: ____ / ____ / ________</p>
-        <p className="mt-3 text-xs text-text-soft">Confirmação: _______________________________</p>
+        <p className="mt-1">Pago em: ___/___/______</p>
+        <p className="mt-1">Confirmação: ________________</p>
+
+        <div className="my-1 border-t border-dashed border-black/50" />
+        <p className="text-center text-[9px] text-black/70">Documento interno — não fiscal</p>
       </div>
 
       <div className="flex w-full max-w-md flex-col items-center gap-3 print:hidden">
