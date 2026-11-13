@@ -536,6 +536,58 @@ function marcarImpressaoComoErro(solicitacaoId, mensagemErro) {
   });
 }
 
+// Fila genérica de ZPL (2026-11-13) — pra documento que não é etiqueta de peça (não tem produto_id/
+// variacao_id pra preencher em solicitacoes_etiqueta, que exige os dois NOT NULL), ex: a notinha de
+// dívida com o Atacado (/varejo/financeiro/divida-atacado). Reaproveita enviarZplParaImpressora() tal
+// e qual — mesma impressora/fila CUPS da etiqueta, só a origem do job é outra tabela. Loop e
+// try/catch independentes, mesmo isolamento das outras duas filas (ver topo do arquivo).
+function buscarPendentesImpressaoZpl() {
+  return requisicaoSupabase("/solicitacoes_impressao_zpl?status=eq.pendente&order=criado_em.asc&limit=5&select=id,zpl", "GET");
+}
+
+function marcarImpressaoZplComoImpressa(id) {
+  return requisicaoSupabase(`/solicitacoes_impressao_zpl?id=eq.${id}`, "PATCH", {
+    status: "impresso",
+    impresso_em: new Date().toISOString(),
+  });
+}
+
+function marcarImpressaoZplComoErro(id, mensagemErro) {
+  return requisicaoSupabase(`/solicitacoes_impressao_zpl?id=eq.${id}`, "PATCH", {
+    status: "erro",
+    erro: mensagemErro,
+  });
+}
+
+async function processarPendentesImpressaoZpl() {
+  let pendentes;
+  try {
+    pendentes = await buscarPendentesImpressaoZpl();
+  } catch (erro) {
+    console.error("Erro ao buscar solicitações de impressão ZPL pendentes:", erro.message);
+    return;
+  }
+
+  for (const solicitacao of pendentes) {
+    try {
+      if (!solicitacao.zpl) {
+        throw new Error("Solicitação sem ZPL (zpl ausente) — recrie a solicitação pelo app.");
+      }
+      await enviarZplParaImpressora(solicitacao.zpl);
+      await marcarImpressaoZplComoImpressa(solicitacao.id);
+      console.log(`Impressão ZPL concluída: solicitação ${solicitacao.id}`);
+    } catch (erro) {
+      const mensagem = String((erro && erro.message) || erro);
+      console.error(`Erro ao imprimir solicitação ZPL ${solicitacao.id}:`, mensagem);
+      try {
+        await marcarImpressaoZplComoErro(solicitacao.id, mensagem);
+      } catch (erroAoMarcar) {
+        console.error(`Erro ao marcar solicitação ZPL ${solicitacao.id} como erro:`, erroAoMarcar.message);
+      }
+    }
+  }
+}
+
 // Mesmo espírito de processarPendentes() (cupom), mas mais simples: não tem segunda via (PDF) e não
 // monta nada — o app já grava o ZPL pronto (Módulo Etiquetas, 2026-10-15: motor genérico de modelos
 // em src/lib/etiquetas/zpl.ts, não mais fixo a uma peça só) — este agente só ENVIA pra fila CUPS, o
@@ -734,11 +786,13 @@ process.on("unhandledRejection", (erro) => {
 });
 
 async function loopPrincipal() {
-  // Cupom e etiqueta são filas/impressoras/protocolos independentes — chamadas em sequência (não em
-  // paralelo, sem necessidade real de concorrência num polling a cada poucos segundos), cada uma já
-  // com seu próprio try/catch interno, pra um erro numa nunca impedir a outra de rodar.
+  // Cupom, etiqueta e ZPL genérico são filas/impressoras/protocolos independentes — chamadas em
+  // sequência (não em paralelo, sem necessidade real de concorrência num polling a cada poucos
+  // segundos), cada uma já com seu próprio try/catch interno, pra um erro numa nunca impedir as
+  // outras de rodar.
   await processarPendentes();
   await processarPendentesEtiqueta();
+  await processarPendentesImpressaoZpl();
   setTimeout(loopPrincipal, INTERVALO_POLLING_MS);
 }
 
@@ -748,6 +802,7 @@ const descricaoImpressora =
     : `\\\\${MAQUINA}\\${COMPARTILHAMENTO_IMPRESSORA}`;
 console.log(
   `Print-agent Trolesi ERP rodando — checando solicitações a cada ${INTERVALO_POLLING_MS}ms ` +
-    `(cupom: ${descricaoImpressora}; etiqueta: fila CUPS "${IMPRESSORA_ETIQUETA}")`,
+    `(cupom: ${descricaoImpressora}; etiqueta: fila CUPS "${IMPRESSORA_ETIQUETA}"; ` +
+    `impressão ZPL genérica: fila CUPS "${IMPRESSORA_ETIQUETA}")`,
 );
 loopPrincipal();

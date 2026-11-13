@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { BotaoImprimir } from "@/components/botao-imprimir";
 import { formatarMoeda } from "@/lib/formatar-moeda";
@@ -8,10 +8,19 @@ import { hojeIso, formatarDataIso } from "@/lib/datas";
 import { EMPRESA } from "@/lib/empresa";
 import { linkWhatsapp } from "@/lib/whatsapp";
 import { marcarVariasDividasAtacadoPagas } from "@/lib/actions/varejo-financeiro";
+import { buscarStatusImpressaoZpl, solicitarImpressaoZpl } from "@/lib/actions/impressao-zpl";
+import { gerarZplNotinhaDivida } from "@/lib/varejo/divida-atacado-zpl";
 import type { ItemComCodigoAtacado } from "@/lib/relatorios-varejo";
 
 function formatarCodigo(valor: number): string {
   return valor.toLocaleString("pt-BR", { maximumFractionDigits: 1 });
+}
+
+const INTERVALO_POLLING_MS = 1000;
+const TENTATIVAS_POLLING = 15; // ~15s -- mesmo prazo já usado pro cupom térmico e pra etiqueta
+
+function aguardar(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 export function DividaAtacadoNotinhaView({ itens }: { itens: ItemComCodigoAtacado[] }) {
@@ -19,6 +28,10 @@ export function DividaAtacadoNotinhaView({ itens }: { itens: ItemComCodigoAtacad
   const [pendente, iniciar] = useTransition();
   const [pago, setPago] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+
+  const [statusL42, setStatusL42] = useState<"parado" | "enviando" | "aguardando" | "impresso" | "erro">("parado");
+  const [erroL42, setErroL42] = useState<string | null>(null);
+  const imprimindoL42Ref = useRef(false);
 
   const total = itens.reduce((s, i) => s + i.custo_total, 0);
   const mensagemWhatsapp = `Dívida com o Atacado (Trolesi Joias) — ${itens.length} peça(s) em aberto, total ${formatarMoeda(total)}. Segue o comprovante em PDF em anexo.`;
@@ -31,6 +44,47 @@ export function DividaAtacadoNotinhaView({ itens }: { itens: ItemComCodigoAtacad
       else setPago(true);
     });
   }
+
+  // Mesmo padrão de fila/polling já usado pra etiqueta e cupom térmico (ver
+  // imprimir-etiqueta-modal.tsx) -- grava a solicitação, o print-agent na
+  // Mac da loja pega em ~2s e confirma o status.
+  async function imprimirNaL42() {
+    if (imprimindoL42Ref.current) return;
+    imprimindoL42Ref.current = true;
+    setErroL42(null);
+    setStatusL42("enviando");
+
+    const zpl = gerarZplNotinhaDivida(itens, total, formatarDataIso(hojeIso()));
+    const solicitacao = await solicitarImpressaoZpl(zpl);
+    if (solicitacao.erro || !solicitacao.id) {
+      setErroL42(solicitacao.erro ?? "Não foi possível criar a solicitação de impressão.");
+      setStatusL42("erro");
+      imprimindoL42Ref.current = false;
+      return;
+    }
+
+    setStatusL42("aguardando");
+    for (let tentativa = 0; tentativa < TENTATIVAS_POLLING; tentativa++) {
+      await aguardar(INTERVALO_POLLING_MS);
+      const statusAtual = await buscarStatusImpressaoZpl(solicitacao.id);
+      if (statusAtual.status === "impresso") {
+        setStatusL42("impresso");
+        imprimindoL42Ref.current = false;
+        return;
+      }
+      if (statusAtual.status === "erro") {
+        setErroL42(statusAtual.mensagem ?? "A impressora relatou um erro ao imprimir.");
+        setStatusL42("erro");
+        imprimindoL42Ref.current = false;
+        return;
+      }
+    }
+    setErroL42("A impressora não confirmou em 15s — confira se o print-agent está rodando na Mac da loja (e se foi atualizado/reiniciado depois desta funcionalidade).");
+    setStatusL42("erro");
+    imprimindoL42Ref.current = false;
+  }
+
+  const imprimindoL42 = statusL42 === "enviando" || statusL42 === "aguardando";
 
   if (itens.length === 0) {
     return (
@@ -101,7 +155,28 @@ export function DividaAtacadoNotinhaView({ itens }: { itens: ItemComCodigoAtacad
       </div>
 
       <div className="flex w-full max-w-md flex-col items-center gap-3 print:hidden">
-        <BotaoImprimir />
+        <div className="flex flex-wrap items-center justify-center gap-2">
+          <BotaoImprimir />
+          <button
+            type="button"
+            onClick={imprimirNaL42}
+            disabled={imprimindoL42}
+            className="rounded-full border border-line px-5 py-2.5 text-sm font-semibold text-ink disabled:opacity-60"
+          >
+            {statusL42 === "enviando" && "Enviando…"}
+            {statusL42 === "aguardando" && "Aguardando a L42…"}
+            {(statusL42 === "parado" || statusL42 === "erro") && "🧾 Imprimir na L42 (térmica)"}
+            {statusL42 === "impresso" && "✓ Impresso na L42"}
+          </button>
+        </div>
+        {erroL42 && (
+          <div className="flex flex-col items-center gap-1 rounded-xl border border-crit bg-crit-bg p-3 text-center">
+            <p className="text-xs font-semibold text-crit">{erroL42}</p>
+            <button type="button" onClick={imprimirNaL42} className="text-xs font-semibold text-rose-deep underline">
+              Tentar de novo
+            </button>
+          </div>
+        )}
 
         <div className="flex w-full flex-col items-center gap-2 rounded-xl border border-line bg-surface p-3">
           <p className="text-center text-xs text-text-soft">

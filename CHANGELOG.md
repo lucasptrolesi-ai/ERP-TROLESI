@@ -1,5 +1,17 @@
 # CHANGELOG — ERP Trolesi
 
+## 2026-11-13 (cont. 2) — Notinha imprime direto na térmica L42 (ZPL, fila nova no print-agent)
+
+Pedido do usuário: "faz assim" (confirmando a proposta de fazer a notinha passar pelo mesmo caminho do cupom/etiqueta -- print-agent -- em vez do botão "Imprimir" do navegador). Descoberta no caminho: a L42 Pro Full imprime etiqueta via **ZPL** (não ESC/POS como o cupom), raw via CUPS (`lp -d Elgin_L42 -o raw`) -- sem driver nativo de Mac (pesquisado: Seagull/BarTender só lista driver Windows). Confirmado com o usuário que a notinha vai sair numa **bobina contínua** (sem gap), diferente da bobina de etiqueta de joia (corte fixo).
+
+- **Migration `20261113000001_fila_impressao_zpl_generica.sql`**: nova tabela `solicitacoes_impressao_zpl` (fila genérica — id/zpl/status/erro/criado_em/impresso_em), admin-only, isolada de `solicitacoes_etiqueta` (que exige `produto_id`/`variacao_id` NOT NULL — não dava pra reusar sem inventar um produto falso). Ensaio com 3 testes (admin cria e lê, vendedor não consegue nenhum dos dois). **Ainda não aplicada** — ver comando abaixo.
+- `print-agent/agent.js`: 3º loop independente (`processarPendentesImpressaoZpl`), reaproveitando `enviarZplParaImpressora()` tal e qual (zero mudança nela) — mesmo isolamento das filas de cupom/etiqueta, um erro numa nunca trava as outras.
+- `src/lib/varejo/divida-atacado-zpl.ts` (novo): monta o ZPL da notinha — `^MNN` (bobina contínua, diferente do `^MNY` da etiqueta de joia), altura (`^LL`) calculada dinamicamente pelo número de itens, uma linha de texto corrido por peça (sem coluna alinhada — `^FB` com justificativa à direita dependeria de largura de fonte proporcional não testável sem a impressora física). `^PR`/`^MD` (velocidade/escuridão) são palpite razoável pra essa bobina nova, não o valor validado da etiqueta de joia — esperado precisar calibrar no primeiro teste real, mesma situação que a etiqueta também teve. 5 testes novos.
+- `src/lib/actions/impressao-zpl.ts` (novo): `solicitarImpressaoZpl`/`buscarStatusImpressaoZpl`, mesmo padrão de fila+polling de `etiquetas.ts`.
+- `/varejo/financeiro/divida-atacado`: botão novo "🧾 Imprimir na L42 (térmica)" ao lado do "Imprimir" (PDF/papel comum, que continua existindo) — mesmo polling de 15s usado na etiqueta/cupom.
+- `tsc`/lint/`vitest` (205 testes, 5 novos)/build confirmados limpos.
+- **Pendente do usuário**: rodar a migration (ensaio → aplicar) e, na Mac da loja, `git pull` + `launchctl kickstart -k gui/$(id -u)/com.trolesi.print-agent` pro print-agent pegar o código novo (`git pull` sozinho não reinicia o processo já rodando — já documentado como pegadinha recorrente no README do print-agent).
+
 ## 2026-11-13 (cont.) — Notinha baixável da dívida com o Atacado (`/varejo/financeiro/divida-atacado`)
 
 Pedido do usuário: "preciso gerar uma notinha baixável, para que eu possa exportar no whatsapp... sobre somente o que esta em aberto, e que tenha algum lugar para que coloque que ja foi pago". Botão "📄 Gerar notinha" na aba Dívidas do Controle Financeiro.
